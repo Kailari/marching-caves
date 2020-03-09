@@ -1,0 +1,31 @@
+plugins {
+    id 'java'
+    id 'jacoco'
+    id 'checkstyle'
+    id 'application'
+}
+
+repositories {
+    mavenCentral()
+}
+
+checkstyle {
+    configFile file('./config/checkstyle/checkstyle.xml')
+    toolVersion '8.29'
+}
+
+jacocoTestReport {
+    reports {
+        xml.enabled = true
+        html.enabled = true
+    }
+}
+
+application.mainClassName 'caves.Main'
+
+dependencies {
+    // FindBugs Annotations
+    implementation "com.google.code.findbugs:jsr305:3.0.2"
+}
+
+check.dependsOn jacocoTestReport
