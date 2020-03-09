@@ -2,6 +2,8 @@ package caves.window;
 
 import org.lwjgl.glfw.GLFWKeyCallback;
 
+import java.nio.ByteBuffer;
+
 import static caves.window.VKUtil.translateVulkanResult;
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.glfw.GLFWVulkan.*;
@@ -24,10 +26,11 @@ public final class Window implements AutoCloseable {
     /**
      * Initializes a GLFW window with a vulkan context.
      *
-     * @param width  initial width of the window
-     * @param height initial height of the window
+     * @param width            initial width of the window
+     * @param height           initial height of the window
+     * @param validationLayers enabled validation layers
      */
-    public Window(final int width, final int height) {
+    public Window(final int width, final int height, final ByteBuffer[] validationLayers) {
         if (!glfwInit()) {
             throw new IllegalStateException("Initializing GLFW failed.");
         }
@@ -42,10 +45,10 @@ public final class Window implements AutoCloseable {
 
         try (var stack = stackPush()) {
             // Initialize vulkan context
-            this.instance = new VulkanInstance(requiredExtensions);
+            this.instance = new VulkanInstance(requiredExtensions, validationLayers);
             this.debug = new VulkanDebug(this.instance);
-            this.physicalDevice = new PhysicalDevice();
-            this.deviceAndGraphicsQueueFamily = new DeviceAndGraphicsQueueFamily(this.physicalDevice);
+            this.physicalDevice = new PhysicalDevice(this.instance);
+            this.deviceAndGraphicsQueueFamily = new DeviceAndGraphicsQueueFamily(this.physicalDevice, validationLayers);
 
             // Initialize GLFW window
             glfwDefaultWindowHints();
@@ -89,5 +92,22 @@ public final class Window implements AutoCloseable {
         this.keyCallback.free();
         glfwDestroyWindow(this.windowHandle);
         glfwTerminate();
+    }
+
+    /**
+     * Tells the OS to show the window.
+     */
+    public void show() {
+        glfwShowWindow(this.windowHandle);
+    }
+
+    /**
+     * Queries the window if close has been requested.
+     *
+     * @return <code>true</code> if window has requested to be closed, <code>false</code>
+     *         otherwise
+     */
+    public boolean shouldClose() {
+        return glfwWindowShouldClose(this.windowHandle);
     }
 }

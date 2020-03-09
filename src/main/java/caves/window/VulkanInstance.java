@@ -16,30 +16,17 @@ import static org.lwjgl.vulkan.VK10.*;
 import static org.lwjgl.vulkan.VK11.VK_API_VERSION_1_1;
 
 public class VulkanInstance {
-    private static boolean debug = System.getProperty("NDEBUG") == null;
-
-    private static final ByteBuffer[] VALIDATION_LAYERS = {
-            memUTF8("VK_LAYER_LUNARG_standard_validation"),
-    };
-
-    /**
-     * Gets the underlying vulkan instance.
-     *
-     * @return the instance
-     */
-    public VkInstance getVkInstance() {
-        return vkInstance;
-    }
-
     private final VkInstance vkInstance;
 
     /**
      * Creates a new vulkan instance with sensible default settings.
      *
      * @param requiredExtensions extensions requested by the GLFW context
+     * @param validationLayers   enabled validation layers
      */
     public VulkanInstance(
-            final PointerBuffer requiredExtensions
+            final PointerBuffer requiredExtensions,
+            final ByteBuffer[] validationLayers
     ) {
         try (var stack = stackPush()) {
             final var appInfo = VkApplicationInfo.callocStack(stack)
@@ -54,9 +41,9 @@ public class VulkanInstance {
             ppEnabledExtensionNames.flip();
 
             // Construct list of enabled validation layers names
-            final var ppEnabledLayerNames = stack.mallocPointer(VALIDATION_LAYERS.length);
-            for (var i = 0; debug && i < VALIDATION_LAYERS.length; ++i) {
-                ppEnabledLayerNames.put(VALIDATION_LAYERS[i]);
+            final var ppEnabledLayerNames = stack.mallocPointer(validationLayers.length);
+            for (final ByteBuffer validationLayer : validationLayers) {
+                ppEnabledLayerNames.put(validationLayer);
             }
             ppEnabledLayerNames.flip();
 
@@ -83,5 +70,14 @@ public class VulkanInstance {
             memFree(appInfo.pApplicationName());
             memFree(appInfo.pEngineName());
         }
+    }
+
+    /**
+     * Gets the underlying vulkan instance.
+     *
+     * @return the instance
+     */
+    public VkInstance getVkInstance() {
+        return vkInstance;
     }
 }
