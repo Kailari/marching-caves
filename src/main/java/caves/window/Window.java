@@ -13,6 +13,7 @@ import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.system.MemoryUtil.NULL;
 import static org.lwjgl.system.MemoryUtil.memUTF8;
 import static org.lwjgl.vulkan.EXTDebugUtils.VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
+import static org.lwjgl.vulkan.KHRSurface.vkDestroySurfaceKHR;
 import static org.lwjgl.vulkan.VK10.VK_SUCCESS;
 
 /**
@@ -107,8 +108,9 @@ public final class Window implements AutoCloseable {
 
     @Override
     public void close() {
-        // Release resources in fields
+        // Release resources
         this.deviceContext.close();
+        vkDestroySurfaceKHR(this.instance.getVkInstance(), this.surfaceHandle, null);
 
         // Destroy the instance last as performing this renders the rest of the resources invalid
         this.instance.close();
