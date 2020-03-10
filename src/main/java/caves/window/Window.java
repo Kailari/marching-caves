@@ -20,8 +20,8 @@ import static org.lwjgl.vulkan.VK10.VK_SUCCESS;
  */
 public final class Window implements AutoCloseable {
     private final VulkanInstance instance;
-    private final PhysicalDevice physicalDevice;
-    private final DeviceAndGraphicsQueueFamily deviceAndGraphicsQueueFamily;
+    private final DeviceContext deviceContext;
+
     private final long windowHandle;
     private final GLFWKeyCallback keyCallback;
     private final long surfaceHandle;
@@ -42,13 +42,11 @@ public final class Window implements AutoCloseable {
         }
 
         try (var stack = stackPush()) {
-
             // Initialize vulkan context
             final var enableValidation = validationLayers.length > 0;
             final var extensions = getRequiredExtensions(stack, enableValidation);
             this.instance = new VulkanInstance(extensions, validationLayers, enableValidation);
-            this.physicalDevice = new PhysicalDevice(this.instance);
-            this.deviceAndGraphicsQueueFamily = new DeviceAndGraphicsQueueFamily(this.physicalDevice, validationLayers);
+            this.deviceContext = DeviceContext.getForInstance(this.instance);
 
             // Initialize GLFW window
             glfwDefaultWindowHints();
@@ -110,6 +108,9 @@ public final class Window implements AutoCloseable {
     @Override
     public void close() {
         // Release resources in fields
+        this.deviceContext.close();
+
+        // Destroy the instance last as performing this renders the rest of the resources invalid
         this.instance.close();
 
         // Release window resources
