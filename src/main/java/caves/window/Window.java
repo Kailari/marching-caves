@@ -1,5 +1,6 @@
 package caves.window;
 
+import caves.window.rendering.RenderingContext;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.glfw.GLFWKeyCallback;
 import org.lwjgl.system.MemoryStack;
@@ -14,6 +15,7 @@ import static org.lwjgl.system.MemoryUtil.NULL;
 import static org.lwjgl.system.MemoryUtil.memUTF8;
 import static org.lwjgl.vulkan.EXTDebugUtils.VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
 import static org.lwjgl.vulkan.KHRSurface.vkDestroySurfaceKHR;
+import static org.lwjgl.vulkan.KHRSwapchain.VK_KHR_SWAPCHAIN_EXTENSION_NAME;
 import static org.lwjgl.vulkan.VK10.VK_SUCCESS;
 
 /**
@@ -23,18 +25,11 @@ public final class Window implements AutoCloseable {
     private final VulkanInstance instance;
     private final DeviceContext deviceContext;
 
+    private final RenderingContext renderContext;
+
     private final long windowHandle;
     private final GLFWKeyCallback keyCallback;
     private final long surfaceHandle;
-
-    /**
-     * Gets the device context required for interfacing with the physical and the logical devices.
-     *
-     * @return device context wrapper containing the currently active physical and logical devices
-     */
-    public DeviceContext getDeviceContext() {
-        return deviceContext;
-    }
 
     /**
      * Initializes a GLFW window with a vulkan context.
@@ -54,8 +49,9 @@ public final class Window implements AutoCloseable {
         try (var stack = stackPush()) {
             // Initialize vulkan instance
             final var enableValidation = validationLayers.length > 0;
-            final var extensions = getRequiredExtensions(stack, enableValidation);
-            this.instance = new VulkanInstance(extensions, validationLayers, enableValidation);
+            this.instance = new VulkanInstance(getRequiredExtensions(stack, enableValidation),
+                                               validationLayers,
+                                               enableValidation);
 
             // Initialize GLFW window
             glfwDefaultWindowHints();
@@ -89,8 +85,27 @@ public final class Window implements AutoCloseable {
             this.surfaceHandle = pSurface.get();
 
             // Initialize physical and logical device context
-            this.deviceContext = DeviceContext.getForInstance(this.instance, this.surfaceHandle);
+            this.deviceContext = DeviceContext.getForInstance(this.instance,
+                                                              this.surfaceHandle,
+                                                              getDeviceExtensions());
+
+            this.renderContext = new RenderingContext();
         }
+    }
+
+    private static ByteBuffer[] getDeviceExtensions() {
+        return new ByteBuffer[]{
+                memUTF8(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
+        };
+    }
+
+    /**
+     * Gets the device context required for interfacing with the physical and the logical devices.
+     *
+     * @return device context wrapper containing the currently active physical and logical devices
+     */
+    public DeviceContext getDeviceContext() {
+        return deviceContext;
     }
 
     private PointerBuffer getRequiredExtensions(
