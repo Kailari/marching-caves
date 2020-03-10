@@ -4,6 +4,9 @@ import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
 
+import java.util.List;
+import java.util.TreeSet;
+
 import static caves.window.VKUtil.translateVulkanResult;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.vulkan.KHRSwapchain.VK_KHR_SWAPCHAIN_EXTENSION_NAME;
@@ -14,6 +17,34 @@ public final class DeviceAndQueueFamilies implements AutoCloseable {
     private final VkPhysicalDeviceMemoryProperties memoryProperties;
 
     private final int graphicsFamily;
+    private final int presentationFamily;
+
+    /**
+     * Gets the active logical device.
+     *
+     * @return the logical device
+     */
+    public VkDevice getDevice() {
+        return this.device;
+    }
+
+    /**
+     * Gets the stored graphics queue family index.
+     *
+     * @return the stored graphics queue family index
+     */
+    public int getGraphicsFamily() {
+        return graphicsFamily;
+    }
+
+    /**
+     * Gets the stored presentation queue family index.
+     *
+     * @return the stored presentation queue family index
+     */
+    public int getPresentationFamily() {
+        return presentationFamily;
+    }
 
     /**
      * Selects a suitable device and graphics queue family from the physical device.
@@ -47,8 +78,9 @@ public final class DeviceAndQueueFamilies implements AutoCloseable {
                                                 memoryProperties);
 
             this.device = new VkDevice(device, physicalDevice, deviceCreateInfo);
-            this.graphicsFamily = indices.getGraphicsFamily();
             this.memoryProperties = memoryProperties;
+            this.graphicsFamily = indices.getGraphicsFamily();
+            this.presentationFamily = indices.getPresentationFamily();
         }
     }
 
@@ -84,13 +116,23 @@ public final class DeviceAndQueueFamilies implements AutoCloseable {
             final MemoryStack stack,
             final QueueIndices indices
     ) {
-        final var pQueuePriorities = stack.mallocFloat(1).put(0.0f);
+        final var uniqueIndices = new TreeSet<>(List.of(indices.getGraphicsFamily(),
+                                                        indices.getPresentationFamily()));
+
+        final var pQueuePriorities = stack.mallocFloat(1);
+        pQueuePriorities.put(1.0f);
         pQueuePriorities.flip();
-        return VkDeviceQueueCreateInfo
-                .callocStack(1, stack)
-                .sType(VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO)
-                .queueFamilyIndex(indices.getGraphicsFamily())
-                .pQueuePriorities(pQueuePriorities);
+        final var deviceQueueCreateInfos = VkDeviceQueueCreateInfo.callocStack(uniqueIndices.size(), stack);
+        var i = 0;
+        for (var queueFamilyIndex : uniqueIndices) {
+            deviceQueueCreateInfos.get(i)
+                                  .sType(VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO)
+                                  .queueFamilyIndex(queueFamilyIndex)
+                                  .pQueuePriorities(pQueuePriorities);
+            i++;
+        }
+
+        return deviceQueueCreateInfos;
     }
 
     @Override

@@ -2,10 +2,7 @@ package caves.window;
 
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
-import org.lwjgl.vulkan.VkInstance;
-import org.lwjgl.vulkan.VkPhysicalDevice;
-import org.lwjgl.vulkan.VkPhysicalDeviceFeatures;
-import org.lwjgl.vulkan.VkPhysicalDeviceProperties;
+import org.lwjgl.vulkan.*;
 
 import java.nio.IntBuffer;
 
@@ -16,6 +13,28 @@ import static org.lwjgl.vulkan.VK10.*;
 public final class DeviceContext implements AutoCloseable {
     private final VkPhysicalDevice physicalDevice;
     private final DeviceAndQueueFamilies deviceAndQueueFamilies;
+
+    public VkDevice getDevice() {
+        return this.deviceAndQueueFamilies.getDevice();
+    }
+
+    /**
+     * Gets the graphics queue family index.
+     *
+     * @return the stored graphics queue family index
+     */
+    public int getGraphicsQueueFamilyIndex() {
+        return this.deviceAndQueueFamilies.getGraphicsFamily();
+    }
+
+    /**
+     * Gets the presentation queue family index.
+     *
+     * @return the stored presentation queue family index
+     */
+    public int getPresentationQueueFamilyIndex() {
+        return this.deviceAndQueueFamilies.getGraphicsFamily();
+    }
 
     private DeviceContext(
             final VkPhysicalDevice physicalDevice,
@@ -29,14 +48,18 @@ public final class DeviceContext implements AutoCloseable {
      * Selects a new physical device and creates context for it using the given Vulkan instance.
      *
      * @param instance instance to select the device for
+     * @param surface  window surface to use
      *
      * @return device context for the given vulkan instance
      */
-    public static DeviceContext getForInstance(final VulkanInstance instance) {
+    public static DeviceContext getForInstance(
+            final VulkanInstance instance,
+            final long surface
+    ) {
         try (var stack = stackPush()) {
             final var pPhysicalDeviceCount = getPhysicalDeviceCount(instance, stack);
             final var pPhysicalDevices = getPhysicalDevices(instance, stack, pPhysicalDeviceCount);
-            return createContext(stack, pPhysicalDevices, instance.getVkInstance());
+            return createContext(stack, pPhysicalDevices, instance.getVkInstance(), surface);
         }
     }
 
@@ -73,7 +96,8 @@ public final class DeviceContext implements AutoCloseable {
     private static DeviceContext createContext(
             final MemoryStack stack,
             final PointerBuffer pPhysicalDevices,
-            final VkInstance instance
+            final VkInstance instance,
+            final long surface
     ) {
         // Just naively select the first suitable device
         // TODO: Sort by device suitability and select most suitable
@@ -82,7 +106,7 @@ public final class DeviceContext implements AutoCloseable {
         while (pPhysicalDevices.hasRemaining()) {
             final var device = new VkPhysicalDevice(pPhysicalDevices.get(), instance);
 
-            indices = new QueueIndices(stack, device);
+            indices = new QueueIndices(stack, surface, device);
             if (isSuitableDevice(stack, device, indices)) {
                 selected = device;
                 break;

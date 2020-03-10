@@ -28,6 +28,15 @@ public final class Window implements AutoCloseable {
     private final long surfaceHandle;
 
     /**
+     * Gets the device context required for interfacing with the physical and the logical devices.
+     *
+     * @return device context wrapper containing the currently active physical and logical devices
+     */
+    public DeviceContext getDeviceContext() {
+        return deviceContext;
+    }
+
+    /**
      * Initializes a GLFW window with a vulkan context.
      *
      * @param width            initial width of the window
@@ -43,11 +52,10 @@ public final class Window implements AutoCloseable {
         }
 
         try (var stack = stackPush()) {
-            // Initialize vulkan context
+            // Initialize vulkan instance
             final var enableValidation = validationLayers.length > 0;
             final var extensions = getRequiredExtensions(stack, enableValidation);
             this.instance = new VulkanInstance(extensions, validationLayers, enableValidation);
-            this.deviceContext = DeviceContext.getForInstance(this.instance);
 
             // Initialize GLFW window
             glfwDefaultWindowHints();
@@ -79,6 +87,9 @@ public final class Window implements AutoCloseable {
                 throw new IllegalStateException("Creating window surface failed: " + translateVulkanResult(error));
             }
             this.surfaceHandle = pSurface.get();
+
+            // Initialize physical and logical device context
+            this.deviceContext = DeviceContext.getForInstance(this.instance, this.surfaceHandle);
         }
     }
 
