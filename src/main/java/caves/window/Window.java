@@ -1,6 +1,8 @@
 package caves.window;
 
+import org.lwjgl.PointerBuffer;
 import org.lwjgl.glfw.GLFWKeyCallback;
+import org.lwjgl.system.MemoryStack;
 
 import java.nio.ByteBuffer;
 
@@ -9,6 +11,8 @@ import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.glfw.GLFWVulkan.*;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.system.MemoryUtil.NULL;
+import static org.lwjgl.system.MemoryUtil.memUTF8;
+import static org.lwjgl.vulkan.EXTDebugUtils.VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
 import static org.lwjgl.vulkan.VK10.VK_SUCCESS;
 
 /**
@@ -16,7 +20,6 @@ import static org.lwjgl.vulkan.VK10.VK_SUCCESS;
  */
 public final class Window implements AutoCloseable {
     private final VulkanInstance instance;
-    private final VulkanDebug debug;
     private final PhysicalDevice physicalDevice;
     private final DeviceAndGraphicsQueueFamily deviceAndGraphicsQueueFamily;
     private final long windowHandle;
@@ -38,15 +41,12 @@ public final class Window implements AutoCloseable {
             throw new IllegalStateException("GLFW could not find Vulkan loader.");
         }
 
-        final var requiredExtensions = glfwGetRequiredInstanceExtensions();
-        if (requiredExtensions == null) {
-            throw new IllegalStateException("Failed to find list of required Vulkan extensions!");
-        }
-
         try (var stack = stackPush()) {
+
             // Initialize vulkan context
-            this.instance = new VulkanInstance(requiredExtensions, validationLayers);
-            this.debug = new VulkanDebug(this.instance);
+            final var enableValidation = validationLayers.length > 0;
+            final var extensions = getRequiredExtensions(stack, enableValidation);
+            this.instance = new VulkanInstance(extensions, validationLayers, enableValidation);
             this.physicalDevice = new PhysicalDevice(this.instance);
             this.deviceAndGraphicsQueueFamily = new DeviceAndGraphicsQueueFamily(this.physicalDevice, validationLayers);
 
@@ -83,10 +83,34 @@ public final class Window implements AutoCloseable {
         }
     }
 
+    private PointerBuffer getRequiredExtensions(
+            final MemoryStack stack,
+            final boolean enableValidation
+    ) {
+        final var requiredExtensions = glfwGetRequiredInstanceExtensions();
+        if (requiredExtensions == null) {
+            throw new IllegalStateException("Failed to find list of required Vulkan extensions!");
+        }
+        final ByteBuffer[] additionalExtensions = enableValidation
+                ? new ByteBuffer[]
+                {
+                        memUTF8(VK_EXT_DEBUG_UTILS_EXTENSION_NAME),
+                }
+                : new ByteBuffer[0];
+
+        final var allExtensions = stack.mallocPointer(requiredExtensions.remaining() + additionalExtensions.length);
+        allExtensions.put(requiredExtensions);
+        for (final ByteBuffer extension : additionalExtensions) {
+            allExtensions.put(extension);
+        }
+        allExtensions.flip();
+        return allExtensions;
+    }
+
     @Override
     public void close() {
         // Release resources in fields
-        this.debug.close();
+        this.instance.close();
 
         // Release window resources
         this.keyCallback.free();

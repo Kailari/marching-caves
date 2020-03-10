@@ -1,3 +1,5 @@
 .gradle/
 build/
 target/
+
+hs_err_pid*.log
