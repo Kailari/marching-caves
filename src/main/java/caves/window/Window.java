@@ -38,12 +38,21 @@ public final class Window implements AutoCloseable {
     }
 
     /**
+     * Gets the required rendering context for issuing rendering commands.
+     *
+     * @return rendering context wrapper
+     */
+    public RenderingContext getRenderContext() {
+        return this.renderContext;
+    }
+
+    /**
      * Gets the device context required for interfacing with the physical and the logical devices.
      *
      * @return device context wrapper containing the currently active physical and logical devices
      */
     public DeviceContext getDeviceContext() {
-        return deviceContext;
+        return this.deviceContext;
     }
 
     /**

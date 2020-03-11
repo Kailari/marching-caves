@@ -1,9 +1,8 @@
 package caves.window.rendering;
 
 import caves.window.DeviceContext;
+import org.lwjgl.PointerBuffer;
 import org.lwjgl.vulkan.*;
-
-import java.util.Arrays;
 
 import static caves.window.VKUtil.translateVulkanResult;
 import static org.lwjgl.system.MemoryStack.stackPush;
@@ -17,20 +16,17 @@ public final class CommandBuffers implements AutoCloseable {
     public static final int G = 1;
     public static final int R = 0;
     private final VkDevice device;
-    private final long surface;
 
     private final long commandPool;
     private final VkCommandBuffer[] commandBuffers;
 
     public CommandBuffers(
             final DeviceContext deviceContext,
-            final long surface,
             final SwapChain swapChain,
             final Framebuffers framebuffers,
             final GraphicsPipeline graphicsPipeline
     ) {
         this.device = deviceContext.getDevice();
-        this.surface = surface;
 
         this.commandPool = createGraphicsCommandPool(deviceContext);
         this.commandBuffers = allocateCommandBuffers(deviceContext, swapChain, this.commandPool);
@@ -134,5 +130,9 @@ public final class CommandBuffers implements AutoCloseable {
     @Override
     public void close() {
         vkDestroyCommandPool(this.device, this.commandPool, null);
+    }
+
+    public VkCommandBuffer getBufferForImage(final int imageIndex) {
+        return this.commandBuffers[imageIndex];
     }
 }

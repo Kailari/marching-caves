@@ -283,14 +283,25 @@ public final class GraphicsPipeline implements AutoCloseable {
                  .colorAttachmentCount(1)
                  .pColorAttachments(colorAttachmentRefs);
 
-        final var pCreateInfo = VkRenderPassCreateInfo
+        final var dependencies = VkSubpassDependency.callocStack(1, stack);
+        dependencies.get(0)
+                  .srcSubpass(VK_SUBPASS_EXTERNAL)
+                  .dstSubpass(0)
+                  .srcStageMask(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT)
+                  .srcAccessMask(0)
+                  .dstStageMask(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT)
+                  .dstAccessMask(VK_ACCESS_COLOR_ATTACHMENT_READ_BIT
+                                         | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+
+        final var renderPassInfo = VkRenderPassCreateInfo
                 .callocStack(stack)
                 .sType(VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO)
                 .pAttachments(attachments)
-                .pSubpasses(subpasses);
+                .pSubpasses(subpasses)
+                .pDependencies(dependencies);
 
         final var pRenderPass = stack.mallocLong(1);
-        final var error = vkCreateRenderPass(this.device, pCreateInfo, null, pRenderPass);
+        final var error = vkCreateRenderPass(this.device, renderPassInfo, null, pRenderPass);
         if (error != VK_SUCCESS) {
             throw new IllegalStateException("Creating render pass failed: "
                                                     + translateVulkanResult(error));

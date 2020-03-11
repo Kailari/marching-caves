@@ -22,6 +22,15 @@ public final class SwapChain implements AutoCloseable {
     private int imageFormat;
 
     /**
+     * Returns the swapchain handle.
+     *
+     * @return the swapchain handle
+     */
+    public long getHandle() {
+        return this.swapchain;
+    }
+
+    /**
      * Gets the image extent of this swapchain.
      *
      * @return the extent

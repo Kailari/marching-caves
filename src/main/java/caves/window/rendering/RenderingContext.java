@@ -1,6 +1,7 @@
 package caves.window.rendering;
 
 import caves.window.DeviceContext;
+import org.lwjgl.vulkan.VkCommandBuffer;
 
 import static org.lwjgl.vulkan.VK10.vkDeviceWaitIdle;
 
@@ -11,8 +12,7 @@ public final class RenderingContext implements AutoCloseable {
     private final GraphicsPipeline graphicsPipeline;
     private final Framebuffers framebuffers;
     private final CommandBuffers commandBuffers;
-
-    private boolean mustRecreateSwapChain;
+    private boolean mustRecreateSwapChain = false;
 
     /**
      * Initializes the required context for rendering on the screen.
@@ -33,7 +33,11 @@ public final class RenderingContext implements AutoCloseable {
         this.swapChain = new SwapChain(deviceContext, surface, windowWidth, windowHeight);
         this.graphicsPipeline = new GraphicsPipeline(deviceContext.getDevice(), this.swapChain);
         this.framebuffers = new Framebuffers(deviceContext.getDevice(), this.graphicsPipeline, this.swapChain);
-        this.commandBuffers = new CommandBuffers(deviceContext, surface, this.swapChain, this.framebuffers, this.graphicsPipeline);
+        this.commandBuffers = new CommandBuffers(deviceContext, this.swapChain, this.framebuffers, this.graphicsPipeline);
+    }
+
+    public VkCommandBuffer getCommandBufferForImage(final int imageIndex) {
+        return this.commandBuffers.getBufferForImage(imageIndex);
     }
 
     /**
