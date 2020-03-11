@@ -12,6 +12,16 @@ public final class Framebuffers implements AutoCloseable {
     private final long[] swapChainFramebuffers;
 
     /**
+     * Gets the swapchain image framebuffers. Buffer with index <code>i</code> corresponds directly
+     * to swapchain image view with index <code>i</code>
+     *
+     * @return the framebuffers
+     */
+    public long[] getSwapChainFramebuffers() {
+        return this.swapChainFramebuffers;
+    }
+
+    /**
      * Creates framebuffers for the swapchain. Each swapchain image gets its own attached
      * framebuffer.
      *

@@ -33,7 +33,7 @@ public final class RenderingContext implements AutoCloseable {
         this.swapChain = new SwapChain(deviceContext, surface, windowWidth, windowHeight);
         this.graphicsPipeline = new GraphicsPipeline(deviceContext.getDevice(), this.swapChain);
         this.framebuffers = new Framebuffers(deviceContext.getDevice(), this.graphicsPipeline, this.swapChain);
-        this.commandBuffers = new CommandBuffers();
+        this.commandBuffers = new CommandBuffers(deviceContext, surface, this.swapChain, this.framebuffers, this.graphicsPipeline);
     }
 
     /**
@@ -68,8 +68,9 @@ public final class RenderingContext implements AutoCloseable {
 
     @Override
     public void close() {
-        this.graphicsPipeline.close();
+        this.commandBuffers.close();
         this.framebuffers.close();
+        this.graphicsPipeline.close();
         this.swapChain.close();
     }
 }

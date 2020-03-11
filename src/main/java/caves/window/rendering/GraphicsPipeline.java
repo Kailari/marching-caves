@@ -28,6 +28,15 @@ public final class GraphicsPipeline implements AutoCloseable {
     }
 
     /**
+     * Gets the pipeline handle.
+     *
+     * @return the pipeline handle
+     */
+    public long getGraphicsPipeline() {
+        return this.pipeline;
+    }
+
+    /**
      * Creates a new graphics pipeline.
      *
      * @param device    logical device to use
