@@ -19,6 +19,15 @@ public final class GraphicsPipeline implements AutoCloseable {
     private final long renderPass;
 
     /**
+     * Gets the render pass.
+     *
+     * @return the render pass
+     */
+    public long getRenderPass() {
+        return this.renderPass;
+    }
+
+    /**
      * Creates a new graphics pipeline.
      *
      * @param device    logical device to use
@@ -143,7 +152,7 @@ public final class GraphicsPipeline implements AutoCloseable {
         return VkPipelineMultisampleStateCreateInfo
                 .callocStack(stack)
                 .sType(VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO)
-                .sampleShadingEnable(true)
+                .sampleShadingEnable(false)
                 .rasterizationSamples(VK_SAMPLE_COUNT_1_BIT)
                 .minSampleShading(1.0f)
                 .pSampleMask(null)

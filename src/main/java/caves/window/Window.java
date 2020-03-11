@@ -97,7 +97,7 @@ public final class Window implements AutoCloseable {
             if (error != VK_SUCCESS) {
                 throw new IllegalStateException("Creating window surface failed: " + translateVulkanResult(error));
             }
-            this.surfaceHandle = pSurface.get();
+            this.surfaceHandle = pSurface.get(0);
 
             // Initialize physical and logical device context
             this.deviceContext = DeviceContext.getForInstance(this.instance,

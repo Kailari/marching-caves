@@ -154,7 +154,7 @@ public final class DeviceContext implements AutoCloseable {
         final var extensionsSupported = checkDeviceExtensionSupport(stack, device, requiredExtensions);
         var swapChainAdequate = false;
         if (extensionsSupported) {
-            final var swapChainSupport = SwapChainSupportDetails.querySupport(stack, device, surface);
+            final var swapChainSupport = SwapChainSupportDetails.querySupport(device, surface);
             swapChainAdequate = !swapChainSupport.getSurfaceFormats().isEmpty()
                     && !swapChainSupport.getPresentModes().isEmpty();
         }

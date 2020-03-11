@@ -14,12 +14,11 @@ import static org.lwjgl.vulkan.VK10.*;
 
 public final class SwapChain implements AutoCloseable {
     private final DeviceContext deviceContext;
+    private final VkExtent2D extent;
     private final long surface;
 
     private long swapchain;
-    private long[] images = new long[0];
     private long[] imageViews = new long[0];
-    private VkExtent2D extent;
     private int imageFormat;
 
     /**
@@ -41,6 +40,15 @@ public final class SwapChain implements AutoCloseable {
     }
 
     /**
+     * Gets image views for swapchain images.
+     *
+     * @return the swapchain image views
+     */
+    public long[] getImageViews() {
+        return this.imageViews;
+    }
+
+    /**
      * Creates a new swapchain for the given device.
      *
      * @param deviceContext device context information to use for creating the swapchain
@@ -57,18 +65,19 @@ public final class SwapChain implements AutoCloseable {
         this.deviceContext = deviceContext;
         this.surface = surface;
         this.swapchain = VK_NULL_HANDLE;
+        this.extent = VkExtent2D.malloc();
 
         this.recreate(windowWidth, windowHeight);
     }
 
     private static VkSwapchainCreateInfoKHR createSwapChainCreateInfo(
-            final MemoryStack stack, final DeviceContext deviceContext,
+            final MemoryStack stack,
+            final DeviceContext deviceContext,
             final long surface,
             final int windowWidth,
             final int windowHeight
     ) {
-        final var swapChainSupport = SwapChainSupportDetails.querySupport(stack,
-                                                                          deviceContext.getPhysicalDevice(),
+        final var swapChainSupport = SwapChainSupportDetails.querySupport(deviceContext.getPhysicalDevice(),
                                                                           surface);
 
         final var surfaceFormat = chooseSurfaceFormat(swapChainSupport.getSurfaceFormats());
@@ -109,7 +118,7 @@ public final class SwapChain implements AutoCloseable {
     }
 
     private static VkSurfaceFormatKHR chooseSurfaceFormat(final List<VkSurfaceFormatKHR> availableFormats) {
-        for (var format : availableFormats) {
+        for (final var format : availableFormats) {
             final var hasDesiredFormat = format.format() == VK_FORMAT_B8G8R8_SRGB;
             final var hasDesiredColorSpace = format.colorSpace() == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
             if (hasDesiredFormat && hasDesiredColorSpace) {
@@ -123,7 +132,7 @@ public final class SwapChain implements AutoCloseable {
 
     private static int choosePresentMode(final List<Integer> availablePresentModes) {
         // Use "triple buffering", if available
-        for (var presentMode : availablePresentModes) {
+        for (final var presentMode : availablePresentModes) {
             if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
                 return presentMode;
             }
@@ -139,18 +148,20 @@ public final class SwapChain implements AutoCloseable {
             final int windowWidth,
             final int windowHeight
     ) {
-        // By the spec, window managers can set the width/height to uint32_t max value to indicate
-        // that there are constraints on the extent min/max size.
-        if (capabilities.currentExtent().width() != 0xFFFFFFFF /* uint32_t MAX */) {
+        // By the spec, window managers can set the width/height to uint32_t max value (or -1 as we
+        // do not have unsigned types) to indicate that there are constraints on the extent size.
+        final int currentWidth = capabilities.currentExtent().width();
+        final int currentHeight = capabilities.currentExtent().height();
+        if (currentWidth != -1 && currentHeight != -1) {
             return capabilities.currentExtent();
         }
 
         return VkExtent2D.callocStack(stack)
-                         .width(Math.min(capabilities.minImageExtent().width(),
-                                         Math.max(capabilities.maxImageExtent().width(),
+                         .width(Math.max(capabilities.minImageExtent().width(),
+                                         Math.min(capabilities.maxImageExtent().width(),
                                                   windowWidth)))
-                         .height(Math.min(capabilities.minImageExtent().height(),
-                                          Math.max(capabilities.maxImageExtent().height(),
+                         .height(Math.max(capabilities.minImageExtent().height(),
+                                          Math.min(capabilities.maxImageExtent().height(),
                                                    windowHeight)));
     }
 
@@ -193,7 +204,7 @@ public final class SwapChain implements AutoCloseable {
             cleanup();
             this.swapchain = pSwapChain.get(0);
             this.imageFormat = createInfo.imageFormat();
-            this.extent = createInfo.imageExtent();
+            this.extent.set(createInfo.imageExtent()); // NOTE: createInfo is on stack --> copy
         }
 
         try (var stack = stackPush()) {
@@ -217,15 +228,15 @@ public final class SwapChain implements AutoCloseable {
                                                         + translateVulkanResult(error));
             }
 
-            this.images = new long[imageCount.get(0)];
+            final long[] images = new long[imageCount.get(0)];
             this.imageViews = new long[imageCount.get(0)];
-            pSwapchainImages.get(this.images);
+            pSwapchainImages.get(images);
 
             for (var i = 0; i < imageCount.get(0); ++i) {
                 final var imgvCreateInfo = VkImageViewCreateInfo
                         .callocStack(stack)
                         .sType(VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO)
-                        .image(this.images[i])
+                        .image(images[i])
                         .viewType(VK_IMAGE_VIEW_TYPE_2D)
                         .format(this.imageFormat);
                 imgvCreateInfo.components()
@@ -267,7 +278,7 @@ public final class SwapChain implements AutoCloseable {
     }
 
     private void cleanupImageViews() {
-        for (var imageView : this.imageViews) {
+        for (final var imageView : this.imageViews) {
             vkDestroyImageView(this.deviceContext.getDevice(), imageView, null);
         }
     }

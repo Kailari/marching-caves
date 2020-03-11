@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.lwjgl.system.MemoryStack.stackPush;
+import static org.lwjgl.system.MemoryUtil.memAllocInt;
 import static org.lwjgl.vulkan.KHRSurface.*;
 
 public final class SwapChainSupportDetails implements AutoCloseable {
@@ -54,15 +56,24 @@ public final class SwapChainSupportDetails implements AutoCloseable {
         this.presentModes = presentModes;
     }
 
+    /**
+     * Queries the device for swapchain support details.
+     *
+     * @param device  device the query
+     * @param surface surface to be used
+     *
+     * @return details on swapchain features and limits
+     */
     public static SwapChainSupportDetails querySupport(
-            final MemoryStack stack,
             final VkPhysicalDevice device,
             final long surface
     ) {
-        final var pSurfaceCapabilities = getSurfaceCapabilities(device, surface);
-        final var surfaceFormats = getSurfaceFormats(stack, device, surface);
-        final var presentModes = getPresentModes(stack, device, surface);
-        return new SwapChainSupportDetails(pSurfaceCapabilities, surfaceFormats, presentModes);
+        try (var stack = stackPush()) {
+            final var pSurfaceCapabilities = getSurfaceCapabilities(device, surface);
+            final var surfaceFormats = getSurfaceFormats(stack, device, surface);
+            final var presentModes = getPresentModes(stack, device, surface);
+            return new SwapChainSupportDetails(pSurfaceCapabilities, surfaceFormats, presentModes);
+        }
     }
 
     private static List<Integer> getPresentModes(
@@ -73,7 +84,7 @@ public final class SwapChainSupportDetails implements AutoCloseable {
         final var presentModeCount = stack.mallocInt(1);
         vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, presentModeCount, null);
 
-        final var presentModeBuffer = stack.mallocInt(presentModeCount.get(0));
+        final var presentModeBuffer = memAllocInt(presentModeCount.get(0));
         vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, presentModeCount, presentModeBuffer);
         return IntStream.range(0, presentModeCount.get(0))
                         .mapToObj(presentModeBuffer::get)
@@ -90,7 +101,7 @@ public final class SwapChainSupportDetails implements AutoCloseable {
 
         final List<VkSurfaceFormatKHR> surfaceFormats;
         if (formatCount.get(0) > 0) {
-            final var surfaceFormatBuffer = VkSurfaceFormatKHR.callocStack(formatCount.get(0), stack);
+            final var surfaceFormatBuffer = VkSurfaceFormatKHR.calloc(formatCount.get(0));
             vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, formatCount, surfaceFormatBuffer);
 
             surfaceFormats = surfaceFormatBuffer.stream().collect(Collectors.toList());
@@ -110,7 +121,10 @@ public final class SwapChainSupportDetails implements AutoCloseable {
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
         this.surfaceCapabilities.close();
+        for (final var format : this.surfaceFormats) {
+            format.close();
+        }
     }
 }
