@@ -1,5 +1,22 @@
 package caves.window;
 
+import org.lwjgl.BufferUtils;
+import org.lwjgl.system.MemoryStack;
+import org.lwjgl.util.shaderc.ShadercIncludeResolve;
+import org.lwjgl.util.shaderc.ShadercIncludeResult;
+import org.lwjgl.util.shaderc.ShadercIncludeResultRelease;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+
+import static org.lwjgl.BufferUtils.createByteBuffer;
+import static org.lwjgl.system.MemoryUtil.memFree;
+import static org.lwjgl.system.MemoryUtil.memUTF8;
+import static org.lwjgl.util.shaderc.Shaderc.*;
 import static org.lwjgl.vulkan.EXTDebugReport.VK_ERROR_VALIDATION_FAILED_EXT;
 import static org.lwjgl.vulkan.KHRDisplaySwapchain.VK_ERROR_INCOMPATIBLE_DISPLAY_KHR;
 import static org.lwjgl.vulkan.KHRSurface.VK_ERROR_NATIVE_WINDOW_IN_USE_KHR;
@@ -83,5 +100,114 @@ public final class VKUtil {
             default:
                 return String.format("%s [%d]", "Unknown", result);
         }
+    }
+
+    // TODO: Cleanup
+    public static ByteBuffer glslToSpirv(
+            final String classPath,
+            final int vulkanStage
+    ) throws IOException {
+        final ByteBuffer src = ioResourceToByteBuffer(classPath, 1024);
+        final long compiler = shaderc_compiler_initialize();
+        final long options = shaderc_compile_options_initialize();
+
+        shaderc_compile_options_set_optimization_level(options, shaderc_optimization_level_performance);
+        final ShadercIncludeResolve resolver = new ShadercIncludeResolve() {
+            public long invoke(
+                    final long userData,
+                    final long requestedSource,
+                    final int type,
+                    final long requestingSource,
+                    final long includeDepth
+            ) {
+                final ShadercIncludeResult res = ShadercIncludeResult.calloc();
+                try {
+                    final String src = classPath.substring(0, classPath.lastIndexOf('/')) + "/" + memUTF8(requestedSource);
+                    res.content(ioResourceToByteBuffer(src, 1024));
+                    res.source_name(memUTF8(src));
+                    return res.address();
+                } catch (final IOException e) {
+                    throw new AssertionError("Failed to resolve include: " + src);
+                }
+            }
+        };
+        final ShadercIncludeResultRelease releaser = new ShadercIncludeResultRelease() {
+            public void invoke(final long userData, final long includeResult) {
+                final ShadercIncludeResult result = ShadercIncludeResult.create(includeResult);
+                memFree(result.source_name());
+                result.free();
+            }
+        };
+
+        shaderc_compile_options_set_include_callbacks(options, resolver, releaser, 0L);
+        final long res;
+        try (var stack = MemoryStack.stackPush()) {
+            res = shaderc_compile_into_spv(compiler, src, vulkanStageToShadercKind(vulkanStage),
+                                           stack.UTF8(classPath), stack.UTF8("main"), options);
+            if (res == 0L)
+                throw new AssertionError("Internal error during compilation!");
+        }
+        if (shaderc_result_get_compilation_status(res) != shaderc_compilation_status_success) {
+            throw new AssertionError("Shader compilation failed: " + shaderc_result_get_error_message(res));
+        }
+        final int size = (int) shaderc_result_get_length(res);
+        final ByteBuffer resultBytes = createByteBuffer(size);
+        resultBytes.put(shaderc_result_get_bytes(res));
+        resultBytes.flip();
+        shaderc_compiler_release(res);
+        shaderc_compiler_release(compiler);
+        releaser.free();
+        resolver.free();
+        return resultBytes;
+    }
+
+    // TODO: Cleanup
+    public static ByteBuffer ioResourceToByteBuffer(
+            final String resource,
+            final int bufferSize
+    ) throws IOException {
+        ByteBuffer buffer;
+        final var url = Thread.currentThread().getContextClassLoader().getResource(resource);
+        if (url == null) {
+            throw new IOException("Classpath resource not found: " + resource);
+        }
+        final var file = new File(url.getFile());
+        if (file.isFile()) {
+            try (var fileInputStream = new FileInputStream(file);
+                 var fileChannel = fileInputStream.getChannel()
+            ) {
+                buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, 0, fileChannel.size());
+            }
+        } else {
+            buffer = BufferUtils.createByteBuffer(bufferSize);
+            try (var source = url.openStream()) {
+                if (source == null) {
+                    throw new FileNotFoundException(resource);
+                }
+
+                final byte[] buf = new byte[8192];
+                while (true) {
+                    final int bytes = source.read(buf, 0, buf.length);
+                    if (bytes == -1) {
+                        break;
+                    }
+                    if (buffer.remaining() < bytes) {
+                        buffer = resizeBuffer(buffer,
+                                              Math.max(buffer.capacity() * 2,
+                                                       buffer.capacity() - buffer.remaining() + bytes));
+                    }
+                    buffer.put(buf, 0, bytes);
+                }
+                buffer.flip();
+            }
+        }
+        return buffer;
+    }
+
+    private static ByteBuffer resizeBuffer(final ByteBuffer buffer, final int newCapacity) {
+        final ByteBuffer newBuffer = BufferUtils.createByteBuffer(newCapacity);
+        buffer.flip();
+        newBuffer.put(buffer);
+        return newBuffer;
     }
 }

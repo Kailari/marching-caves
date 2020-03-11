@@ -37,8 +37,8 @@ switch (OperatingSystem.current()) {
         break
 }
 
-def final implementationModules = ['', '-glfw', '-stb', '-vulkan']
-def final runtimeModules = ['', '-glfw', '-stb']
+def final implementationModules = ['', '-glfw', '-stb', '-vulkan', '-shaderc']
+def final runtimeModules = ['', '-glfw', '-stb', '-shaderc']
 
 dependencies {
     // JUnit 5
