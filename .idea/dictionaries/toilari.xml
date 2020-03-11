@@ -2,6 +2,13 @@
   <dictionary name="toilari">
     <words>
       <w>infos</w>
+      <w>multisample</w>
+      <w>rasterization</w>
+      <w>rasterizer</w>
+      <w>releaser</w>
+      <w>shaders</w>
+      <w>spir</w>
+      <w>subpasses</w>
     </words>
   </dictionary>
 </component>

@@ -23,6 +23,24 @@ public final class SwapChain implements AutoCloseable {
     private int imageFormat;
 
     /**
+     * Gets the image extent of this swapchain.
+     *
+     * @return the extent
+     */
+    public VkExtent2D getExtent() {
+        return this.extent;
+    }
+
+    /**
+     * Gets the image format in use on this swapchain.
+     *
+     * @return the active image format
+     */
+    public int getImageFormat() {
+        return this.imageFormat;
+    }
+
+    /**
      * Creates a new swapchain for the given device.
      *
      * @param deviceContext device context information to use for creating the swapchain
