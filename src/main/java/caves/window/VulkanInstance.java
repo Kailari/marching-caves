@@ -52,7 +52,7 @@ public final class VulkanInstance implements AutoCloseable {
             final MemoryStack stack,
             final VkInstance instance
     ) {
-        final var pCreateInfo = createDebugMessengerCreateInfo(stack);
+        final var pCreateInfo = createDebugMessengerCreateInfo();
         final var pMessenger = stack.mallocLong(1);
         final var error = vkCreateDebugUtilsMessengerEXT(instance, pCreateInfo, null, pMessenger);
         if (error != VK_SUCCESS) {
@@ -63,9 +63,9 @@ public final class VulkanInstance implements AutoCloseable {
         return pMessenger.get(0);
     }
 
-    private static VkDebugUtilsMessengerCreateInfoEXT createDebugMessengerCreateInfo(final MemoryStack stack) {
+    private static VkDebugUtilsMessengerCreateInfoEXT createDebugMessengerCreateInfo() {
         return VkDebugUtilsMessengerCreateInfoEXT
-                .callocStack(stack)
+                .calloc()
                 .sType(VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT)
                 .messageSeverity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
                                          | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
@@ -114,7 +114,7 @@ public final class VulkanInstance implements AutoCloseable {
                 ppEnabledLayerNames.put(validationLayer);
             }
             ppEnabledLayerNames.flip();
-            next = createDebugMessengerCreateInfo(stack).address();
+            next = createDebugMessengerCreateInfo().address();
         } else {
             ppEnabledLayerNames = stack.mallocPointer(0);
             next = NULL;
@@ -144,9 +144,11 @@ public final class VulkanInstance implements AutoCloseable {
         vkEnumerateInstanceLayerProperties(pLayerCount, layerPropertiesBuffer);
 
         for (var layerName : validationLayers) {
+            layerName.mark();
             final var layerNameString = StandardCharsets.UTF_8.decode(layerName)
                                                               .toString()
                                                               .trim(); // HACK: .trim removes null-terminators etc.
+            layerName.reset();
 
             var found = false;
             for (var layerProperties : layerPropertiesBuffer) {

@@ -31,6 +31,21 @@ public final class Window implements AutoCloseable {
     private final GLFWKeyCallback keyCallback;
     private final long surfaceHandle;
 
+    private static ByteBuffer[] getDeviceExtensions() {
+        return new ByteBuffer[]{
+                memUTF8(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
+        };
+    }
+
+    /**
+     * Gets the device context required for interfacing with the physical and the logical devices.
+     *
+     * @return device context wrapper containing the currently active physical and logical devices
+     */
+    public DeviceContext getDeviceContext() {
+        return deviceContext;
+    }
+
     /**
      * Initializes a GLFW window with a vulkan context.
      *
@@ -89,23 +104,11 @@ public final class Window implements AutoCloseable {
                                                               this.surfaceHandle,
                                                               getDeviceExtensions());
 
-            this.renderContext = new RenderingContext();
+            // Initialize render context
+            this.renderContext = new RenderingContext(this.deviceContext,
+                                                      this.surfaceHandle,
+                                                      width, height);
         }
-    }
-
-    private static ByteBuffer[] getDeviceExtensions() {
-        return new ByteBuffer[]{
-                memUTF8(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
-        };
-    }
-
-    /**
-     * Gets the device context required for interfacing with the physical and the logical devices.
-     *
-     * @return device context wrapper containing the currently active physical and logical devices
-     */
-    public DeviceContext getDeviceContext() {
-        return deviceContext;
     }
 
     private PointerBuffer getRequiredExtensions(
@@ -135,6 +138,7 @@ public final class Window implements AutoCloseable {
     @Override
     public void close() {
         // Release resources
+        this.renderContext.close();
         this.deviceContext.close();
         vkDestroySurfaceKHR(this.instance.getVkInstance(), this.surfaceHandle, null);
 

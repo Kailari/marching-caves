@@ -2,11 +2,13 @@
   <dictionary name="ilari">
     <words>
       <w>glfw</w>
+      <w>imgv</w>
       <w>lwjgl</w>
       <w>ndebug</w>
       <w>nullness</w>
       <w>scancode</w>
       <w>swapchain</w>
+      <w>uint</w>
       <w>unsignaled</w>
       <w>vulkan</w>
     </words>

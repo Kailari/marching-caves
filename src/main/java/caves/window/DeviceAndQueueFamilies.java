@@ -21,6 +21,33 @@ public final class DeviceAndQueueFamilies implements AutoCloseable {
     private final int presentationFamily;
 
     /**
+     * Gets the active logical device.
+     *
+     * @return the logical device
+     */
+    public VkDevice getDevice() {
+        return this.device;
+    }
+
+    /**
+     * Gets the stored graphics queue family index.
+     *
+     * @return the stored graphics queue family index
+     */
+    public int getGraphicsFamily() {
+        return graphicsFamily;
+    }
+
+    /**
+     * Gets the stored presentation queue family index.
+     *
+     * @return the stored presentation queue family index
+     */
+    public int getPresentationFamily() {
+        return presentationFamily;
+    }
+
+    /**
      * Selects a suitable device and graphics queue family from the physical device.
      *
      * @param physicalDevice   the physical device to use
@@ -113,33 +140,6 @@ public final class DeviceAndQueueFamilies implements AutoCloseable {
         }
 
         return deviceQueueCreateInfos;
-    }
-
-    /**
-     * Gets the active logical device.
-     *
-     * @return the logical device
-     */
-    public VkDevice getDevice() {
-        return this.device;
-    }
-
-    /**
-     * Gets the stored graphics queue family index.
-     *
-     * @return the stored graphics queue family index
-     */
-    public int getGraphicsFamily() {
-        return graphicsFamily;
-    }
-
-    /**
-     * Gets the stored presentation queue family index.
-     *
-     * @return the stored presentation queue family index
-     */
-    public int getPresentationFamily() {
-        return presentationFamily;
     }
 
     @Override

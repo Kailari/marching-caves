@@ -11,13 +11,47 @@ import java.nio.charset.StandardCharsets;
 
 import static caves.window.VKUtil.translateVulkanResult;
 import static org.lwjgl.system.MemoryStack.stackPush;
-import static org.lwjgl.vulkan.KHRSurface.vkGetPhysicalDeviceSurfaceCapabilitiesKHR;
-import static org.lwjgl.vulkan.KHRSurface.vkGetPhysicalDeviceSurfaceFormatsKHR;
 import static org.lwjgl.vulkan.VK10.*;
 
 public final class DeviceContext implements AutoCloseable {
     private final VkPhysicalDevice physicalDevice;
     private final DeviceAndQueueFamilies deviceAndQueueFamilies;
+
+    /**
+     * Gets the chosen physical device.
+     *
+     * @return the physical device
+     */
+    public VkPhysicalDevice getPhysicalDevice() {
+        return this.physicalDevice;
+    }
+
+    /**
+     * Gets the active logical device. Can be used to fetch queues.
+     *
+     * @return the logical device
+     */
+    public VkDevice getDevice() {
+        return this.deviceAndQueueFamilies.getDevice();
+    }
+
+    /**
+     * Gets the graphics queue family index.
+     *
+     * @return the stored graphics queue family index
+     */
+    public int getGraphicsQueueFamilyIndex() {
+        return this.deviceAndQueueFamilies.getGraphicsFamily();
+    }
+
+    /**
+     * Gets the presentation queue family index.
+     *
+     * @return the stored presentation queue family index
+     */
+    public int getPresentationQueueFamilyIndex() {
+        return this.deviceAndQueueFamilies.getPresentationFamily();
+    }
 
     private DeviceContext(
             final VkPhysicalDevice physicalDevice,
@@ -97,7 +131,7 @@ public final class DeviceContext implements AutoCloseable {
             final var device = new VkPhysicalDevice(pPhysicalDevices.get(), instance);
 
             indices = new QueueIndices(stack, surface, device);
-            if (isSuitableDevice(stack, device, indices, deviceExtensions)) {
+            if (isSuitableDevice(stack, device, indices, deviceExtensions, surface)) {
                 selected = device;
                 break;
             }
@@ -114,9 +148,18 @@ public final class DeviceContext implements AutoCloseable {
             final MemoryStack stack,
             final VkPhysicalDevice device,
             final QueueIndices indices,
-            final ByteBuffer[] requiredExtensions
+            final ByteBuffer[] requiredExtensions,
+            final long surface
     ) {
-        if (!indices.isComplete() || checkDeviceExtensionSupport(stack, device, requiredExtensions)) {
+        final var extensionsSupported = checkDeviceExtensionSupport(stack, device, requiredExtensions);
+        var swapChainAdequate = false;
+        if (extensionsSupported) {
+            final var swapChainSupport = SwapChainSupportDetails.querySupport(stack, device, surface);
+            swapChainAdequate = !swapChainSupport.getSurfaceFormats().isEmpty()
+                    && !swapChainSupport.getPresentModes().isEmpty();
+        }
+
+        if (!indices.isComplete() || !extensionsSupported || !swapChainAdequate) {
             return false;
         }
 
@@ -126,30 +169,6 @@ public final class DeviceContext implements AutoCloseable {
         vkGetPhysicalDeviceFeatures(device, deviceFeatures);
 
         return true;
-    }
-
-    private static SwapChainSupportDetails querySwapChainSupport(
-            final MemoryStack stack,
-            final VkPhysicalDevice device,
-            final long surface
-    ) {
-        final var pSurfaceCapabilities = VkSurfaceCapabilitiesKHR.calloc();
-        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, pSurfaceCapabilities);
-
-        final var formatCount = stack.mallocInt(1);
-        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, formatCount, null);
-
-        final VkSurfaceFormatKHR[] surfaceFormats;
-        if (formatCount.get(0) > 0) {
-            final var surfaceFormatBuffer = VkSurfaceFormatKHR.calloc(formatCount.get());
-            vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, formatCount, surfaceFormatBuffer);
-
-            surfaceFormats = surfaceFormatBuffer.stream().toArray(VkSurfaceFormatKHR[]::new);
-        } else {
-            surfaceFormats = new VkSurfaceFormatKHR[0];
-        }
-
-        return new SwapChainSupportDetails(pSurfaceCapabilities, surfaceFormats);
     }
 
     private static boolean checkDeviceExtensionSupport(
@@ -180,38 +199,11 @@ public final class DeviceContext implements AutoCloseable {
 
             if (!found) {
                 System.out.printf("Validation layer \"%s\" not found.", extensionName);
-                return true;
+                return false;
             }
         }
 
-        return false;
-    }
-
-    /**
-     * Gets the active logical device. Can be used to fetch queues.
-     *
-     * @return the logical device
-     */
-    public VkDevice getDevice() {
-        return this.deviceAndQueueFamilies.getDevice();
-    }
-
-    /**
-     * Gets the graphics queue family index.
-     *
-     * @return the stored graphics queue family index
-     */
-    public int getGraphicsQueueFamilyIndex() {
-        return this.deviceAndQueueFamilies.getGraphicsFamily();
-    }
-
-    /**
-     * Gets the presentation queue family index.
-     *
-     * @return the stored presentation queue family index
-     */
-    public int getPresentationQueueFamilyIndex() {
-        return this.deviceAndQueueFamilies.getPresentationFamily();
+        return true;
     }
 
     @Override
