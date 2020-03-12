@@ -14,9 +14,11 @@ import static org.lwjgl.vulkan.VK10.*;
 public final class GraphicsPipeline implements AutoCloseable {
     private final VkDevice device;
 
-    private final long pipelineLayout;
-    private final long pipeline;
-    private final long renderPass;
+    private long pipelineLayout;
+    private long pipeline;
+    private long renderPass;
+
+    private boolean cleanedUp;
 
     /**
      * Gets the render pass.
@@ -24,6 +26,10 @@ public final class GraphicsPipeline implements AutoCloseable {
      * @return the render pass
      */
     public long getRenderPass() {
+        if (this.cleanedUp) {
+            throw new IllegalStateException("Tried to fetch render pass from cleaned up pipeline before re-creating!");
+        }
+
         return this.renderPass;
     }
 
@@ -33,6 +39,10 @@ public final class GraphicsPipeline implements AutoCloseable {
      * @return the pipeline handle
      */
     public long getGraphicsPipeline() {
+        if (this.cleanedUp) {
+            throw new IllegalStateException("Tried to fetch render pass from cleaned up pipeline before re-creating!");
+        }
+
         return this.pipeline;
     }
 
@@ -44,77 +54,9 @@ public final class GraphicsPipeline implements AutoCloseable {
      */
     public GraphicsPipeline(final VkDevice device, final SwapChain swapChain) {
         this.device = device;
+        this.cleanedUp = true;
 
-        try (var stack = stackPush()) {
-            final var vertexShaderStage = VKUtil.loadShader(device,
-                                                            "shaders/shader.vert",
-                                                            VK_SHADER_STAGE_VERTEX_BIT);
-            final var fragmentShaderStage = VKUtil.loadShader(device,
-                                                              "shaders/shader.frag",
-                                                              VK_SHADER_STAGE_FRAGMENT_BIT);
-            final var vertexShaderModule = vertexShaderStage.module();
-            final var fragmentShaderModule = fragmentShaderStage.module();
-
-            final var shaderStages = VkPipelineShaderStageCreateInfo.mallocStack(2, stack);
-            shaderStages.put(vertexShaderStage);
-            shaderStages.put(fragmentShaderStage);
-            shaderStages.flip();
-
-            final var vertexInputInfo = createVertexInputInfo(stack);
-            final var inputAssembly = createInputAssembly(stack);
-            final var viewport = createViewport(stack, swapChain.getExtent());
-            final var scissor = createScissorRect(stack, swapChain.getExtent());
-            final var viewportState = createViewportState(stack, viewport, scissor);
-            final var rasterizer = createRasterizationState(stack);
-            final var multisampling = createMultisampleState(stack);
-            // TODO: depth/stencilState
-            final var colorBlend = createColorBlendInfo(stack);
-            //final var dynamicState = createDynamicState(stack);
-
-            this.pipelineLayout = createPipelineLayout(stack, device);
-
-            this.renderPass = createRenderPass(stack, swapChain.getImageFormat());
-
-            final var pipelineInfos = VkGraphicsPipelineCreateInfo
-                    .callocStack(1, stack);
-            pipelineInfos.get(0)
-                         .sType(VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO)
-                         // Shader stages
-                         .pStages(shaderStages)
-                         // Fixed function state
-                         .pVertexInputState(vertexInputInfo)
-                         .pInputAssemblyState(inputAssembly)
-                         .pViewportState(viewportState)
-                         .pRasterizationState(rasterizer)
-                         .pMultisampleState(multisampling)
-                         //.pDepthStencilState(XXX);
-                         .pColorBlendState(colorBlend)
-                         //.pDynamicState(dynamicState)
-                         // Layout, render pass, etc.
-                         .layout(this.pipelineLayout)
-                         .renderPass(this.renderPass)
-                         .subpass(0)
-                         // Base pipeline (if derived)
-                         .basePipelineHandle(VK_NULL_HANDLE)
-                         .basePipelineIndex(-1);
-
-            final var pPipeline = stack.mallocLong(1);
-            final var error = vkCreateGraphicsPipelines(this.device,
-                                                        VK_NULL_HANDLE,
-                                                        pipelineInfos,
-                                                        null,
-                                                        pPipeline);
-            if (error != VK_SUCCESS) {
-                throw new IllegalStateException("Creating graphics pipeline failed: "
-                                                        + translateVulkanResult(error));
-            }
-            this.pipeline = pPipeline.get(0);
-
-            vkDestroyShaderModule(this.device, vertexShaderModule, null);
-            vkDestroyShaderModule(this.device, fragmentShaderModule, null);
-        } catch (final IOException e) {
-            throw new IllegalStateException("Loading shader failed: " + e.getMessage());
-        }
+        recreate(swapChain);
     }
 
     private static long createPipelineLayout(
@@ -310,10 +252,106 @@ public final class GraphicsPipeline implements AutoCloseable {
         return pRenderPass.get(0);
     }
 
-    @Override
-    public void close() {
+    /**
+     * Re-creates the whole pipeline from scratch. {@link #cleanup()} must be called first to clean
+     * up existing pipeline before re-creating.
+     *
+     * @param swapChain swapchain to use
+     */
+    public void recreate(final SwapChain swapChain) {
+        if (!this.cleanedUp) {
+            throw new IllegalStateException("Tried to re-create a graphics pipeline without cleaning up first!");
+        }
+
+        try (var stack = stackPush()) {
+            final var vertexShaderStage = VKUtil.loadShader(device,
+                                                            "shaders/shader.vert",
+                                                            VK_SHADER_STAGE_VERTEX_BIT);
+            final var fragmentShaderStage = VKUtil.loadShader(device,
+                                                              "shaders/shader.frag",
+                                                              VK_SHADER_STAGE_FRAGMENT_BIT);
+            final var vertexShaderModule = vertexShaderStage.module();
+            final var fragmentShaderModule = fragmentShaderStage.module();
+
+            final var shaderStages = VkPipelineShaderStageCreateInfo.mallocStack(2, stack);
+            shaderStages.put(vertexShaderStage);
+            shaderStages.put(fragmentShaderStage);
+            shaderStages.flip();
+
+            final var vertexInputInfo = createVertexInputInfo(stack);
+            final var inputAssembly = createInputAssembly(stack);
+            final var viewport = createViewport(stack, swapChain.getExtent());
+            final var scissor = createScissorRect(stack, swapChain.getExtent());
+            final var viewportState = createViewportState(stack, viewport, scissor);
+            final var rasterizer = createRasterizationState(stack);
+            final var multisampling = createMultisampleState(stack);
+            // TODO: depth/stencilState
+            final var colorBlend = createColorBlendInfo(stack);
+            //final var dynamicState = createDynamicState(stack);
+
+            this.pipelineLayout = createPipelineLayout(stack, device);
+            this.renderPass = createRenderPass(stack, swapChain.getImageFormat());
+
+            final var pipelineInfos = VkGraphicsPipelineCreateInfo
+                    .callocStack(1, stack);
+            pipelineInfos.get(0)
+                         .sType(VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO)
+                         // Shader stages
+                         .pStages(shaderStages)
+                         // Fixed function state
+                         .pVertexInputState(vertexInputInfo)
+                         .pInputAssemblyState(inputAssembly)
+                         .pViewportState(viewportState)
+                         .pRasterizationState(rasterizer)
+                         .pMultisampleState(multisampling)
+                         //.pDepthStencilState(XXX);
+                         .pColorBlendState(colorBlend)
+                         //.pDynamicState(dynamicState)
+                         // Layout, render pass, etc.
+                         .layout(this.pipelineLayout)
+                         .renderPass(this.renderPass)
+                         .subpass(0)
+                         // Base pipeline (if derived)
+                         .basePipelineHandle(VK_NULL_HANDLE)
+                         .basePipelineIndex(-1);
+
+            final var pPipeline = stack.mallocLong(1);
+            final var error = vkCreateGraphicsPipelines(this.device,
+                                                        VK_NULL_HANDLE,
+                                                        pipelineInfos,
+                                                        null,
+                                                        pPipeline);
+            if (error != VK_SUCCESS) {
+                throw new IllegalStateException("Creating graphics pipeline failed: "
+                                                        + translateVulkanResult(error));
+            }
+            this.pipeline = pPipeline.get(0);
+
+            vkDestroyShaderModule(this.device, vertexShaderModule, null);
+            vkDestroyShaderModule(this.device, fragmentShaderModule, null);
+        } catch (final IOException e) {
+            throw new IllegalStateException("Loading shader failed: " + e.getMessage());
+        }
+
+        this.cleanedUp = false;
+    }
+
+    /**
+     * Releases the pipeline in preparation to re-creation or shutdown.
+     */
+    public void cleanup() {
+        if (this.cleanedUp) {
+            throw new IllegalStateException("Tried to cleanup an already cleared graphics pipeline!");
+        }
+
         vkDestroyPipeline(this.device, this.pipeline, null);
         vkDestroyPipelineLayout(this.device, this.pipelineLayout, null);
         vkDestroyRenderPass(this.device, this.renderPass, null);
+        this.cleanedUp = true;
+    }
+
+    @Override
+    public void close() {
+        cleanup();
     }
 }

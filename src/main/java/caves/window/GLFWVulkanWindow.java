@@ -11,29 +11,9 @@ import static org.lwjgl.vulkan.KHRSurface.vkDestroySurfaceKHR;
 import static org.lwjgl.vulkan.VK10.VK_SUCCESS;
 
 public final class GLFWVulkanWindow implements AutoCloseable {
-    private final int width;
-    private final int height;
     private final long windowHandle;
     private final GLFWKeyCallback keyCallback;
     private final long surfaceHandle;
-
-    /**
-     * Returns the width of this window's surface in pixels.
-     *
-     * @return the window width
-     */
-    public int getWidth() {
-        return this.width;
-    }
-
-    /**
-     * Returns the height of this window's surface in pixels.
-     *
-     * @return the window height
-     */
-    public int getHeight() {
-        return this.height;
-    }
 
     /**
      * Gets a handle for the rendering surface.
@@ -53,14 +33,11 @@ public final class GLFWVulkanWindow implements AutoCloseable {
      * @param instance the vulkan instance
      */
     public GLFWVulkanWindow(final int width, final int height, final VulkanInstance instance) {
-        this.width = width;
-        this.height = height;
-
         try (var stack = stackPush()) {
             glfwDefaultWindowHints();
             glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
             glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-            glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+            glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
             this.windowHandle = glfwCreateWindow(width, height, "Marching Caves", NULL, NULL);
             this.keyCallback = new GLFWKeyCallback() {
                 @Override

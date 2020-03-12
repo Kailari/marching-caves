@@ -16,9 +16,10 @@ public final class CommandBuffers implements AutoCloseable {
     private static final int R = 0;
 
     private final VkDevice device;
-
     private final long commandPool;
-    private final VkCommandBuffer[] commandBuffers;
+
+    private VkCommandBuffer[] commandBuffers;
+    private boolean cleanedUp;
 
     /**
      * Creates new command pool and command buffers for all framebuffers.
@@ -37,7 +38,75 @@ public final class CommandBuffers implements AutoCloseable {
         this.device = deviceContext.getDevice();
 
         this.commandPool = createGraphicsCommandPool(deviceContext);
-        this.commandBuffers = allocateCommandBuffers(deviceContext, swapChain, this.commandPool);
+        this.cleanedUp = true;
+
+        recreate(swapChain, framebuffers, graphicsPipeline);
+    }
+
+    private static VkCommandBuffer[] allocateCommandBuffers(
+            final VkDevice device,
+            final SwapChain swapChain,
+            final long commandPool
+    ) {
+        try (var stack = stackPush()) {
+            final var bufferCount = swapChain.getImageViews().length;
+            final var allocInfo = VkCommandBufferAllocateInfo
+                    .callocStack(stack)
+                    .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO)
+                    .commandPool(commandPool)
+                    .level(VK_COMMAND_BUFFER_LEVEL_PRIMARY)
+                    .commandBufferCount(bufferCount);
+
+            final var pBuffers = stack.mallocPointer(bufferCount);
+            final var error = vkAllocateCommandBuffers(device, allocInfo, pBuffers);
+            if (error != VK_SUCCESS) {
+                throw new IllegalStateException("Allocating command buffers failed: "
+                                                        + translateVulkanResult(error));
+            }
+            final var buffers = new VkCommandBuffer[bufferCount];
+            for (var i = 0; i < bufferCount; ++i) {
+                buffers[i] = new VkCommandBuffer(pBuffers.get(i), device);
+            }
+            return buffers;
+        }
+    }
+
+    private static long createGraphicsCommandPool(final DeviceContext deviceContext) {
+        try (var stack = stackPush()) {
+            final var pCreateInfo = VkCommandPoolCreateInfo
+                    .callocStack(stack)
+                    .sType(VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO)
+                    .queueFamilyIndex(deviceContext.getGraphicsQueueFamilyIndex())
+                    .flags(0); // No flags
+
+            final var pCommandPool = stack.mallocLong(1);
+            final var error = vkCreateCommandPool(deviceContext.getDevice(), pCreateInfo, null, pCommandPool);
+            if (error != VK_SUCCESS) {
+                throw new IllegalStateException("Failed to create command pool: "
+                                                        + translateVulkanResult(error));
+            }
+
+            return pCommandPool.get(0);
+        }
+    }
+
+    /**
+     * Re-creates the command buffers. Re-uses the existing command pool.
+     *
+     * @param swapChain        swapchain to use
+     * @param framebuffers     framebuffers to use
+     * @param graphicsPipeline graphics pipeline to use
+     */
+    public void recreate(
+            final SwapChain swapChain,
+            final Framebuffers framebuffers,
+            final GraphicsPipeline graphicsPipeline
+    ) {
+        if (!this.cleanedUp) {
+            throw new IllegalStateException("Tried to re-create command buffers without cleaning up first!");
+        }
+
+        this.commandBuffers = allocateCommandBuffers(this.device, swapChain, this.commandPool);
 
         try (var stack = stackPush()) {
             for (var i = 0; i < this.commandBuffers.length; ++i) {
@@ -84,53 +153,8 @@ public final class CommandBuffers implements AutoCloseable {
                 }
             }
         }
-    }
 
-    private static VkCommandBuffer[] allocateCommandBuffers(
-            final DeviceContext deviceContext,
-            final SwapChain swapChain,
-            final long commandPool
-    ) {
-        try (var stack = stackPush()) {
-            final var bufferCount = swapChain.getImageViews().length;
-            final var allocInfo = VkCommandBufferAllocateInfo
-                    .callocStack(stack)
-                    .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO)
-                    .commandPool(commandPool)
-                    .level(VK_COMMAND_BUFFER_LEVEL_PRIMARY)
-                    .commandBufferCount(bufferCount);
-
-            final var pBuffers = stack.mallocPointer(bufferCount);
-            final var error = vkAllocateCommandBuffers(deviceContext.getDevice(), allocInfo, pBuffers);
-            if (error != VK_SUCCESS) {
-                throw new IllegalStateException("Allocating command buffers failed: "
-                                                        + translateVulkanResult(error));
-            }
-            final var buffers = new VkCommandBuffer[bufferCount];
-            for (var i = 0; i < bufferCount; ++i) {
-                buffers[i] = new VkCommandBuffer(pBuffers.get(i), deviceContext.getDevice());
-            }
-            return buffers;
-        }
-    }
-
-    private static long createGraphicsCommandPool(final DeviceContext deviceContext) {
-        try (var stack = stackPush()) {
-            final var pCreateInfo = VkCommandPoolCreateInfo
-                    .callocStack(stack)
-                    .sType(VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO)
-                    .queueFamilyIndex(deviceContext.getGraphicsQueueFamilyIndex())
-                    .flags(0); // No flags
-
-            final var pCommandPool = stack.mallocLong(1);
-            final var error = vkCreateCommandPool(deviceContext.getDevice(), pCreateInfo, null, pCommandPool);
-            if (error != VK_SUCCESS) {
-                throw new IllegalStateException("Failed to create command pool: "
-                                                        + translateVulkanResult(error));
-            }
-
-            return pCommandPool.get(0);
-        }
+        this.cleanedUp = false;
     }
 
     @Override
@@ -146,6 +170,22 @@ public final class CommandBuffers implements AutoCloseable {
      * @return the command buffer
      */
     public VkCommandBuffer getBufferForImage(final int imageIndex) {
+        if (this.cleanedUp) {
+            throw new IllegalStateException("Tried to fetch buffer from cleaned up command buffers!");
+        }
         return this.commandBuffers[imageIndex];
+    }
+
+    /**
+     * Releases command buffers in preparations for re-creation or shutdown.
+     */
+    public void cleanup() {
+        if (this.cleanedUp) {
+            throw new IllegalStateException("Tried fetch image views from cleaned up swapchain!");
+        }
+        for (final var commandBuffer : this.commandBuffers) {
+            vkFreeCommandBuffers(this.device, this.commandPool, commandBuffer);
+        }
+        this.cleanedUp = true;
     }
 }

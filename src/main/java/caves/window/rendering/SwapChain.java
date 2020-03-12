@@ -7,6 +7,7 @@ import org.lwjgl.vulkan.*;
 import java.util.List;
 
 import static caves.window.VKUtil.translateVulkanResult;
+import static org.lwjgl.glfw.GLFW.glfwGetFramebufferSize;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.vulkan.KHRSurface.*;
 import static org.lwjgl.vulkan.KHRSwapchain.*;
@@ -16,10 +17,12 @@ public final class SwapChain implements AutoCloseable {
     private final DeviceContext deviceContext;
     private final VkExtent2D extent;
     private final long surface;
+    private final long windowHandle;
 
     private long swapchain;
     private long[] imageViews = new long[0];
     private int imageFormat;
+    private boolean cleanedUp;
 
     /**
      * Returns the swapchain handle.
@@ -27,6 +30,9 @@ public final class SwapChain implements AutoCloseable {
      * @return the swapchain handle
      */
     public long getHandle() {
+        if (this.cleanedUp) {
+            throw new IllegalStateException("Tried fetch handle for cleaned up swapchain!");
+        }
         return this.swapchain;
     }
 
@@ -36,6 +42,9 @@ public final class SwapChain implements AutoCloseable {
      * @return the extent
      */
     public VkExtent2D getExtent() {
+        if (this.cleanedUp) {
+            throw new IllegalStateException("Tried fetch extent from cleaned up swapchain!");
+        }
         return this.extent;
     }
 
@@ -45,6 +54,9 @@ public final class SwapChain implements AutoCloseable {
      * @return the active image format
      */
     public int getImageFormat() {
+        if (this.cleanedUp) {
+            throw new IllegalStateException("Tried fetch image format from cleaned up swapchain!");
+        }
         return this.imageFormat;
     }
 
@@ -54,6 +66,9 @@ public final class SwapChain implements AutoCloseable {
      * @return the swapchain image views
      */
     public long[] getImageViews() {
+        if (this.cleanedUp) {
+            throw new IllegalStateException("Tried fetch image views from cleaned up swapchain!");
+        }
         return this.imageViews;
     }
 
@@ -62,36 +77,35 @@ public final class SwapChain implements AutoCloseable {
      *
      * @param deviceContext device context information to use for creating the swapchain
      * @param surface       surface to create the chain for
-     * @param windowWidth   desired window surface width
-     * @param windowHeight  desired window surface height
+     * @param windowHandle  handle for the GLFW window. Used for fetching window size.
      */
     public SwapChain(
             final DeviceContext deviceContext,
             final long surface,
-            final int windowWidth,
-            final int windowHeight
+            final long windowHandle
     ) {
         this.deviceContext = deviceContext;
         this.surface = surface;
+        this.windowHandle = windowHandle;
         this.swapchain = VK_NULL_HANDLE;
         this.extent = VkExtent2D.malloc();
+        this.cleanedUp = true;
 
-        this.recreate(windowWidth, windowHeight);
+        recreate();
     }
 
     private static VkSwapchainCreateInfoKHR createSwapChainCreateInfo(
             final MemoryStack stack,
             final DeviceContext deviceContext,
             final long surface,
-            final int windowWidth,
-            final int windowHeight
+            final long windowHandle
     ) {
         final var swapChainSupport = SwapChainSupportDetails.querySupport(deviceContext.getPhysicalDevice(),
                                                                           surface);
 
         final var surfaceFormat = chooseSurfaceFormat(swapChainSupport.getSurfaceFormats());
         final var presentMode = choosePresentMode(swapChainSupport.getPresentModes());
-        final var extent = chooseExtent(stack, swapChainSupport.getSurfaceCapabilities(), windowWidth, windowHeight);
+        final var extent = chooseExtent(stack, windowHandle, swapChainSupport.getSurfaceCapabilities());
         final var imageCount = chooseImageCount(swapChainSupport);
 
         final var createInfo = VkSwapchainCreateInfoKHR
@@ -153,9 +167,8 @@ public final class SwapChain implements AutoCloseable {
 
     private static VkExtent2D chooseExtent(
             final MemoryStack stack,
-            final VkSurfaceCapabilitiesKHR capabilities,
-            final int windowWidth,
-            final int windowHeight
+            final long windowHandle,
+            final VkSurfaceCapabilitiesKHR capabilities
     ) {
         // By the spec, window managers can set the width/height to uint32_t max value (or -1 as we
         // do not have unsigned types) to indicate that there are constraints on the extent size.
@@ -165,13 +178,16 @@ public final class SwapChain implements AutoCloseable {
             return capabilities.currentExtent();
         }
 
+        final var pWindowWidth = stack.mallocInt(1);
+        final var pWindowHeight = stack.mallocInt(1);
+        glfwGetFramebufferSize(windowHandle, pWindowWidth, pWindowHeight);
         return VkExtent2D.callocStack(stack)
                          .width(Math.max(capabilities.minImageExtent().width(),
                                          Math.min(capabilities.maxImageExtent().width(),
-                                                  windowWidth)))
+                                                  pWindowWidth.get(0))))
                          .height(Math.max(capabilities.minImageExtent().height(),
                                           Math.min(capabilities.maxImageExtent().height(),
-                                                   windowHeight)));
+                                                   pWindowHeight.get(0))));
     }
 
     private static int chooseImageCount(final SwapChainSupportDetails swapChainSupport) {
@@ -188,19 +204,17 @@ public final class SwapChain implements AutoCloseable {
     /**
      * (Re)Creates the swapchain. Should only be called after the swapchain is known to be
      * invalidated.
-     *
-     * @param windowWidth  desired window surface width
-     * @param windowHeight desired window surface height
      */
-    public void recreate(
-            final int windowWidth,
-            final int windowHeight
-    ) {
+    public void recreate() {
+        if (!this.cleanedUp) {
+            throw new IllegalStateException("Tried re-create swapchain without cleaning up first!");
+        }
+
         try (var stack = stackPush()) {
             final var createInfo = createSwapChainCreateInfo(stack,
                                                              this.deviceContext,
                                                              this.surface,
-                                                             windowWidth, windowHeight);
+                                                             this.windowHandle);
 
             final var pSwapChain = stack.mallocLong(1);
             final var error = vkCreateSwapchainKHR(this.deviceContext.getDevice(), createInfo, null, pSwapChain);
@@ -209,11 +223,9 @@ public final class SwapChain implements AutoCloseable {
                                                         + translateVulkanResult(error));
             }
 
-            // Clean up the old swapchain (if present) and replace the handle and properties
-            cleanup();
             this.swapchain = pSwapChain.get(0);
             this.imageFormat = createInfo.imageFormat();
-            this.extent.set(createInfo.imageExtent()); // NOTE: createInfo is on stack --> copy
+            this.extent.set(createInfo.imageExtent());
         }
 
         try (var stack = stackPush()) {
@@ -272,6 +284,7 @@ public final class SwapChain implements AutoCloseable {
                 this.imageViews[i] = pImageView.get(0);
             }
         }
+        this.cleanedUp = false;
     }
 
     @Override
@@ -279,16 +292,21 @@ public final class SwapChain implements AutoCloseable {
         cleanup();
     }
 
-    private void cleanup() {
+    /**
+     * Releases resources in preparations for re-creation or shutdown.
+     */
+    public void cleanup() {
+        if (this.cleanedUp) {
+            throw new IllegalStateException("Tried cleanup already cleared swapchain!");
+        }
+
         if (this.swapchain != VK_NULL_HANDLE) {
-            cleanupImageViews();
+            for (final var imageView : this.imageViews) {
+                vkDestroyImageView(this.deviceContext.getDevice(), imageView, null);
+            }
+
             vkDestroySwapchainKHR(this.deviceContext.getDevice(), this.swapchain, null);
         }
-    }
-
-    private void cleanupImageViews() {
-        for (final var imageView : this.imageViews) {
-            vkDestroyImageView(this.deviceContext.getDevice(), imageView, null);
-        }
+        this.cleanedUp = true;
     }
 }

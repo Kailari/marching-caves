@@ -9,7 +9,9 @@ import static org.lwjgl.vulkan.VK10.*;
 
 public final class Framebuffers implements AutoCloseable {
     private final VkDevice device;
-    private final long[] swapChainFramebuffers;
+
+    private long[] swapChainFramebuffers;
+    private boolean cleanedUp;
 
     /**
      * Gets the swapchain image framebuffers. Buffer with index <code>i</code> corresponds directly
@@ -18,6 +20,10 @@ public final class Framebuffers implements AutoCloseable {
      * @return the framebuffers
      */
     public long[] getSwapChainFramebuffers() {
+        if (this.cleanedUp) {
+            throw new IllegalStateException("Tried to fetch framebuffers before re-creating!");
+        }
+
         return this.swapChainFramebuffers;
     }
 
@@ -26,7 +32,7 @@ public final class Framebuffers implements AutoCloseable {
      * framebuffer.
      *
      * @param device           logical device the swapchain is created on
-     * @param graphicsPipeline graphics pipeline being used
+     * @param graphicsPipeline graphics pipeline to use
      * @param swapChain        the swapchain to use
      */
     public Framebuffers(
@@ -35,12 +41,30 @@ public final class Framebuffers implements AutoCloseable {
             final SwapChain swapChain
     ) {
         this.device = device;
+        this.cleanedUp = true;
+
+        this.recreate(graphicsPipeline, swapChain);
+    }
+
+    /**
+     * Re-creates the framebuffers for all swapchain image views.
+     *
+     * @param graphicsPipeline graphics pipeline to use
+     * @param swapChain        the swapchain to use
+     */
+    public void recreate(
+            final GraphicsPipeline graphicsPipeline,
+            final SwapChain swapChain
+    ) {
+        if (!this.cleanedUp) {
+            throw new IllegalStateException("Tried to re-create framebuffers without cleaning up!");
+        }
+
+        final var swapChainImageViews = swapChain.getImageViews();
+        final var imageCount = swapChainImageViews.length;
+        this.swapChainFramebuffers = new long[imageCount];
 
         try (var stack = stackPush()) {
-            final var swapChainImageViews = swapChain.getImageViews();
-            final var imageCount = swapChainImageViews.length;
-            this.swapChainFramebuffers = new long[imageCount];
-
             final var extent = swapChain.getExtent();
             final var pFramebuffer = stack.mallocLong(1);
             for (var i = 0; i < imageCount; ++i) {
@@ -63,16 +87,26 @@ public final class Framebuffers implements AutoCloseable {
                 this.swapChainFramebuffers[i] = pFramebuffer.get(0);
             }
         }
+
+        this.cleanedUp = false;
+    }
+
+    /**
+     * Releases the framebuffers in preparations for re-create or shutdown.
+     */
+    public void cleanup() {
+        if (this.cleanedUp) {
+            throw new IllegalStateException("Tried to cleanup already cleared framebuffers!");
+        }
+
+        for (final var framebuffer : this.swapChainFramebuffers) {
+            vkDestroyFramebuffer(this.device, framebuffer, null);
+        }
+        this.cleanedUp = true;
     }
 
     @Override
     public void close() {
         cleanup();
-    }
-
-    private void cleanup() {
-        for (final var framebuffer : this.swapChainFramebuffers) {
-            vkDestroyFramebuffer(this.device, framebuffer, null);
-        }
     }
 }

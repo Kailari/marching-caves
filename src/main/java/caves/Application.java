@@ -117,8 +117,7 @@ public final class Application {
             var currentFrame = 0L;
             while (!app.getWindow().shouldClose()) {
                 glfwPollEvents();
-                final var swapchain = renderContext.getSwapChain(app.getWindow().getWidth(),
-                                                                 app.getWindow().getHeight());
+                final var swapchain = renderContext.getSwapChain();
 
                 final var imageAvailableSemaphore =
                         imageAvailableSemaphores[(int) (currentFrame % MAX_FRAMES_IN_FLIGHT)];
@@ -130,12 +129,18 @@ public final class Application {
                 vkWaitForFences(deviceContext.getDevice(), inFlightFence, true, UINT64_MAX);
                 try (var stack = stackPush()) {
                     final var pImageIndex = stack.callocInt(1);
-                    vkAcquireNextImageKHR(deviceContext.getDevice(),
-                                          swapchain.getHandle(),
-                                          UINT64_MAX,
-                                          imageAvailableSemaphore,
-                                          VK_NULL_HANDLE,
-                                          pImageIndex);
+                    final var acquireResult = vkAcquireNextImageKHR(deviceContext.getDevice(),
+                                                                    swapchain.getHandle(),
+                                                                    UINT64_MAX,
+                                                                    imageAvailableSemaphore,
+                                                                    VK_NULL_HANDLE,
+                                                                    pImageIndex);
+                    if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR) {
+                        renderContext.notifyOutOfDateSwapchain();
+                        continue;
+                    } else if (acquireResult != VK_SUCCESS && acquireResult != VK_SUBOPTIMAL_KHR) {
+                        throw new IllegalStateException("Acquiring swapchain image has failed!");
+                    }
                     final var imageIndex = pImageIndex.get(0);
 
                     // AFTER we have acquired an image, wait until no-one else uses that image
@@ -195,7 +200,12 @@ public final class Application {
                             .pSwapchains(swapChains)
                             .pImageIndices(pImageIndex);
 
-                    vkQueuePresentKHR(presentQueue, presentInfo);
+                    final var presentResult = vkQueuePresentKHR(presentQueue, presentInfo);
+                    if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR) {
+                        renderContext.notifyOutOfDateSwapchain();
+                    } else if (presentResult != VK_SUCCESS) {
+                        throw new IllegalStateException("Presenting a swapchain image has failed!");
+                    }
                 }
                 currentFrame++;
             }
