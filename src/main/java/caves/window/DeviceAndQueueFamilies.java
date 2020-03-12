@@ -79,10 +79,6 @@ public final class DeviceAndQueueFamilies implements AutoCloseable {
             }
             final var device = pDevice.get(0);
 
-            // XXX: We do not use memory properties for anything at the moment
-            // this.memoryProperties = VkPhysicalDeviceMemoryProperties.callocStack(stack);
-            // vkGetPhysicalDeviceMemoryProperties(physicalDevice, memoryProperties);
-
             this.device = new VkDevice(device, physicalDevice, deviceCreateInfo);
             this.graphicsFamily = indices.getGraphicsFamily();
             this.presentationFamily = indices.getPresentationFamily();

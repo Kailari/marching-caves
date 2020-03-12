@@ -1,6 +1,8 @@
 package caves.window.rendering;
 
 import caves.window.DeviceContext;
+import org.joml.Vector2f;
+import org.joml.Vector3f;
 import org.lwjgl.vulkan.VkCommandBuffer;
 
 import static org.lwjgl.glfw.GLFW.glfwGetFramebufferSize;
@@ -16,6 +18,9 @@ public final class RenderingContext implements AutoCloseable {
     private final GraphicsPipeline graphicsPipeline;
     private final Framebuffers framebuffers;
     private final CommandBuffers commandBuffers;
+
+    private final VertexBuffer vertexBuffer;
+
     private boolean mustRecreateSwapChain = false;
 
     /**
@@ -86,7 +91,14 @@ public final class RenderingContext implements AutoCloseable {
         this.swapChain = new SwapChain(deviceContext, surface, windowHandle);
         this.graphicsPipeline = new GraphicsPipeline(deviceContext.getDevice(), this.swapChain);
         this.framebuffers = new Framebuffers(deviceContext.getDevice(), this.graphicsPipeline, this.swapChain);
-        this.commandBuffers = new CommandBuffers(deviceContext, this.swapChain, this.framebuffers, this.graphicsPipeline);
+
+        this.vertexBuffer = new VertexBuffer(deviceContext, new GraphicsPipeline.Vertex[]{
+                new GraphicsPipeline.Vertex(new Vector2f(0.0f, -0.5f), new Vector3f(1.0f, 0.0f, 0.0f)),
+                new GraphicsPipeline.Vertex(new Vector2f(0.5f, 0.5f), new Vector3f(0.0f, 1.0f, 0.0f)),
+                new GraphicsPipeline.Vertex(new Vector2f(-0.5f, 0.5f), new Vector3f(0.0f, 0.0f, 1.0f))
+        });
+
+        this.commandBuffers = new CommandBuffers(deviceContext, this.swapChain, this.framebuffers, this.graphicsPipeline, this.vertexBuffer);
     }
 
     /**
@@ -107,6 +119,8 @@ public final class RenderingContext implements AutoCloseable {
         this.framebuffers.close();
         this.graphicsPipeline.close();
         this.swapChain.close();
+
+        this.vertexBuffer.close();
     }
 
     /**

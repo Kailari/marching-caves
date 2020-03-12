@@ -54,6 +54,9 @@ dependencies {
     for (modulePostfix in implementationModules) { implementation "org.lwjgl:lwjgl${modulePostfix}" }
     for (modulePostfix in runtimeModules) { runtimeOnly "org.lwjgl:lwjgl${modulePostfix}::${lwjglNatives}" }
     if (lwjglNatives == "natives-macos") runtimeOnly "org.lwjgl:lwjgl-vulkan::${lwjglNatives}"
+
+    // JOML for rendering matrix calculations
+    implementation "org.joml:joml:${jomlVersion}"
 }
 
 test {

@@ -17,6 +17,7 @@ public final class CommandBuffers implements AutoCloseable {
 
     private final VkDevice device;
     private final long commandPool;
+    private final VertexBuffer vertexBuffer;
 
     private VkCommandBuffer[] commandBuffers;
     private boolean cleanedUp;
@@ -28,14 +29,17 @@ public final class CommandBuffers implements AutoCloseable {
      * @param swapChain        active swapchain
      * @param framebuffers     framebuffers to create the buffers for
      * @param graphicsPipeline the graphics pipeline to use
+     * @param vertexBuffer
      */
     public CommandBuffers(
             final DeviceContext deviceContext,
             final SwapChain swapChain,
             final Framebuffers framebuffers,
-            final GraphicsPipeline graphicsPipeline
+            final GraphicsPipeline graphicsPipeline,
+            final VertexBuffer vertexBuffer
     ) {
         this.device = deviceContext.getDevice();
+        this.vertexBuffer = vertexBuffer;
 
         this.commandPool = createGraphicsCommandPool(deviceContext);
         this.cleanedUp = true;
@@ -108,8 +112,8 @@ public final class CommandBuffers implements AutoCloseable {
 
         this.commandBuffers = allocateCommandBuffers(this.device, swapChain, this.commandPool);
 
-        try (var stack = stackPush()) {
-            for (var i = 0; i < this.commandBuffers.length; ++i) {
+        for (var i = 0; i < this.commandBuffers.length; ++i) {
+            try (var stack = stackPush()) {
                 final var beginInfo = VkCommandBufferBeginInfo
                         .callocStack(stack)
                         .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO);
@@ -142,6 +146,16 @@ public final class CommandBuffers implements AutoCloseable {
                 vkCmdBindPipeline(this.commandBuffers[i],
                                   VK_PIPELINE_BIND_POINT_GRAPHICS,
                                   graphicsPipeline.getGraphicsPipeline());
+
+                final var vertexBuffers = stack.mallocLong(1);
+                vertexBuffers.put(this.vertexBuffer.getBufferHandle());
+                vertexBuffers.flip();
+
+                final var offsets = stack.mallocLong(1);
+                offsets.put(0L);
+                offsets.flip();
+
+                vkCmdBindVertexBuffers(this.commandBuffers[i], 0, vertexBuffers, offsets);
                 vkCmdDraw(this.commandBuffers[i], VERTEX_COUNT, INSTANCE_COUNT, 0, 0);
 
                 // End the pass/buffer

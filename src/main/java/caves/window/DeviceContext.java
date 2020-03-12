@@ -8,6 +8,7 @@ import org.lwjgl.vulkan.*;
 
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
+import java.util.Optional;
 
 import static caves.window.VKUtil.translateVulkanResult;
 import static org.lwjgl.system.MemoryStack.stackPush;
@@ -15,6 +16,8 @@ import static org.lwjgl.vulkan.VK10.*;
 
 public final class DeviceContext implements AutoCloseable {
     private final VkPhysicalDevice physicalDevice;
+    private final VkPhysicalDeviceMemoryProperties memoryProperties;
+
     private final DeviceAndQueueFamilies deviceAndQueueFamilies;
 
     /**
@@ -53,11 +56,23 @@ public final class DeviceContext implements AutoCloseable {
         return this.deviceAndQueueFamilies.getPresentationFamily();
     }
 
+    /**
+     * Gets the memory properties of the associated physical device.
+     *
+     * @return the memory properties
+     */
+    public VkPhysicalDeviceMemoryProperties getMemoryProperties() {
+        return this.memoryProperties;
+    }
+
     private DeviceContext(
             final VkPhysicalDevice physicalDevice,
             final DeviceAndQueueFamilies deviceAndQueueFamilies
     ) {
         this.physicalDevice = physicalDevice;
+        this.memoryProperties = VkPhysicalDeviceMemoryProperties.malloc();
+        vkGetPhysicalDeviceMemoryProperties(this.physicalDevice, this.memoryProperties);
+
         this.deviceAndQueueFamilies = deviceAndQueueFamilies;
     }
 
@@ -199,6 +214,20 @@ public final class DeviceContext implements AutoCloseable {
     @Override
     public void close() {
         // Physical device is automatically destroyed with the instance so do not destroy it here
+        this.memoryProperties.free();
         this.deviceAndQueueFamilies.close();
+    }
+
+    public Optional<Integer> findSuitableMemoryType(final int typeFilter, final int propertyFlags) {
+        for (var i = 0; i < this.memoryProperties.memoryTypeCount(); ++i) {
+            final var typeIsSuitable = (typeFilter & (1 << i)) != 0;
+            final var propertiesAreSuitable =
+                    (this.memoryProperties.memoryTypes(i).propertyFlags() & propertyFlags) == propertyFlags;
+
+            if (typeIsSuitable && propertiesAreSuitable) {
+                return Optional.of(i);
+            }
+        }
+        return Optional.empty();
     }
 }

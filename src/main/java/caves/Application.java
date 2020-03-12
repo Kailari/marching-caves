@@ -2,6 +2,9 @@ package caves;
 
 import caves.window.ApplicationContext;
 import caves.window.DeviceContext;
+import caves.window.rendering.GraphicsPipeline;
+import org.joml.Vector2f;
+import org.joml.Vector3f;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
 
@@ -21,7 +24,6 @@ public final class Application {
     private static final int DEFAULT_WINDOW_HEIGHT = 600;
     private static final long UINT64_MAX = 0xFFFFFFFFFFFFFFFFL; // or "-1L", but this looks nicer.
     private static final int MAX_FRAMES_IN_FLIGHT = 2;
-
     private boolean framebufferResized = false;
 
     /**
@@ -230,4 +232,5 @@ public final class Application {
             System.out.println("Finished.");
         }
     }
+
 }

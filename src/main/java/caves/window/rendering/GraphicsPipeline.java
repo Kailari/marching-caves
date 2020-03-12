@@ -1,6 +1,8 @@
 package caves.window.rendering;
 
 import caves.window.VKUtil;
+import org.joml.Vector2f;
+import org.joml.Vector3f;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
 
@@ -175,10 +177,12 @@ public final class GraphicsPipeline implements AutoCloseable {
     }
 
     private static VkPipelineVertexInputStateCreateInfo createVertexInputInfo(final MemoryStack stack) {
-        final var pVertexAttributeDescriptions = VkVertexInputAttributeDescription
-                .callocStack(0, stack);
-        final var pVertexBindingDescriptions = VkVertexInputBindingDescription
-                .callocStack(0, stack);
+        final var pVertexBindingDescriptions = VkVertexInputBindingDescription.callocStack(1, stack);
+        pVertexBindingDescriptions.put(0, Vertex.bindingDescription);
+
+        final var pVertexAttributeDescriptions = VkVertexInputAttributeDescription.callocStack(2, stack);
+        pVertexAttributeDescriptions.put(0, Vertex.attributeDescriptions[0]);
+        pVertexAttributeDescriptions.put(1, Vertex.attributeDescriptions[1]);
 
         return VkPipelineVertexInputStateCreateInfo
                 .callocStack(stack)
@@ -353,5 +357,46 @@ public final class GraphicsPipeline implements AutoCloseable {
     @Override
     public void close() {
         cleanup();
+    }
+
+    public static class Vertex {
+        public static final int SIZE_IN_BYTES = 2 * 4 + 3 * 4;
+        private static final VkVertexInputBindingDescription bindingDescription = VkVertexInputBindingDescription
+                .calloc()
+                .binding(0)
+                .stride(SIZE_IN_BYTES)
+                .inputRate(VK_VERTEX_INPUT_RATE_VERTEX);
+
+        private static final VkVertexInputAttributeDescription[] attributeDescriptions =
+                new VkVertexInputAttributeDescription[]{
+                        VkVertexInputAttributeDescription
+                                .calloc()
+                                .binding(0)
+                                .location(0)
+                                .format(VK_FORMAT_R32G32_SFLOAT)
+                                .offset(0),
+                        VkVertexInputAttributeDescription
+                                .calloc()
+                                .binding(0)
+                                .location(1)
+                                .format(VK_FORMAT_R32G32B32_SFLOAT)
+                                .offset(2 * 4),
+                };
+
+        private final Vector2f pos;
+        private final Vector3f color;
+
+        public Vector2f getPos() {
+            return pos;
+        }
+
+        public Vector3f getColor() {
+            return color;
+        }
+
+        public Vertex(final Vector2f pos, final Vector3f color) {
+            this.pos = pos;
+            this.color = color;
+        }
     }
 }
