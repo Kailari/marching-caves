@@ -7,7 +7,7 @@ import static caves.window.VKUtil.translateVulkanResult;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.vulkan.VK10.*;
 
-public final class CommandBuffers implements AutoCloseable {
+public class RenderCommandBuffers implements AutoCloseable {
     private static final int VERTEX_COUNT = 3;
     private static final int INSTANCE_COUNT = 1;
     private static final int A = 3;
@@ -16,32 +16,34 @@ public final class CommandBuffers implements AutoCloseable {
     private static final int R = 0;
 
     private final VkDevice device;
-    private final long commandPool;
+    private final CommandPool commandPool;
     private final VertexBuffer vertexBuffer;
 
     private VkCommandBuffer[] commandBuffers;
     private boolean cleanedUp;
 
     /**
-     * Creates new command pool and command buffers for all framebuffers.
+     * Creates new render command buffers for rendering the given fixed vertex buffer.
      *
-     * @param deviceContext    active device context
+     * @param deviceContext    the device context to use
+     * @param commandPool      command pool to allocate on
+     * @param vertexBuffer     vertices to render
      * @param swapChain        active swapchain
      * @param framebuffers     framebuffers to create the buffers for
      * @param graphicsPipeline the graphics pipeline to use
-     * @param vertexBuffer
      */
-    public CommandBuffers(
+    public RenderCommandBuffers(
             final DeviceContext deviceContext,
+            final CommandPool commandPool,
             final SwapChain swapChain,
             final Framebuffers framebuffers,
             final GraphicsPipeline graphicsPipeline,
             final VertexBuffer vertexBuffer
     ) {
         this.device = deviceContext.getDevice();
+        this.commandPool = commandPool;
         this.vertexBuffer = vertexBuffer;
 
-        this.commandPool = createGraphicsCommandPool(deviceContext);
         this.cleanedUp = true;
 
         recreate(swapChain, framebuffers, graphicsPipeline);
@@ -75,27 +77,22 @@ public final class CommandBuffers implements AutoCloseable {
         }
     }
 
-    private static long createGraphicsCommandPool(final DeviceContext deviceContext) {
-        try (var stack = stackPush()) {
-            final var pCreateInfo = VkCommandPoolCreateInfo
-                    .callocStack(stack)
-                    .sType(VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO)
-                    .queueFamilyIndex(deviceContext.getGraphicsQueueFamilyIndex())
-                    .flags(0); // No flags
-
-            final var pCommandPool = stack.mallocLong(1);
-            final var error = vkCreateCommandPool(deviceContext.getDevice(), pCreateInfo, null, pCommandPool);
-            if (error != VK_SUCCESS) {
-                throw new IllegalStateException("Failed to create command pool: "
-                                                        + translateVulkanResult(error));
-            }
-
-            return pCommandPool.get(0);
+    /**
+     * Gets the command buffer for framebuffer/image view with given index.
+     *
+     * @param imageIndex index of the image view or framebuffer to use
+     *
+     * @return the command buffer
+     */
+    public VkCommandBuffer getBufferForImage(final int imageIndex) {
+        if (this.cleanedUp) {
+            throw new IllegalStateException("Tried to fetch buffer from cleaned up command buffers!");
         }
+        return this.commandBuffers[imageIndex];
     }
 
     /**
-     * Re-creates the command buffers. Re-uses the existing command pool.
+     * Re-creates the command buffers
      *
      * @param swapChain        swapchain to use
      * @param framebuffers     framebuffers to use
@@ -107,10 +104,10 @@ public final class CommandBuffers implements AutoCloseable {
             final GraphicsPipeline graphicsPipeline
     ) {
         if (!this.cleanedUp) {
-            throw new IllegalStateException("Tried to re-create command buffers without cleaning up first!");
+            throw new IllegalStateException("Tried to recreate render command buffers not cleared!");
         }
 
-        this.commandBuffers = allocateCommandBuffers(this.device, swapChain, this.commandPool);
+        this.commandBuffers = allocateCommandBuffers(this.device, swapChain, this.commandPool.getHandle());
 
         for (var i = 0; i < this.commandBuffers.length; ++i) {
             try (var stack = stackPush()) {
@@ -156,7 +153,7 @@ public final class CommandBuffers implements AutoCloseable {
                 offsets.flip();
 
                 vkCmdBindVertexBuffers(this.commandBuffers[i], 0, vertexBuffers, offsets);
-                vkCmdDraw(this.commandBuffers[i], VERTEX_COUNT, INSTANCE_COUNT, 0, 0);
+                vkCmdDraw(this.commandBuffers[i], this.vertexBuffer.getVertexCount(), INSTANCE_COUNT, 0, 0);
 
                 // End the pass/buffer
                 vkCmdEndRenderPass(this.commandBuffers[i]);
@@ -171,35 +168,23 @@ public final class CommandBuffers implements AutoCloseable {
         this.cleanedUp = false;
     }
 
-    @Override
-    public void close() {
-        vkDestroyCommandPool(this.device, this.commandPool, null);
-    }
-
-    /**
-     * Gets the command buffer for framebuffer/image view with given index.
-     *
-     * @param imageIndex index of the image view or framebuffer to use
-     *
-     * @return the command buffer
-     */
-    public VkCommandBuffer getBufferForImage(final int imageIndex) {
-        if (this.cleanedUp) {
-            throw new IllegalStateException("Tried to fetch buffer from cleaned up command buffers!");
-        }
-        return this.commandBuffers[imageIndex];
-    }
-
     /**
      * Releases command buffers in preparations for re-creation or shutdown.
      */
     public void cleanup() {
         if (this.cleanedUp) {
-            throw new IllegalStateException("Tried fetch image views from cleaned up swapchain!");
+            throw new IllegalStateException("Tried to cleanup render command buffers while already cleared!");
         }
+
         for (final var commandBuffer : this.commandBuffers) {
-            vkFreeCommandBuffers(this.device, this.commandPool, commandBuffer);
+            vkFreeCommandBuffers(this.device, this.commandPool.getHandle(), commandBuffer);
         }
+
         this.cleanedUp = true;
+    }
+
+    @Override
+    public void close() {
+        this.cleanup();
     }
 }

@@ -8,7 +8,7 @@ import org.lwjgl.vulkan.VkCommandBuffer;
 import static org.lwjgl.glfw.GLFW.glfwGetFramebufferSize;
 import static org.lwjgl.glfw.GLFW.glfwWaitEvents;
 import static org.lwjgl.system.MemoryStack.stackPush;
-import static org.lwjgl.vulkan.VK10.vkDeviceWaitIdle;
+import static org.lwjgl.vulkan.VK10.*;
 
 public final class RenderingContext implements AutoCloseable {
     private final DeviceContext deviceContext;
@@ -17,9 +17,10 @@ public final class RenderingContext implements AutoCloseable {
     private final SwapChain swapChain;
     private final GraphicsPipeline graphicsPipeline;
     private final Framebuffers framebuffers;
-    private final CommandBuffers commandBuffers;
+    private final CommandPool commandPool;
 
     private final VertexBuffer vertexBuffer;
+    private final RenderCommandBuffers renderCommandBuffers;
 
     private boolean mustRecreateSwapChain = false;
 
@@ -59,14 +60,14 @@ public final class RenderingContext implements AutoCloseable {
             vkDeviceWaitIdle(this.deviceContext.getDevice());
 
             this.framebuffers.cleanup();
-            this.commandBuffers.cleanup();
+            this.renderCommandBuffers.cleanup();
             this.graphicsPipeline.cleanup();
             this.swapChain.cleanup();
 
             this.swapChain.recreate();
             this.graphicsPipeline.recreate(this.swapChain);
             this.framebuffers.recreate(this.graphicsPipeline, this.swapChain);
-            this.commandBuffers.recreate(this.swapChain, this.framebuffers, this.graphicsPipeline);
+            this.renderCommandBuffers.recreate(this.swapChain, this.framebuffers, this.graphicsPipeline);
             this.mustRecreateSwapChain = false;
         }
 
@@ -91,14 +92,35 @@ public final class RenderingContext implements AutoCloseable {
         this.swapChain = new SwapChain(deviceContext, surface, windowHandle);
         this.graphicsPipeline = new GraphicsPipeline(deviceContext.getDevice(), this.swapChain);
         this.framebuffers = new Framebuffers(deviceContext.getDevice(), this.graphicsPipeline, this.swapChain);
+        this.commandPool = new CommandPool(deviceContext);
 
-        this.vertexBuffer = new VertexBuffer(deviceContext, new GraphicsPipeline.Vertex[]{
+        final var vertices = new GraphicsPipeline.Vertex[]{
                 new GraphicsPipeline.Vertex(new Vector2f(0.0f, -0.5f), new Vector3f(1.0f, 0.0f, 0.0f)),
                 new GraphicsPipeline.Vertex(new Vector2f(0.5f, 0.5f), new Vector3f(0.0f, 1.0f, 0.0f)),
                 new GraphicsPipeline.Vertex(new Vector2f(-0.5f, 0.5f), new Vector3f(0.0f, 0.0f, 1.0f))
-        });
+        };
 
-        this.commandBuffers = new CommandBuffers(deviceContext, this.swapChain, this.framebuffers, this.graphicsPipeline, this.vertexBuffer);
+        final VertexBuffer stagingBuffer = new VertexBuffer(deviceContext,
+                                                            vertices.length,
+                                                            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                                                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        this.vertexBuffer = new VertexBuffer(deviceContext,
+                                             vertices.length,
+                                             VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                                             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        stagingBuffer.pushVertices(vertices);
+        stagingBuffer.copyToAndWait(this.commandPool.getHandle(),
+                                    this.deviceContext.getGraphicsQueue(),
+                                    this.vertexBuffer);
+        stagingBuffer.close();
+
+        this.renderCommandBuffers = new RenderCommandBuffers(deviceContext,
+                                                             this.commandPool,
+                                                             this.swapChain,
+                                                             this.framebuffers,
+                                                             this.graphicsPipeline,
+                                                             this.vertexBuffer);
+
     }
 
     /**
@@ -110,12 +132,13 @@ public final class RenderingContext implements AutoCloseable {
      * @return the command buffer
      */
     public VkCommandBuffer getCommandBufferForImage(final int imageIndex) {
-        return this.commandBuffers.getBufferForImage(imageIndex);
+        return this.renderCommandBuffers.getBufferForImage(imageIndex);
     }
 
     @Override
     public void close() {
-        this.commandBuffers.close();
+        this.renderCommandBuffers.close();
+        this.commandPool.close();
         this.framebuffers.close();
         this.graphicsPipeline.close();
         this.swapChain.close();
