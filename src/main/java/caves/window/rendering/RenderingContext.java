@@ -36,6 +36,14 @@ public final class RenderingContext implements AutoCloseable {
         this.commandBuffers = new CommandBuffers(deviceContext, this.swapChain, this.framebuffers, this.graphicsPipeline);
     }
 
+    /**
+     * Gets the command buffer for given image index. The indices match those of the framebuffers
+     * and the swapchain image views.
+     *
+     * @param imageIndex index of the image view or the framebuffer
+     *
+     * @return the command buffer
+     */
     public VkCommandBuffer getCommandBufferForImage(final int imageIndex) {
         return this.commandBuffers.getBufferForImage(imageIndex);
     }
@@ -58,6 +66,7 @@ public final class RenderingContext implements AutoCloseable {
      */
     public SwapChain getSwapChain(final int windowWidth, final int windowHeight) {
         if (this.mustRecreateSwapChain) {
+            System.out.println("Re-creating swapchain!");
             vkDeviceWaitIdle(this.deviceContext.getDevice());
 
             this.swapChain.recreate(windowWidth, windowHeight);

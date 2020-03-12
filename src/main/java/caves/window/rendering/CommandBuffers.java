@@ -1,7 +1,6 @@
 package caves.window.rendering;
 
 import caves.window.DeviceContext;
-import org.lwjgl.PointerBuffer;
 import org.lwjgl.vulkan.*;
 
 import static caves.window.VKUtil.translateVulkanResult;
@@ -9,17 +8,26 @@ import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.vulkan.VK10.*;
 
 public final class CommandBuffers implements AutoCloseable {
-    public static final int VERTEX_COUNT = 3;
-    public static final int INSTANCE_COUNT = 1;
-    public static final int A = 3;
-    public static final int B = 2;
-    public static final int G = 1;
-    public static final int R = 0;
+    private static final int VERTEX_COUNT = 3;
+    private static final int INSTANCE_COUNT = 1;
+    private static final int A = 3;
+    private static final int B = 2;
+    private static final int G = 1;
+    private static final int R = 0;
+
     private final VkDevice device;
 
     private final long commandPool;
     private final VkCommandBuffer[] commandBuffers;
 
+    /**
+     * Creates new command pool and command buffers for all framebuffers.
+     *
+     * @param deviceContext    active device context
+     * @param swapChain        active swapchain
+     * @param framebuffers     framebuffers to create the buffers for
+     * @param graphicsPipeline the graphics pipeline to use
+     */
     public CommandBuffers(
             final DeviceContext deviceContext,
             final SwapChain swapChain,
@@ -35,9 +43,7 @@ public final class CommandBuffers implements AutoCloseable {
             for (var i = 0; i < this.commandBuffers.length; ++i) {
                 final var beginInfo = VkCommandBufferBeginInfo
                         .callocStack(stack)
-                        .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO)
-                        .flags(0)
-                        .pInheritanceInfo(null);
+                        .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO);
 
                 // Begin buffer
                 var error = vkBeginCommandBuffer(this.commandBuffers[i], beginInfo);
@@ -132,6 +138,13 @@ public final class CommandBuffers implements AutoCloseable {
         vkDestroyCommandPool(this.device, this.commandPool, null);
     }
 
+    /**
+     * Gets the command buffer for framebuffer/image view with given index.
+     *
+     * @param imageIndex index of the image view or framebuffer to use
+     *
+     * @return the command buffer
+     */
     public VkCommandBuffer getBufferForImage(final int imageIndex) {
         return this.commandBuffers[imageIndex];
     }

@@ -2,9 +2,11 @@ package caves;
 
 import caves.window.DeviceContext;
 import caves.window.Window;
+import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
 
 import java.nio.ByteBuffer;
+import java.util.stream.IntStream;
 
 import static caves.window.VKUtil.translateVulkanResult;
 import static org.lwjgl.glfw.GLFW.glfwPollEvents;
@@ -17,6 +19,9 @@ public final class Application {
     private static final boolean VALIDATION = Boolean.parseBoolean(System.getProperty("vulkan.validation", "true"));
     private static final int DEFAULT_WINDOW_WIDTH = 800;
     private static final int DEFAULT_WINDOW_HEIGHT = 600;
+    private static final long UINT64_MAX = 0xFFFFFFFFFFFFFFFFL; // or "-1L", but this is neat.
+    private static final int MAX_FRAMES_IN_FLIGHT = 2;
+
     private final ByteBuffer[] validationLayers;
 
     private Application(final ByteBuffer[] validationLayers) {
@@ -57,28 +62,90 @@ public final class Application {
         }
     }
 
+    private static long[] createFences(final int count, final DeviceContext deviceContext) {
+        try (var stack = stackPush()) {
+            return IntStream.range(0, count)
+                            .mapToLong(i -> createFence(stack, deviceContext))
+                            .toArray();
+        }
+    }
+
+    private static long createFence(final MemoryStack stack, final DeviceContext deviceContext) {
+        final var fenceInfo = VkFenceCreateInfo
+                .callocStack(stack)
+                .sType(VK_STRUCTURE_TYPE_FENCE_CREATE_INFO)
+                .flags(VK_FENCE_CREATE_SIGNALED_BIT); // Create in signaled state. This prevents issues on first frames
+
+        final var pFence = memAllocLong(1);
+        final var error = vkCreateFence(deviceContext.getDevice(), fenceInfo, null, pFence);
+        if (error != VK_SUCCESS) {
+            throw new IllegalStateException("Creating fence failed: "
+                                                    + translateVulkanResult(error));
+        }
+        return pFence.get(0);
+    }
+
+    private static long[] createSemaphores(final int count, final DeviceContext deviceContext) {
+        try (var stack = stackPush()) {
+            return IntStream.range(0, count)
+                            .mapToLong(i -> createSemaphore(stack, deviceContext))
+                            .toArray();
+        }
+    }
+
+    private static long createSemaphore(
+            final MemoryStack stack,
+            final DeviceContext deviceContext
+    ) {
+        final var semaphoreInfo = VkSemaphoreCreateInfo
+                .callocStack(stack)
+                .sType(VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO);
+
+        final var pSemaphore = memAllocLong(1);
+        final var error = vkCreateSemaphore(deviceContext.getDevice(),
+                                            semaphoreInfo,
+                                            null,
+                                            pSemaphore);
+        if (error != VK_SUCCESS) {
+            throw new IllegalStateException("Creating semaphore failed: "
+                                                    + translateVulkanResult(error));
+        }
+        return pSemaphore.get(0);
+    }
+
     private void run() {
         try (var window = new Window(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT, validationLayers)) {
             final var deviceContext = window.getDeviceContext();
             final var renderContext = window.getRenderContext();
             final var graphicsQueue = getGraphicsQueue(deviceContext);
-            final var presentationQueue = getPresentationQueue(deviceContext);
+            final var presentQueue = getPresentationQueue(deviceContext);
 
-            final var imageAvailableSemaphore = createSemaphore(deviceContext);
-            final var renderFinishedSemaphore = createSemaphore(deviceContext);
+            final var imageAvailableSemaphores = createSemaphores(MAX_FRAMES_IN_FLIGHT, deviceContext);
+            final var renderFinishedSemaphores = createSemaphores(MAX_FRAMES_IN_FLIGHT, deviceContext);
+            final var inFlightFences = createFences(MAX_FRAMES_IN_FLIGHT, deviceContext);
 
             window.show();
+            var currentFrame = 0L;
             while (!window.shouldClose()) {
                 final var windowWidth = DEFAULT_WINDOW_WIDTH;
                 final var windowHeight = DEFAULT_WINDOW_HEIGHT;
                 glfwPollEvents();
                 final var swapchain = renderContext.getSwapChain(windowWidth, windowHeight);
 
+                final var imageAvailableSemaphore =
+                        imageAvailableSemaphores[(int) (currentFrame % MAX_FRAMES_IN_FLIGHT)];
+                final var renderFinishedSemaphore =
+                        renderFinishedSemaphores[(int) (currentFrame % MAX_FRAMES_IN_FLIGHT)];
+                final var inFlightFence =
+                        inFlightFences[(int) (currentFrame % MAX_FRAMES_IN_FLIGHT)];
+
+                vkWaitForFences(deviceContext.getDevice(), inFlightFence, true, UINT64_MAX);
+                vkResetFences(deviceContext.getDevice(), inFlightFence);
                 try (var stack = stackPush()) {
                     final var pImageIndex = stack.callocInt(1);
                     vkAcquireNextImageKHR(deviceContext.getDevice(),
                                           swapchain.getHandle(),
-                                          Long.MAX_VALUE,
+                                          UINT64_MAX,
                                           imageAvailableSemaphore,
                                           VK_NULL_HANDLE,
                                           pImageIndex);
@@ -105,11 +172,11 @@ public final class Application {
                             .sType(VK_STRUCTURE_TYPE_SUBMIT_INFO)
                             .waitSemaphoreCount(1)
                             .pWaitSemaphores(waitSemaphores)
-                            .pSignalSemaphores(signalSemaphores)
                             .pWaitDstStageMask(waitStages)
+                            .pSignalSemaphores(signalSemaphores)
                             .pCommandBuffers(pCommandBuffer);
 
-                    final var error = vkQueueSubmit(graphicsQueue, submitInfo, VK_NULL_HANDLE);
+                    final var error = vkQueueSubmit(graphicsQueue, submitInfo, inFlightFence);
                     if (error != VK_SUCCESS) {
                         throw new IllegalStateException("Submitting draw command buffer failed: "
                                                                 + translateVulkanResult(error));
@@ -129,30 +196,21 @@ public final class Application {
                             .pSwapchains(swapChains)
                             .pImageIndices(pImageIndex);
 
-                    vkQueuePresentKHR(presentationQueue, presentInfo);
+                    vkQueuePresentKHR(presentQueue, presentInfo);
                 }
+                currentFrame++;
             }
 
-            vkDestroySemaphore(deviceContext.getDevice(), imageAvailableSemaphore, null);
-            vkDestroySemaphore(deviceContext.getDevice(), renderFinishedSemaphore, null);
+            // Wait until everything has finished
+            vkQueueWaitIdle(graphicsQueue);
+            vkQueueWaitIdle(presentQueue);
+
+            for (var i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+                vkDestroySemaphore(deviceContext.getDevice(), imageAvailableSemaphores[i], null);
+                vkDestroySemaphore(deviceContext.getDevice(), renderFinishedSemaphores[i], null);
+                vkDestroyFence(deviceContext.getDevice(), inFlightFences[i], null);
+            }
             System.out.println("Finished.");
         }
-    }
-
-    private long createSemaphore(final DeviceContext deviceContext) {
-        final var semaphoreInfo = VkSemaphoreCreateInfo
-                .calloc()
-                .sType(VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO);
-
-        final var pSemaphore = memAllocLong(1);
-        final var error = vkCreateSemaphore(deviceContext.getDevice(),
-                                            semaphoreInfo,
-                                            null,
-                                            pSemaphore);
-        if (error != VK_SUCCESS) {
-            throw new IllegalStateException("Creating semaphore failed: "
-                                                    + translateVulkanResult(error));
-        }
-        return pSemaphore.get(0);
     }
 }

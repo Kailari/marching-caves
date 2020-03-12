@@ -69,7 +69,7 @@ public final class GraphicsPipeline implements AutoCloseable {
             final var multisampling = createMultisampleState(stack);
             // TODO: depth/stencilState
             final var colorBlend = createColorBlendInfo(stack);
-            final var dynamicState = createDynamicState(stack);
+            //final var dynamicState = createDynamicState(stack);
 
             this.pipelineLayout = createPipelineLayout(stack, device);
 
@@ -89,7 +89,7 @@ public final class GraphicsPipeline implements AutoCloseable {
                          .pMultisampleState(multisampling)
                          //.pDepthStencilState(XXX);
                          .pColorBlendState(colorBlend)
-                         .pDynamicState(dynamicState)
+                         //.pDynamicState(dynamicState)
                          // Layout, render pass, etc.
                          .layout(this.pipelineLayout)
                          .renderPass(this.renderPass)
@@ -285,13 +285,13 @@ public final class GraphicsPipeline implements AutoCloseable {
 
         final var dependencies = VkSubpassDependency.callocStack(1, stack);
         dependencies.get(0)
-                  .srcSubpass(VK_SUBPASS_EXTERNAL)
-                  .dstSubpass(0)
-                  .srcStageMask(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT)
-                  .srcAccessMask(0)
-                  .dstStageMask(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT)
-                  .dstAccessMask(VK_ACCESS_COLOR_ATTACHMENT_READ_BIT
-                                         | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+                    .srcSubpass(VK_SUBPASS_EXTERNAL)
+                    .dstSubpass(0)
+                    .srcStageMask(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT)
+                    .srcAccessMask(0)
+                    .dstStageMask(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT)
+                    .dstAccessMask(VK_ACCESS_COLOR_ATTACHMENT_READ_BIT
+                                           | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 
         final var renderPassInfo = VkRenderPassCreateInfo
                 .callocStack(stack)
