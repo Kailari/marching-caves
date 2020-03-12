@@ -82,9 +82,6 @@ public final class VulkanInstance implements AutoCloseable {
                                                      .ppEnabledLayerNames(enabledLayerNames)
                                                      .pNext(pNext);
 
-        // Create a vulkan instance with the default allocator. Passing `null` as the second
-        // parameter enables the default memory allocator. Store a pointer to the instance in
-        // pInstance.
         final var pInstance = stack.mallocPointer(1);
         final var error = vkCreateInstance(instanceInfo, null, pInstance);
 

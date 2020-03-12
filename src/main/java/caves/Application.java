@@ -1,7 +1,7 @@
 package caves;
 
+import caves.window.ApplicationContext;
 import caves.window.DeviceContext;
-import caves.window.Window;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
 
@@ -19,7 +19,7 @@ public final class Application {
     private static final boolean VALIDATION = Boolean.parseBoolean(System.getProperty("vulkan.validation", "true"));
     private static final int DEFAULT_WINDOW_WIDTH = 800;
     private static final int DEFAULT_WINDOW_HEIGHT = 600;
-    private static final long UINT64_MAX = 0xFFFFFFFFFFFFFFFFL; // or "-1L", but this is neat.
+    private static final long UINT64_MAX = 0xFFFFFFFFFFFFFFFFL; // or "-1L", but this looks nicer.
     private static final int MAX_FRAMES_IN_FLIGHT = 2;
 
     /**
@@ -101,9 +101,9 @@ public final class Application {
     }
 
     private void run() {
-        try (var window = new Window(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT, VALIDATION)) {
-            final var deviceContext = window.getDeviceContext();
-            final var renderContext = window.getRenderContext();
+        try (var app = new ApplicationContext(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT, VALIDATION)) {
+            final var deviceContext = app.getDeviceContext();
+            final var renderContext = app.getRenderContext();
             final var graphicsQueue = getGraphicsQueue(deviceContext);
             final var presentQueue = getPresentationQueue(deviceContext);
 
@@ -113,13 +113,12 @@ public final class Application {
             final var imagesInFlight = new long[renderContext.getSwapChainImageCount()];
             Arrays.fill(imagesInFlight, VK_NULL_HANDLE);
 
-            window.show();
+            app.getWindow().show();
             var currentFrame = 0L;
-            while (!window.shouldClose()) {
-                final var windowWidth = DEFAULT_WINDOW_WIDTH;
-                final var windowHeight = DEFAULT_WINDOW_HEIGHT;
+            while (!app.getWindow().shouldClose()) {
                 glfwPollEvents();
-                final var swapchain = renderContext.getSwapChain(windowWidth, windowHeight);
+                final var swapchain = renderContext.getSwapChain(app.getWindow().getWidth(),
+                                                                 app.getWindow().getHeight());
 
                 final var imageAvailableSemaphore =
                         imageAvailableSemaphores[(int) (currentFrame % MAX_FRAMES_IN_FLIGHT)];
