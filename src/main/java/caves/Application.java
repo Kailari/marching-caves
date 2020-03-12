@@ -22,6 +22,8 @@ public final class Application {
     private static final long UINT64_MAX = 0xFFFFFFFFFFFFFFFFL; // or "-1L", but this looks nicer.
     private static final int MAX_FRAMES_IN_FLIGHT = 2;
 
+    private boolean framebufferResized = false;
+
     /**
      * Application main entry-point.
      *
@@ -61,7 +63,7 @@ public final class Application {
         final var fenceInfo = VkFenceCreateInfo
                 .callocStack(stack)
                 .sType(VK_STRUCTURE_TYPE_FENCE_CREATE_INFO)
-                .flags(VK_FENCE_CREATE_SIGNALED_BIT); // Create in signaled state. This prevents issues on first frames
+                .flags(VK_FENCE_CREATE_SIGNALED_BIT); // Create as signaled to prevent issues during first frames
 
         final var pFence = memAllocLong(1);
         final var error = vkCreateFence(deviceContext.getDevice(), fenceInfo, null, pFence);
@@ -112,6 +114,9 @@ public final class Application {
             final var inFlightFences = createFences(MAX_FRAMES_IN_FLIGHT, deviceContext);
             final var imagesInFlight = new long[renderContext.getSwapChainImageCount()];
             Arrays.fill(imagesInFlight, VK_NULL_HANDLE);
+
+            this.framebufferResized = false;
+            app.getWindow().onResize((windowHandle, width, height) -> this.framebufferResized = true);
 
             app.getWindow().show();
             var currentFrame = 0L;
@@ -201,8 +206,11 @@ public final class Application {
                             .pImageIndices(pImageIndex);
 
                     final var presentResult = vkQueuePresentKHR(presentQueue, presentInfo);
-                    if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR) {
+                    final var framebufferOutOfDateOrSuboptimal =
+                            presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR;
+                    if (framebufferOutOfDateOrSuboptimal || framebufferResized) {
                         renderContext.notifyOutOfDateSwapchain();
+                        framebufferResized = false;
                     } else if (presentResult != VK_SUCCESS) {
                         throw new IllegalStateException("Presenting a swapchain image has failed!");
                     }

@@ -2,6 +2,9 @@ package caves.window;
 
 import org.lwjgl.glfw.GLFWKeyCallback;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import static caves.window.VKUtil.translateVulkanResult;
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.glfw.GLFWVulkan.glfwCreateWindowSurface;
@@ -14,6 +17,8 @@ public final class GLFWVulkanWindow implements AutoCloseable {
     private final long windowHandle;
     private final GLFWKeyCallback keyCallback;
     private final long surfaceHandle;
+
+    private final List<ResizeCallback> resizeCallbacks = new ArrayList<>();
 
     /**
      * Gets a handle for the rendering surface.
@@ -63,9 +68,21 @@ public final class GLFWVulkanWindow implements AutoCloseable {
                 throw new IllegalStateException("Creating window surface failed: " + translateVulkanResult(error));
             }
             this.surfaceHandle = pSurface.get(0);
+
+            glfwSetFramebufferSizeCallback(this.windowHandle,
+                                           (window, w, h) ->
+                                                   this.resizeCallbacks.forEach(cb -> cb.resize(window, w, h)));
         }
     }
 
+    /**
+     * Registers the resize callback to be run when the window is resized.
+     *
+     * @param resizeCallback the callback
+     */
+    public void onResize(final ResizeCallback resizeCallback) {
+        this.resizeCallbacks.add(resizeCallback);
+    }
 
     /**
      * Tells the OS to show the window.
@@ -103,5 +120,9 @@ public final class GLFWVulkanWindow implements AutoCloseable {
         this.keyCallback.free();
         glfwDestroyWindow(this.windowHandle);
         glfwTerminate();
+    }
+
+    public interface ResizeCallback {
+        void resize(long windowHandle, int width, int height);
     }
 }
