@@ -96,7 +96,7 @@ public final class ApplicationContext implements AutoCloseable {
                                                           getRequiredDeviceExtensions());
         this.renderContext = new RenderingContext(this.deviceContext,
                                                   this.window.getSurfaceHandle(),
-                                                  width, height);
+                                                  this.window.getHandle());
     }
 
     @Override

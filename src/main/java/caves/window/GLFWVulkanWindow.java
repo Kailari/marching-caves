@@ -30,6 +30,15 @@ public final class GLFWVulkanWindow implements AutoCloseable {
     }
 
     /**
+     * Gets the raw window handle.
+     *
+     * @return the window handle
+     */
+    public long getHandle() {
+        return this.windowHandle;
+    }
+
+    /**
      * Initializes a new GLFW window with given size and allocates a vulkan compatible rendering
      * surface for it.
      *
