@@ -15,6 +15,15 @@ public final class RenderingContext implements AutoCloseable {
     private boolean mustRecreateSwapChain = false;
 
     /**
+     * Gets the count of swapchain images.
+     *
+     * @return the count
+     */
+    public int getSwapChainImageCount() {
+        return this.swapChain.getImageViews().length;
+    }
+
+    /**
      * Initializes the required context for rendering on the screen.
      *
      * @param deviceContext device context information to use for creating the swapchain

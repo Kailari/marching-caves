@@ -6,6 +6,7 @@ import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.stream.IntStream;
 
 import static caves.window.VKUtil.translateVulkanResult;
@@ -123,6 +124,8 @@ public final class Application {
             final var imageAvailableSemaphores = createSemaphores(MAX_FRAMES_IN_FLIGHT, deviceContext);
             final var renderFinishedSemaphores = createSemaphores(MAX_FRAMES_IN_FLIGHT, deviceContext);
             final var inFlightFences = createFences(MAX_FRAMES_IN_FLIGHT, deviceContext);
+            final var imagesInFlight = new long[renderContext.getSwapChainImageCount()];
+            Arrays.fill(imagesInFlight, VK_NULL_HANDLE);
 
             window.show();
             var currentFrame = 0L;
@@ -140,7 +143,6 @@ public final class Application {
                         inFlightFences[(int) (currentFrame % MAX_FRAMES_IN_FLIGHT)];
 
                 vkWaitForFences(deviceContext.getDevice(), inFlightFence, true, UINT64_MAX);
-                vkResetFences(deviceContext.getDevice(), inFlightFence);
                 try (var stack = stackPush()) {
                     final var pImageIndex = stack.callocInt(1);
                     vkAcquireNextImageKHR(deviceContext.getDevice(),
@@ -150,6 +152,14 @@ public final class Application {
                                           VK_NULL_HANDLE,
                                           pImageIndex);
                     final var imageIndex = pImageIndex.get(0);
+
+                    // AFTER we have acquired an image, wait until no-one else uses that image
+                    if (imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
+                        vkWaitForFences(deviceContext.getDevice(), imagesInFlight[imageIndex], true, UINT64_MAX);
+                    }
+                    // Now we know that no-one else is using the image, thus we can safely claim it
+                    // ourselves.
+                    imagesInFlight[imageIndex] = inFlightFence;
 
                     final var signalSemaphores = stack.mallocLong(1);
                     signalSemaphores.put(renderFinishedSemaphore);
@@ -176,6 +186,10 @@ public final class Application {
                             .pSignalSemaphores(signalSemaphores)
                             .pCommandBuffers(pCommandBuffer);
 
+                    // We have claimed this fence, but have no clue in what state it is in. As we
+                    // know by now that the fence has no other users anymore, we can just reset
+                    // the darn thing to be sure its in valid state.
+                    vkResetFences(deviceContext.getDevice(), inFlightFence);
                     final var error = vkQueueSubmit(graphicsQueue, submitInfo, inFlightFence);
                     if (error != VK_SUCCESS) {
                         throw new IllegalStateException("Submitting draw command buffer failed: "
