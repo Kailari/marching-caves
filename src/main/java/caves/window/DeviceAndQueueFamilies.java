@@ -1,11 +1,10 @@
 package caves.window;
 
+import caves.util.io.BufferUtil;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
 
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.TreeSet;
 
@@ -15,7 +14,6 @@ import static org.lwjgl.vulkan.VK10.*;
 
 public final class DeviceAndQueueFamilies implements AutoCloseable {
     private final VkDevice device;
-    private final VkPhysicalDeviceMemoryProperties memoryProperties;
 
     private final int graphicsFamily;
     private final int presentationFamily;
@@ -50,29 +48,22 @@ public final class DeviceAndQueueFamilies implements AutoCloseable {
     /**
      * Selects a suitable device and graphics queue family from the physical device.
      *
-     * @param physicalDevice   the physical device to use
-     * @param indices          queue indices to use
-     * @param deviceExtensions required device extensions
+     * @param physicalDevice     the physical device to use
+     * @param indices            queue indices to use
+     * @param requiredExtensions required device extensions
      */
     public DeviceAndQueueFamilies(
             final VkPhysicalDevice physicalDevice,
             final QueueIndices indices,
-            final ByteBuffer[] deviceExtensions
+            final PointerBuffer requiredExtensions
     ) {
         if (!indices.isComplete()) {
             throw new IllegalArgumentException("Tried to create a logical device with incomplete queue indices!");
         }
 
         try (var stack = stackPush()) {
-            final var requiredExtensions = stack.mallocPointer(deviceExtensions.length);
-            for (var extension : deviceExtensions) {
-                requiredExtensions.put(extension);
-                final var extensionName = StandardCharsets.UTF_8.decode(extension)
-                                                                .toString()
-                                                                .trim(); // HACK: .trim removes null-terminators etc.
-                System.out.printf("Enabled extension: %s\n", extensionName);
-            }
-            requiredExtensions.flip();
+            BufferUtil.forEachAsStringUTF8(requiredExtensions,
+                                           name -> System.out.printf("Enabled device extension: %s\n", name));
 
             final VkDeviceCreateInfo deviceCreateInfo = createDeviceCreateInfo(indices,
                                                                                requiredExtensions,
@@ -88,12 +79,11 @@ public final class DeviceAndQueueFamilies implements AutoCloseable {
             }
             final var device = pDevice.get(0);
 
-            final var memoryProperties = VkPhysicalDeviceMemoryProperties.callocStack(stack);
-            vkGetPhysicalDeviceMemoryProperties(physicalDevice,
-                                                memoryProperties);
+            // XXX: We do not use memory properties for anything at the moment
+            // this.memoryProperties = VkPhysicalDeviceMemoryProperties.callocStack(stack);
+            // vkGetPhysicalDeviceMemoryProperties(physicalDevice, memoryProperties);
 
             this.device = new VkDevice(device, physicalDevice, deviceCreateInfo);
-            this.memoryProperties = memoryProperties;
             this.graphicsFamily = indices.getGraphicsFamily();
             this.presentationFamily = indices.getPresentationFamily();
         }
@@ -131,7 +121,7 @@ public final class DeviceAndQueueFamilies implements AutoCloseable {
         pQueuePriorities.flip();
         final var deviceQueueCreateInfos = VkDeviceQueueCreateInfo.callocStack(uniqueIndices.size(), stack);
         var i = 0;
-        for (var queueFamilyIndex : uniqueIndices) {
+        for (final var queueFamilyIndex : uniqueIndices) {
             deviceQueueCreateInfos.get(i)
                                   .sType(VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO)
                                   .queueFamilyIndex(queueFamilyIndex)

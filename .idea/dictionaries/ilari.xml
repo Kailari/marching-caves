@@ -1,6 +1,7 @@
 <component name="ProjectDictionaryState">
   <dictionary name="ilari">
     <words>
+      <w>calloc</w>
       <w>glfw</w>
       <w>glsl</w>
       <w>imgv</w>

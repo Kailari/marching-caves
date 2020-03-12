@@ -5,7 +5,6 @@ import caves.window.Window;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
 
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.stream.IntStream;
 
@@ -23,12 +22,6 @@ public final class Application {
     private static final long UINT64_MAX = 0xFFFFFFFFFFFFFFFFL; // or "-1L", but this is neat.
     private static final int MAX_FRAMES_IN_FLIGHT = 2;
 
-    private final ByteBuffer[] validationLayers;
-
-    private Application(final ByteBuffer[] validationLayers) {
-        this.validationLayers = validationLayers;
-    }
-
     /**
      * Application main entry-point.
      *
@@ -36,14 +29,7 @@ public final class Application {
      */
     public static void main(final String[] args) {
         System.out.println("Validation: " + VALIDATION);
-        final var validationLayers = VALIDATION
-                ? new ByteBuffer[]
-                {
-                        memUTF8("VK_LAYER_LUNARG_standard_validation"),
-                }
-                : new ByteBuffer[0];
-
-        final var app = new Application(validationLayers);
+        final var app = new Application();
         app.run();
     }
 
@@ -115,7 +101,7 @@ public final class Application {
     }
 
     private void run() {
-        try (var window = new Window(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT, validationLayers)) {
+        try (var window = new Window(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT, VALIDATION)) {
             final var deviceContext = window.getDeviceContext();
             final var renderContext = window.getRenderContext();
             final var graphicsQueue = getGraphicsQueue(deviceContext);

@@ -3,17 +3,12 @@ package caves.window;
 import caves.window.rendering.RenderingContext;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.glfw.GLFWKeyCallback;
-import org.lwjgl.system.MemoryStack;
-
-import java.nio.ByteBuffer;
 
 import static caves.window.VKUtil.translateVulkanResult;
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.glfw.GLFWVulkan.*;
 import static org.lwjgl.system.MemoryStack.stackPush;
-import static org.lwjgl.system.MemoryUtil.NULL;
-import static org.lwjgl.system.MemoryUtil.memUTF8;
-import static org.lwjgl.vulkan.EXTDebugUtils.VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
+import static org.lwjgl.system.MemoryUtil.*;
 import static org.lwjgl.vulkan.KHRSurface.vkDestroySurfaceKHR;
 import static org.lwjgl.vulkan.KHRSwapchain.VK_KHR_SWAPCHAIN_EXTENSION_NAME;
 import static org.lwjgl.vulkan.VK10.VK_SUCCESS;
@@ -30,12 +25,6 @@ public final class Window implements AutoCloseable {
     private final long windowHandle;
     private final GLFWKeyCallback keyCallback;
     private final long surfaceHandle;
-
-    private static ByteBuffer[] getDeviceExtensions() {
-        return new ByteBuffer[]{
-                memUTF8(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
-        };
-    }
 
     /**
      * Gets the required rendering context for issuing rendering commands.
@@ -55,14 +44,38 @@ public final class Window implements AutoCloseable {
         return this.deviceContext;
     }
 
+    private PointerBuffer getRequiredExtensions() {
+        final var requiredExtensions = glfwGetRequiredInstanceExtensions();
+        if (requiredExtensions == null) {
+            throw new IllegalStateException("Failed to find list of required Vulkan extensions!");
+        }
+        return requiredExtensions;
+    }
+
+    private static PointerBuffer getRequiredDeviceExtensions() {
+        final var requiredExtensions = memAllocPointer(1);
+        requiredExtensions.put(memUTF8(VK_KHR_SWAPCHAIN_EXTENSION_NAME));
+        requiredExtensions.flip();
+
+        return requiredExtensions;
+    }
+
+    private static PointerBuffer getValidationLayers() {
+        final var validationLayers = memAllocPointer(1);
+        validationLayers.put(memUTF8("VK_LAYER_LUNARG_standard_validation"));
+        validationLayers.flip();
+
+        return validationLayers;
+    }
+
     /**
      * Initializes a GLFW window with a vulkan context.
      *
      * @param width            initial width of the window
      * @param height           initial height of the window
-     * @param validationLayers enabled validation layers
+     * @param enableValidation should the validation/debug features be enabled
      */
-    public Window(final int width, final int height, final ByteBuffer[] validationLayers) {
+    public Window(final int width, final int height, final boolean enableValidation) {
         if (!glfwInit()) {
             throw new IllegalStateException("Initializing GLFW failed.");
         }
@@ -72,9 +85,8 @@ public final class Window implements AutoCloseable {
 
         try (var stack = stackPush()) {
             // Initialize vulkan instance
-            final var enableValidation = validationLayers.length > 0;
-            this.instance = new VulkanInstance(getRequiredExtensions(stack, enableValidation),
-                                               validationLayers,
+            this.instance = new VulkanInstance(getRequiredExtensions(),
+                                               getValidationLayers(),
                                                enableValidation);
 
             // Initialize GLFW window
@@ -99,7 +111,7 @@ public final class Window implements AutoCloseable {
             };
             glfwSetKeyCallback(this.windowHandle, this.keyCallback);
             final var pSurface = stack.mallocLong(1);
-            final var error = glfwCreateWindowSurface(this.instance.getVkInstance(),
+            final var error = glfwCreateWindowSurface(this.instance.getInstance(),
                                                       this.windowHandle,
                                                       null,
                                                       pSurface);
@@ -111,7 +123,7 @@ public final class Window implements AutoCloseable {
             // Initialize physical and logical device context
             this.deviceContext = DeviceContext.getForInstance(this.instance,
                                                               this.surfaceHandle,
-                                                              getDeviceExtensions());
+                                                              getRequiredDeviceExtensions());
 
             // Initialize render context
             this.renderContext = new RenderingContext(this.deviceContext,
@@ -120,36 +132,12 @@ public final class Window implements AutoCloseable {
         }
     }
 
-    private PointerBuffer getRequiredExtensions(
-            final MemoryStack stack,
-            final boolean enableValidation
-    ) {
-        final var requiredExtensions = glfwGetRequiredInstanceExtensions();
-        if (requiredExtensions == null) {
-            throw new IllegalStateException("Failed to find list of required Vulkan extensions!");
-        }
-        final ByteBuffer[] additionalExtensions = enableValidation
-                ? new ByteBuffer[]
-                {
-                        memUTF8(VK_EXT_DEBUG_UTILS_EXTENSION_NAME),
-                }
-                : new ByteBuffer[0];
-
-        final var allExtensions = stack.mallocPointer(requiredExtensions.remaining() + additionalExtensions.length);
-        allExtensions.put(requiredExtensions);
-        for (final ByteBuffer extension : additionalExtensions) {
-            allExtensions.put(extension);
-        }
-        allExtensions.flip();
-        return allExtensions;
-    }
-
     @Override
     public void close() {
         // Release resources
         this.renderContext.close();
         this.deviceContext.close();
-        vkDestroySurfaceKHR(this.instance.getVkInstance(), this.surfaceHandle, null);
+        vkDestroySurfaceKHR(this.instance.getInstance(), this.surfaceHandle, null);
 
         // Destroy the instance last as performing this renders the rest of the resources invalid
         this.instance.close();

@@ -1,5 +1,6 @@
 package caves.window;
 
+import caves.util.io.BufferUtil;
 import caves.window.rendering.SwapChainSupportDetails;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
@@ -7,7 +8,6 @@ import org.lwjgl.vulkan.*;
 
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
-import java.nio.charset.StandardCharsets;
 
 import static caves.window.VKUtil.translateVulkanResult;
 import static org.lwjgl.system.MemoryStack.stackPush;
@@ -73,14 +73,14 @@ public final class DeviceContext implements AutoCloseable {
     public static DeviceContext getForInstance(
             final VulkanInstance instance,
             final long surface,
-            final ByteBuffer[] deviceExtensions
+            final PointerBuffer deviceExtensions
     ) {
         try (var stack = stackPush()) {
             final var pPhysicalDeviceCount = getPhysicalDeviceCount(instance, stack);
             final var pPhysicalDevices = getPhysicalDevices(instance, stack, pPhysicalDeviceCount);
             return createContext(stack,
                                  pPhysicalDevices,
-                                 instance.getVkInstance(),
+                                 instance.getInstance(),
                                  surface,
                                  deviceExtensions);
         }
@@ -93,7 +93,7 @@ public final class DeviceContext implements AutoCloseable {
         final var pPhysicalDeviceCount = stack.mallocInt(1);
 
         // Enumerate with `null` ptr at first as we do not know the device count yet.
-        final var error = vkEnumeratePhysicalDevices(instance.getVkInstance(), pPhysicalDeviceCount, null);
+        final var error = vkEnumeratePhysicalDevices(instance.getInstance(), pPhysicalDeviceCount, null);
         if (error != VK_SUCCESS) {
             throw new IllegalStateException("Fetching number of physical devices failed: "
                                                     + translateVulkanResult(error));
@@ -108,7 +108,7 @@ public final class DeviceContext implements AutoCloseable {
     ) {
         // We know the count, enumerate with pointer buffer reserved for devices
         final var pPhysicalDevices = stack.mallocPointer(pPhysicalDeviceCount.get(0));
-        final var error = vkEnumeratePhysicalDevices(instance.getVkInstance(), pPhysicalDeviceCount, pPhysicalDevices);
+        final var error = vkEnumeratePhysicalDevices(instance.getInstance(), pPhysicalDeviceCount, pPhysicalDevices);
         if (error != VK_SUCCESS) {
             throw new IllegalStateException("Fetching a physical device failed: "
                                                     + translateVulkanResult(error));
@@ -121,7 +121,7 @@ public final class DeviceContext implements AutoCloseable {
             final PointerBuffer pPhysicalDevices,
             final VkInstance instance,
             final long surface,
-            final ByteBuffer[] deviceExtensions
+            final PointerBuffer deviceExtensions
     ) {
         // Just naively select the first suitable device
         // TODO: Sort by device suitability and select most suitable
@@ -148,16 +148,11 @@ public final class DeviceContext implements AutoCloseable {
             final MemoryStack stack,
             final VkPhysicalDevice device,
             final QueueIndices indices,
-            final ByteBuffer[] requiredExtensions,
+            final PointerBuffer requiredExtensions,
             final long surface
     ) {
         final var extensionsSupported = checkDeviceExtensionSupport(stack, device, requiredExtensions);
-        var swapChainAdequate = false;
-        if (extensionsSupported) {
-            final var swapChainSupport = SwapChainSupportDetails.querySupport(device, surface);
-            swapChainAdequate = !swapChainSupport.getSurfaceFormats().isEmpty()
-                    && !swapChainSupport.getPresentModes().isEmpty();
-        }
+        final var swapChainAdequate = extensionsSupported && isSwapChainAdequate(device, surface);
 
         if (!indices.isComplete() || !extensionsSupported || !swapChainAdequate) {
             return false;
@@ -171,10 +166,18 @@ public final class DeviceContext implements AutoCloseable {
         return true;
     }
 
+    private static boolean isSwapChainAdequate(final VkPhysicalDevice device, final long surface) {
+        final var swapChainSupport = SwapChainSupportDetails.querySupport(device, surface);
+        final var hasSurfaceFormats = !swapChainSupport.getSurfaceFormats().isEmpty();
+        final var hasPresentModes = !swapChainSupport.getPresentModes().isEmpty();
+
+        return hasSurfaceFormats && hasPresentModes;
+    }
+
     private static boolean checkDeviceExtensionSupport(
             final MemoryStack stack,
             final VkPhysicalDevice device,
-            final ByteBuffer[] requiredExtensions
+            final PointerBuffer requiredExtensions
     ) {
         final var extensionCount = stack.mallocInt(1);
         vkEnumerateDeviceExtensionProperties(device, (ByteBuffer) null, extensionCount, null);
@@ -182,28 +185,15 @@ public final class DeviceContext implements AutoCloseable {
         final var availableExtensions = VkExtensionProperties.callocStack(extensionCount.get(0), stack);
         vkEnumerateDeviceExtensionProperties(device, (ByteBuffer) null, extensionCount, availableExtensions);
 
-        for (var requiredExtension : requiredExtensions) {
-            requiredExtension.mark();
-            final var extensionName = StandardCharsets.UTF_8.decode(requiredExtension)
-                                                            .toString()
-                                                            .trim(); // HACK: .trim removes null-terminators etc.
-            requiredExtension.reset();
-
-            var found = false;
-            for (var extension : availableExtensions) {
-                if (extensionName.equals(extension.extensionNameString())) {
-                    found = true;
-                    break;
-                }
-            }
-
-            if (!found) {
-                System.out.printf("Validation layer \"%s\" not found.", extensionName);
-                return false;
-            }
-        }
-
-        return true;
+        return !BufferUtil.filteredForEachAsStringUTF8(
+                requiredExtensions,
+                name -> availableExtensions.stream()
+                                           .map(VkExtensionProperties::extensionNameString)
+                                           .noneMatch(name::equals),
+                notFound -> {
+                    /* this is potentially called for all available devices and not finding
+                       extensions on all devices is expected, so do not log errors here     */
+                });
     }
 
     @Override
