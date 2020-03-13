@@ -6,6 +6,7 @@
       <w>glsl</w>
       <w>imgv</w>
       <w>lwjgl</w>
+      <w>multisampling</w>
       <w>ndebug</w>
       <w>nullness</w>
       <w>scancode</w>
@@ -14,6 +15,7 @@
       <w>swapchain</w>
       <w>uint</w>
       <w>unsignaled</w>
+      <w>vert</w>
       <w>vulkan</w>
     </words>
   </dictionary>

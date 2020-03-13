@@ -1,6 +1,9 @@
 package caves.visualization.window.rendering;
 
 import caves.visualization.window.DeviceContext;
+import caves.visualization.window.rendering.swapchain.Framebuffers;
+import caves.visualization.window.rendering.swapchain.GraphicsPipeline;
+import caves.visualization.window.rendering.swapchain.SwapChain;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
 import org.lwjgl.vulkan.VkCommandBuffer;

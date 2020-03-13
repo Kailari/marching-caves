@@ -1,4 +1,4 @@
-package caves.visualization.window.rendering;
+package caves.visualization.window.rendering.swapchain;
 
 import caves.visualization.window.DeviceContext;
 import org.lwjgl.system.MemoryStack;

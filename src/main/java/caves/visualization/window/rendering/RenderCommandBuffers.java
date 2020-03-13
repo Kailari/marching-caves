@@ -1,6 +1,9 @@
 package caves.visualization.window.rendering;
 
 import caves.visualization.window.DeviceContext;
+import caves.visualization.window.rendering.swapchain.Framebuffers;
+import caves.visualization.window.rendering.swapchain.GraphicsPipeline;
+import caves.visualization.window.rendering.swapchain.SwapChain;
 import org.lwjgl.vulkan.*;
 
 import static caves.visualization.window.VKUtil.translateVulkanResult;

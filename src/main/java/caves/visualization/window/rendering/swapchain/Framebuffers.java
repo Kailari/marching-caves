@@ -1,4 +1,4 @@
-package caves.visualization.window.rendering;
+package caves.visualization.window.rendering.swapchain;
 
 import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkFramebufferCreateInfo;

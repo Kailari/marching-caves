@@ -1,7 +1,7 @@
 package caves.visualization.window;
 
 import caves.visualization.util.io.BufferUtil;
-import caves.visualization.window.rendering.SwapChainSupportDetails;
+import caves.visualization.window.rendering.swapchain.SwapChainSupportDetails;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
