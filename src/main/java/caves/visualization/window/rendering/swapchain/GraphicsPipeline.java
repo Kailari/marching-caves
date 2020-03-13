@@ -1,6 +1,7 @@
 package caves.visualization.window.rendering.swapchain;
 
 import caves.visualization.window.VKUtil;
+import caves.visualization.window.rendering.uniform.UniformBufferObject;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
 import org.lwjgl.system.MemoryStack;
@@ -13,13 +14,13 @@ import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.vulkan.KHRSwapchain.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 import static org.lwjgl.vulkan.VK10.*;
 
-public final class GraphicsPipeline implements AutoCloseable {
+public final class GraphicsPipeline implements RecreatedWithSwapChain {
     private final VkDevice device;
-
+    private final SwapChain swapChain;
+    private final UniformBufferObject uniformBufferObject;
     private long pipelineLayout;
     private long pipeline;
     private long renderPass;
-
     private boolean cleanedUp;
 
     /**
@@ -49,30 +50,49 @@ public final class GraphicsPipeline implements AutoCloseable {
     }
 
     /**
+     * Gets handle to the graphics pipeline layout.
+     *
+     * @return the pipeline layout
+     */
+    public long getPipelineLayout() {
+        return this.pipelineLayout;
+    }
+
+    /**
      * Creates a new graphics pipeline.
      *
-     * @param device    logical device to use
-     * @param swapChain the swapchain used for rendering
+     * @param device              logical device to use
+     * @param swapChain           the swapchain used for rendering
+     * @param uniformBufferObject the uniform buffer object to use for uniforms
      */
-    public GraphicsPipeline(final VkDevice device, final SwapChain swapChain) {
+    public GraphicsPipeline(
+            final VkDevice device,
+            final SwapChain swapChain,
+            final UniformBufferObject uniformBufferObject
+    ) {
         this.device = device;
+        this.swapChain = swapChain;
+        this.uniformBufferObject = uniformBufferObject;
         this.cleanedUp = true;
 
-        recreate(swapChain);
+        recreate();
     }
 
     private static long createPipelineLayout(
             final MemoryStack stack,
-            final VkDevice device
+            final VkDevice device,
+            final UniformBufferObject ubo
     ) {
-        final var pLayouts = stack.mallocLong(0);
+        final var pLayouts = stack.mallocLong(1);
+        pLayouts.put(ubo.getDescriptorSetLayout());
+        pLayouts.flip();
+
         final var pushConstantRanges = VkPushConstantRange.callocStack(0);
         final var pipelineLayoutCreateInfo = VkPipelineLayoutCreateInfo
                 .callocStack(stack)
                 .sType(VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO)
                 .pSetLayouts(pLayouts)
                 .pPushConstantRanges(pushConstantRanges);
-
 
         final var pLayout = stack.mallocLong(1);
         vkCreatePipelineLayout(device, pipelineLayoutCreateInfo, null, pLayout);
@@ -122,7 +142,7 @@ public final class GraphicsPipeline implements AutoCloseable {
                 .polygonMode(VK_POLYGON_MODE_FILL)
                 .lineWidth(1.0f)
                 .cullMode(VK_CULL_MODE_BACK_BIT)
-                .frontFace(VK_FRONT_FACE_CLOCKWISE)
+                .frontFace(VK_FRONT_FACE_COUNTER_CLOCKWISE)
                 .depthBiasEnable(false)
                 .depthBiasConstantFactor(0.0f)
                 .depthBiasClamp(0.0f)
@@ -191,18 +211,6 @@ public final class GraphicsPipeline implements AutoCloseable {
                 .pVertexBindingDescriptions(pVertexBindingDescriptions);
     }
 
-    private static VkPipelineDynamicStateCreateInfo createDynamicState(final MemoryStack stack) {
-        final var pDynamicStates = stack.mallocInt(2);
-        pDynamicStates.put(0, VK_DYNAMIC_STATE_VIEWPORT);
-        pDynamicStates.put(0, VK_DYNAMIC_STATE_LINE_WIDTH);
-        pDynamicStates.flip();
-
-        return VkPipelineDynamicStateCreateInfo
-                .callocStack(stack)
-                .sType(VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO)
-                .pDynamicStates(pDynamicStates);
-    }
-
     private long createRenderPass(final MemoryStack stack, final int swapChainImageFormat) {
         final var attachments = VkAttachmentDescription.callocStack(1, stack);
         attachments.get(0) // color attachment
@@ -259,10 +267,9 @@ public final class GraphicsPipeline implements AutoCloseable {
     /**
      * Re-creates the whole pipeline from scratch. {@link #cleanup()} must be called first to clean
      * up existing pipeline before re-creating.
-     *
-     * @param swapChain swapchain to use
      */
-    public void recreate(final SwapChain swapChain) {
+    @Override
+    public void recreate() {
         if (!this.cleanedUp) {
             throw new IllegalStateException("Tried to re-create a graphics pipeline without cleaning up first!");
         }
@@ -284,17 +291,15 @@ public final class GraphicsPipeline implements AutoCloseable {
 
             final var vertexInputInfo = createVertexInputInfo(stack);
             final var inputAssembly = createInputAssembly(stack);
-            final var viewport = createViewport(stack, swapChain.getExtent());
-            final var scissor = createScissorRect(stack, swapChain.getExtent());
+            final var viewport = createViewport(stack, this.swapChain.getExtent());
+            final var scissor = createScissorRect(stack, this.swapChain.getExtent());
             final var viewportState = createViewportState(stack, viewport, scissor);
             final var rasterizer = createRasterizationState(stack);
             final var multisampling = createMultisampleState(stack);
-            // TODO: depth/stencilState
             final var colorBlend = createColorBlendInfo(stack);
-            //final var dynamicState = createDynamicState(stack);
 
-            this.pipelineLayout = createPipelineLayout(stack, device);
-            this.renderPass = createRenderPass(stack, swapChain.getImageFormat());
+            this.pipelineLayout = createPipelineLayout(stack, this.device, this.uniformBufferObject);
+            this.renderPass = createRenderPass(stack, this.swapChain.getImageFormat());
 
             final var pipelineInfos = VkGraphicsPipelineCreateInfo
                     .callocStack(1, stack);
@@ -343,6 +348,7 @@ public final class GraphicsPipeline implements AutoCloseable {
     /**
      * Releases the pipeline in preparation to re-creation or shutdown.
      */
+    @Override
     public void cleanup() {
         if (this.cleanedUp) {
             throw new IllegalStateException("Tried to cleanup an already cleared graphics pipeline!");
@@ -352,11 +358,6 @@ public final class GraphicsPipeline implements AutoCloseable {
         vkDestroyPipelineLayout(this.device, this.pipelineLayout, null);
         vkDestroyRenderPass(this.device, this.renderPass, null);
         this.cleanedUp = true;
-    }
-
-    @Override
-    public void close() {
-        cleanup();
     }
 
     public static class Vertex {

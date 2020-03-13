@@ -7,8 +7,10 @@ import static caves.visualization.window.VKUtil.translateVulkanResult;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.vulkan.VK10.*;
 
-public final class Framebuffers implements AutoCloseable {
+public final class Framebuffers implements RecreatedWithSwapChain {
     private final VkDevice device;
+    private final GraphicsPipeline graphicsPipeline;
+    private final SwapChain swapChain;
 
     private long[] swapChainFramebuffers;
     private boolean cleanedUp;
@@ -41,31 +43,28 @@ public final class Framebuffers implements AutoCloseable {
             final SwapChain swapChain
     ) {
         this.device = device;
+        this.graphicsPipeline = graphicsPipeline;
+        this.swapChain = swapChain;
         this.cleanedUp = true;
 
-        this.recreate(graphicsPipeline, swapChain);
+        recreate();
     }
 
     /**
      * Re-creates the framebuffers for all swapchain image views.
-     *
-     * @param graphicsPipeline graphics pipeline to use
-     * @param swapChain        the swapchain to use
      */
-    public void recreate(
-            final GraphicsPipeline graphicsPipeline,
-            final SwapChain swapChain
-    ) {
+    @Override
+    public void recreate() {
         if (!this.cleanedUp) {
             throw new IllegalStateException("Tried to re-create framebuffers without cleaning up!");
         }
 
-        final var swapChainImageViews = swapChain.getImageViews();
+        final var swapChainImageViews = this.swapChain.getImageViews();
         final var imageCount = swapChainImageViews.length;
         this.swapChainFramebuffers = new long[imageCount];
 
         try (var stack = stackPush()) {
-            final var extent = swapChain.getExtent();
+            final var extent = this.swapChain.getExtent();
             final var pFramebuffer = stack.mallocLong(1);
             for (var i = 0; i < imageCount; ++i) {
                 final var pAttachments = stack.mallocLong(1);
@@ -73,7 +72,7 @@ public final class Framebuffers implements AutoCloseable {
                 final var createInfo = VkFramebufferCreateInfo
                         .callocStack(stack)
                         .sType(VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO)
-                        .renderPass(graphicsPipeline.getRenderPass())
+                        .renderPass(this.graphicsPipeline.getRenderPass())
                         .pAttachments(pAttachments)
                         .width(extent.width())
                         .height(extent.height())
@@ -94,6 +93,7 @@ public final class Framebuffers implements AutoCloseable {
     /**
      * Releases the framebuffers in preparations for re-create or shutdown.
      */
+    @Override
     public void cleanup() {
         if (this.cleanedUp) {
             throw new IllegalStateException("Tried to cleanup already cleared framebuffers!");
@@ -103,10 +103,5 @@ public final class Framebuffers implements AutoCloseable {
             vkDestroyFramebuffer(this.device, framebuffer, null);
         }
         this.cleanedUp = true;
-    }
-
-    @Override
-    public void close() {
-        cleanup();
     }
 }

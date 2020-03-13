@@ -13,7 +13,7 @@ import static org.lwjgl.vulkan.KHRSurface.*;
 import static org.lwjgl.vulkan.KHRSwapchain.*;
 import static org.lwjgl.vulkan.VK10.*;
 
-public final class SwapChain implements AutoCloseable {
+public final class SwapChain implements RecreatedWithSwapChain {
     private final DeviceContext deviceContext;
     private final VkExtent2D extent;
     private final long surface;
@@ -70,6 +70,15 @@ public final class SwapChain implements AutoCloseable {
             throw new IllegalStateException("Tried fetch image views from cleaned up swapchain!");
         }
         return this.imageViews;
+    }
+
+    /**
+     * Gets the number of images on this swapchain.
+     *
+     * @return the image count
+     */
+    public int getImageCount() {
+        return this.imageViews.length;
     }
 
     /**
@@ -205,6 +214,7 @@ public final class SwapChain implements AutoCloseable {
      * (Re)Creates the swapchain. Should only be called after the swapchain is known to be
      * invalidated.
      */
+    @Override
     public void recreate() {
         if (!this.cleanedUp) {
             throw new IllegalStateException("Tried re-create swapchain without cleaning up first!");
@@ -287,14 +297,10 @@ public final class SwapChain implements AutoCloseable {
         this.cleanedUp = false;
     }
 
-    @Override
-    public void close() {
-        cleanup();
-    }
-
     /**
      * Releases resources in preparations for re-creation or shutdown.
      */
+    @Override
     public void cleanup() {
         if (this.cleanedUp) {
             throw new IllegalStateException("Tried cleanup already cleared swapchain!");

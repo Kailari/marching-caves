@@ -24,6 +24,8 @@ public final class Application {
     private static final long UINT64_MAX = 0xFFFFFFFFFFFFFFFFL; // or "-1L", but this looks nicer.
     private static final int MAX_FRAMES_IN_FLIGHT = 2;
 
+    private static final float DEGREES_PER_SECOND = 90.0f;
+
     private final boolean validation;
 
     /** Indicates that framebuffers have just resized and the swapchain should be re-created. */
@@ -109,8 +111,14 @@ public final class Application {
             app.getWindow().onResize((windowHandle, width, height) -> this.framebufferResized = true);
 
             app.getWindow().show();
+            var angle = 0.0f;
             var currentFrame = 0L;
+            var lastFrameTime = System.currentTimeMillis();
             while (!app.getWindow().shouldClose()) {
+                final var currentTime = System.currentTimeMillis();
+                final var delta = (lastFrameTime - currentTime) / 1000.0;
+                lastFrameTime = currentTime;
+
                 glfwPollEvents();
                 final var swapchain = renderContext.getSwapChain();
 
@@ -146,6 +154,11 @@ public final class Application {
                     // ourselves.
                     imagesInFlight[imageIndex] = inFlightFence;
 
+                    // Update uniforms
+                    angle += DEGREES_PER_SECOND * delta;
+                    renderContext.updateUniforms(imageIndex, angle);
+
+                    // Submit the render command buffers
                     final var signalSemaphores = stack.mallocLong(1);
                     signalSemaphores.put(renderFinishedSemaphore);
                     signalSemaphores.flip();

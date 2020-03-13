@@ -4,6 +4,8 @@ import caves.visualization.window.DeviceContext;
 import caves.visualization.window.rendering.swapchain.Framebuffers;
 import caves.visualization.window.rendering.swapchain.GraphicsPipeline;
 import caves.visualization.window.rendering.swapchain.SwapChain;
+import caves.visualization.window.rendering.uniform.DescriptorPool;
+import caves.visualization.window.rendering.uniform.UniformBufferObject;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
 import org.lwjgl.vulkan.VkCommandBuffer;
@@ -25,9 +27,11 @@ public final class RenderingContext implements AutoCloseable {
     private final Framebuffers framebuffers;
     private final CommandPool commandPool;
 
-    private final GPUBuffer<GraphicsPipeline.Vertex> vertexBuffer;
-    private final GPUBuffer<Short> indexBuffer;
+    private final SequentialGPUBuffer<GraphicsPipeline.Vertex> vertexBuffer;
+    private final SequentialGPUBuffer<Short> indexBuffer;
     private final RenderCommandBuffers renderCommandBuffers;
+    private final UniformBufferObject uniformBufferObject;
+    private final DescriptorPool descriptorPool;
 
     private boolean mustRecreateSwapChain = false;
 
@@ -66,15 +70,19 @@ public final class RenderingContext implements AutoCloseable {
 
             vkDeviceWaitIdle(this.deviceContext.getDevice());
 
-            this.framebuffers.cleanup();
             this.renderCommandBuffers.cleanup();
+            this.framebuffers.cleanup();
             this.graphicsPipeline.cleanup();
+            this.uniformBufferObject.cleanup();
+            this.descriptorPool.cleanup();
             this.swapChain.cleanup();
 
             this.swapChain.recreate();
-            this.graphicsPipeline.recreate(this.swapChain);
-            this.framebuffers.recreate(this.graphicsPipeline, this.swapChain);
-            this.renderCommandBuffers.recreate(this.swapChain, this.framebuffers, this.graphicsPipeline);
+            this.descriptorPool.recreate();
+            this.uniformBufferObject.recreate();
+            this.graphicsPipeline.recreate();
+            this.framebuffers.recreate();
+            this.renderCommandBuffers.recreate();
             this.mustRecreateSwapChain = false;
         }
 
@@ -97,9 +105,13 @@ public final class RenderingContext implements AutoCloseable {
         this.windowHandle = windowHandle;
 
         this.swapChain = new SwapChain(deviceContext, surface, windowHandle);
-        this.graphicsPipeline = new GraphicsPipeline(deviceContext.getDevice(), this.swapChain);
+        this.descriptorPool = new DescriptorPool(this.deviceContext, this.swapChain);
+        this.uniformBufferObject = new UniformBufferObject(this.deviceContext, this.swapChain, this.descriptorPool);
+        this.graphicsPipeline = new GraphicsPipeline(deviceContext.getDevice(),
+                                                     this.swapChain,
+                                                     this.uniformBufferObject);
         this.framebuffers = new Framebuffers(deviceContext.getDevice(), this.graphicsPipeline, this.swapChain);
-        this.commandPool = new CommandPool(deviceContext);
+        this.commandPool = new CommandPool(deviceContext, this.swapChain);
 
         final var quadSize = 0.5f;
         final var vertices = new GraphicsPipeline.Vertex[]{
@@ -122,16 +134,17 @@ public final class RenderingContext implements AutoCloseable {
                                                              this.framebuffers,
                                                              this.graphicsPipeline,
                                                              this.vertexBuffer,
-                                                             this.indexBuffer);
+                                                             this.indexBuffer,
+                                                             this.uniformBufferObject);
 
     }
 
-    private static GPUBuffer<GraphicsPipeline.Vertex> createVertexBuffer(
+    private static SequentialGPUBuffer<GraphicsPipeline.Vertex> createVertexBuffer(
             final DeviceContext deviceContext,
             final CommandPool commandPool,
             final GraphicsPipeline.Vertex[] vertices
     ) {
-        final var stagingBuffer = new GPUBuffer<GraphicsPipeline.Vertex>(
+        final var stagingBuffer = new SequentialGPUBuffer<GraphicsPipeline.Vertex>(
                 deviceContext,
                 vertices.length,
                 GraphicsPipeline.Vertex.SIZE_IN_BYTES,
@@ -145,7 +158,7 @@ public final class RenderingContext implements AutoCloseable {
                     buffer.putFloat(vertex.getColor().y());
                     buffer.putFloat(vertex.getColor().z());
                 });
-        final var vertexBuffer = new GPUBuffer<GraphicsPipeline.Vertex>(
+        final var vertexBuffer = new SequentialGPUBuffer<GraphicsPipeline.Vertex>(
                 deviceContext,
                 vertices.length,
                 GraphicsPipeline.Vertex.SIZE_IN_BYTES,
@@ -161,19 +174,19 @@ public final class RenderingContext implements AutoCloseable {
         return vertexBuffer;
     }
 
-    private static GPUBuffer<Short> createIndexBuffer(
+    private static SequentialGPUBuffer<Short> createIndexBuffer(
             final DeviceContext deviceContext,
             final CommandPool commandPool,
             final Short[] indices
     ) {
-        final var stagingBuffer = new GPUBuffer<Short>(
+        final var stagingBuffer = new SequentialGPUBuffer<Short>(
                 deviceContext,
                 indices.length,
                 Short.BYTES,
                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                 ByteBuffer::putShort);
-        final var vertexBuffer = new GPUBuffer<Short>(
+        final var vertexBuffer = new SequentialGPUBuffer<Short>(
                 deviceContext,
                 indices.length,
                 Short.BYTES,
@@ -205,9 +218,11 @@ public final class RenderingContext implements AutoCloseable {
     public void close() {
         this.renderCommandBuffers.close();
         this.commandPool.close();
+        this.descriptorPool.close();
         this.framebuffers.close();
         this.graphicsPipeline.close();
         this.swapChain.close();
+        this.uniformBufferObject.close();
 
         this.vertexBuffer.close();
         this.indexBuffer.close();
@@ -220,5 +235,15 @@ public final class RenderingContext implements AutoCloseable {
      */
     public void notifyOutOfDateSwapchain() {
         this.mustRecreateSwapChain = true;
+    }
+
+    /**
+     * Updates shader uniform buffer objects.
+     *
+     * @param imageIndex index of the current swapchain image
+     * @param angle      angle for the model matrix
+     */
+    public void updateUniforms(final int imageIndex, final float angle) {
+        this.uniformBufferObject.update(imageIndex, angle);
     }
 }
