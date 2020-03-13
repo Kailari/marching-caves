@@ -1,10 +1,10 @@
 /**
- * Root package, containing just the application main entry point.
+ * Helpers/utilities for managing I/O resources.
  */
 @ParametersAreNonnullByDefault
 @MethodsReturnNonnullByDefault
 @FieldsAreNonnullByDefault
-package caves;
+package caves.visualization.util.io;
 
 import caves.visualization.util.annotation.FieldsAreNonnullByDefault;
 import caves.visualization.util.annotation.MethodsReturnNonnullByDefault;

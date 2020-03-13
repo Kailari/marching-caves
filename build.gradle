@@ -23,7 +23,7 @@ jacocoTestReport {
     }
 }
 
-application.mainClassName 'caves.Application'
+application.mainClassName 'caves.Main'
 
 switch (OperatingSystem.current()) {
     case OperatingSystem.LINUX:

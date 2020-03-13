@@ -1,10 +1,10 @@
 /**
- * Root package, containing just the application main entry point.
+ * Classes required for bootstrapping the visualization application.
  */
 @ParametersAreNonnullByDefault
 @MethodsReturnNonnullByDefault
 @FieldsAreNonnullByDefault
-package caves;
+package caves.visualization;
 
 import caves.visualization.util.annotation.FieldsAreNonnullByDefault;
 import caves.visualization.util.annotation.MethodsReturnNonnullByDefault;

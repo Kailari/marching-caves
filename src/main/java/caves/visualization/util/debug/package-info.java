@@ -1,10 +1,10 @@
 /**
- * Root package, containing just the application main entry point.
+ * Various debugging utilities.
  */
-@ParametersAreNonnullByDefault
 @MethodsReturnNonnullByDefault
+@ParametersAreNonnullByDefault
 @FieldsAreNonnullByDefault
-package caves;
+package caves.visualization.util.debug;
 
 import caves.visualization.util.annotation.FieldsAreNonnullByDefault;
 import caves.visualization.util.annotation.MethodsReturnNonnullByDefault;

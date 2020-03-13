@@ -1,10 +1,10 @@
 /**
- * Root package, containing just the application main entry point.
+ * Utilities for working with GLSL and SPIR-V shaders.
  */
 @ParametersAreNonnullByDefault
 @MethodsReturnNonnullByDefault
 @FieldsAreNonnullByDefault
-package caves;
+package caves.visualization.util.shader;
 
 import caves.visualization.util.annotation.FieldsAreNonnullByDefault;
 import caves.visualization.util.annotation.MethodsReturnNonnullByDefault;

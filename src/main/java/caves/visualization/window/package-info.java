@@ -1,10 +1,10 @@
 /**
- * Root package, containing just the application main entry point.
+ * Provides facilities for handling a GLFW window context.
  */
-@ParametersAreNonnullByDefault
 @MethodsReturnNonnullByDefault
+@ParametersAreNonnullByDefault
 @FieldsAreNonnullByDefault
-package caves;
+package caves.visualization.window;
 
 import caves.visualization.util.annotation.FieldsAreNonnullByDefault;
 import caves.visualization.util.annotation.MethodsReturnNonnullByDefault;

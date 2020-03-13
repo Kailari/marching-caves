@@ -1,10 +1,10 @@
 /**
- * Root package, containing just the application main entry point.
+ * Utilities for handling Vulkan SwapChains.
  */
-@ParametersAreNonnullByDefault
 @MethodsReturnNonnullByDefault
+@ParametersAreNonnullByDefault
 @FieldsAreNonnullByDefault
-package caves;
+package caves.visualization.window.rendering;
 
 import caves.visualization.util.annotation.FieldsAreNonnullByDefault;
 import caves.visualization.util.annotation.MethodsReturnNonnullByDefault;
