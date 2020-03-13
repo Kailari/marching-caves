@@ -3,41 +3,75 @@ package caves.visualization.window.rendering;
 import caves.visualization.window.DeviceContext;
 import org.lwjgl.vulkan.*;
 
+import javax.annotation.Nullable;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.function.BiConsumer;
+
 import static caves.visualization.window.VKUtil.translateVulkanResult;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.system.MemoryUtil.memAddress;
 import static org.lwjgl.system.MemoryUtil.memCopy;
 import static org.lwjgl.vulkan.VK10.*;
 
-public final class VertexBuffer implements AutoCloseable {
+public final class GPUBuffer<T> implements AutoCloseable {
     private final VkDevice device;
 
     private final long bufferHandle;
     private final long bufferMemory;
     private final int bufferSize;
-    private final int vertexCount;
+    private final int elementCount;
+
+    @Nullable private final BiConsumer<ByteBuffer, T> memoryMapper;
 
     private final boolean deviceLocal;
 
+    /**
+     * Gets the native handle for this buffer.
+     *
+     * @return the handle to the underlying VkBuffer
+     */
     public long getBufferHandle() {
         return this.bufferHandle;
     }
 
-    public int getVertexCount() {
-        return this.vertexCount;
+    /**
+     * Gets the count of elements stored in this buffer.
+     *
+     * @return the count of elements
+     */
+    public int getElementCount() {
+        return this.elementCount;
     }
 
-    public VertexBuffer(
+    /**
+     * Allocates a new buffer on the GPU.
+     *
+     * @param deviceContext device to use
+     * @param elementCount  the maximum number of elements the buffer may contain
+     * @param usageFlags    usage flags
+     * @param propertyFlags property flags
+     * @param memoryMapper  memory mapper used for writing elements to the buffer
+     */
+    public GPUBuffer(
             final DeviceContext deviceContext,
-            final int vertexCount,
+            final int elementCount,
+            final int elementSize,
             final int usageFlags,
-            final int propertyFlags
+            final int propertyFlags,
+            @Nullable final BiConsumer<ByteBuffer, T> memoryMapper
     ) {
         this.device = deviceContext.getDevice();
         this.deviceLocal = (propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) != 0;
+        if (!this.deviceLocal && memoryMapper == null) {
+            System.err.println("Memory mapper was null on non-device-local GPU buffer!");
+        } else if (this.deviceLocal && memoryMapper != null) {
+            System.err.println("Memory mapper was defined for device-local GPU buffer!");
+        }
 
-        this.vertexCount = vertexCount;
-        this.bufferSize = GraphicsPipeline.Vertex.SIZE_IN_BYTES * vertexCount;
+        this.elementCount = elementCount;
+        this.bufferSize = elementSize * elementCount;
+        this.memoryMapper = memoryMapper;
         try (var stack = stackPush()) {
             final var bufferInfo = VkBufferCreateInfo
                     .callocStack(stack)
@@ -49,7 +83,7 @@ public final class VertexBuffer implements AutoCloseable {
             final var pBuffer = stack.mallocLong(1);
             final var error = vkCreateBuffer(this.device, bufferInfo, null, pBuffer);
             if (error != VK_SUCCESS) {
-                throw new IllegalStateException("Creating vertex buffer failed!");
+                throw new IllegalStateException("Creating GPU buffer failed!");
             }
             this.bufferHandle = pBuffer.get(0);
         }
@@ -73,27 +107,38 @@ public final class VertexBuffer implements AutoCloseable {
             final var pBufferMemory = stack.mallocLong(1);
             final var error = vkAllocateMemory(this.device, allocInfo, null, pBufferMemory);
             if (error != VK_SUCCESS) {
-                throw new IllegalStateException("Could not allocate memory for a vertex buffer!");
+                throw new IllegalStateException("Could not allocate memory for a GPU buffer!");
             }
             this.bufferMemory = pBufferMemory.get(0);
             vkBindBufferMemory(device, this.bufferHandle, this.bufferMemory, 0);
         }
     }
 
-    public void pushVertices(final GraphicsPipeline.Vertex[] vertices) {
+    /**
+     * Pushes the given elements to the GPU memory.
+     *
+     * @param elements elements to push
+     */
+    public void pushElements(final T[] elements) {
+        pushElements(Arrays.asList(elements));
+    }
+
+
+    /**
+     * Pushes the given elements to the GPU memory.
+     *
+     * @param elements elements to push
+     */
+    public void pushElements(final Iterable<T> elements) {
         if (this.deviceLocal) {
-            throw new IllegalStateException("Tried to push vertices to GPU-only buffer!");
+            throw new IllegalStateException("Tried to push elements to GPU-only buffer!");
         }
 
+        assert this.memoryMapper != null;
         try (var stack = stackPush()) {
             final var vertexBuffer = stack.malloc(this.bufferSize);
-            for (final var vertex : vertices) {
-                vertexBuffer.putFloat(vertex.getPos().x());
-                vertexBuffer.putFloat(vertex.getPos().y());
-
-                vertexBuffer.putFloat(vertex.getColor().x());
-                vertexBuffer.putFloat(vertex.getColor().y());
-                vertexBuffer.putFloat(vertex.getColor().z());
+            for (final var vertex : elements) {
+                this.memoryMapper.accept(vertexBuffer, vertex);
             }
             vertexBuffer.flip();
 
@@ -113,13 +158,20 @@ public final class VertexBuffer implements AutoCloseable {
         vkFreeMemory(this.device, this.bufferMemory, null);
     }
 
+    /**
+     * Copies contents of this buffer to the given target buffer.
+     *
+     * @param commandPool command pool to use for allocating the command buffer for the operation
+     * @param queue       queue to issue the transfer operation on
+     * @param other       the target buffer
+     */
     public void copyToAndWait(
             final long commandPool,
             final VkQueue queue,
-            final VertexBuffer other
+            final GPUBuffer<T> other
     ) {
         if (this.bufferSize != other.bufferSize) {
-            throw new IllegalStateException("Cannot copy as the buffers are of different sizes!");
+            throw new IllegalStateException("Cannot copy buffers with different sizes!");
         }
 
         try (var stack = stackPush()) {

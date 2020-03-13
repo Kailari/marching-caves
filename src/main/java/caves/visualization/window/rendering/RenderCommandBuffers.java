@@ -7,9 +7,7 @@ import static caves.visualization.window.VKUtil.translateVulkanResult;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.vulkan.VK10.*;
 
-public class RenderCommandBuffers implements AutoCloseable {
-    private static final int VERTEX_COUNT = 3;
-    private static final int INSTANCE_COUNT = 1;
+public final class RenderCommandBuffers implements AutoCloseable {
     private static final int A = 3;
     private static final int B = 2;
     private static final int G = 1;
@@ -17,7 +15,8 @@ public class RenderCommandBuffers implements AutoCloseable {
 
     private final VkDevice device;
     private final CommandPool commandPool;
-    private final VertexBuffer vertexBuffer;
+    private final GPUBuffer<GraphicsPipeline.Vertex> vertexBuffer;
+    private final GPUBuffer<Short> indexBuffer;
 
     private VkCommandBuffer[] commandBuffers;
     private boolean cleanedUp;
@@ -27,10 +26,11 @@ public class RenderCommandBuffers implements AutoCloseable {
      *
      * @param deviceContext    the device context to use
      * @param commandPool      command pool to allocate on
-     * @param vertexBuffer     vertices to render
      * @param swapChain        active swapchain
      * @param framebuffers     framebuffers to create the buffers for
      * @param graphicsPipeline the graphics pipeline to use
+     * @param vertexBuffer     vertices to use for rendering
+     * @param indexBuffer      indices to use for rendering
      */
     public RenderCommandBuffers(
             final DeviceContext deviceContext,
@@ -38,11 +38,13 @@ public class RenderCommandBuffers implements AutoCloseable {
             final SwapChain swapChain,
             final Framebuffers framebuffers,
             final GraphicsPipeline graphicsPipeline,
-            final VertexBuffer vertexBuffer
+            final GPUBuffer<GraphicsPipeline.Vertex> vertexBuffer,
+            final GPUBuffer<Short> indexBuffer
     ) {
         this.device = deviceContext.getDevice();
         this.commandPool = commandPool;
         this.vertexBuffer = vertexBuffer;
+        this.indexBuffer = indexBuffer;
 
         this.cleanedUp = true;
 
@@ -92,7 +94,7 @@ public class RenderCommandBuffers implements AutoCloseable {
     }
 
     /**
-     * Re-creates the command buffers
+     * Re-creates the command buffers.
      *
      * @param swapChain        swapchain to use
      * @param framebuffers     framebuffers to use
@@ -153,7 +155,16 @@ public class RenderCommandBuffers implements AutoCloseable {
                 offsets.flip();
 
                 vkCmdBindVertexBuffers(this.commandBuffers[i], 0, vertexBuffers, offsets);
-                vkCmdDraw(this.commandBuffers[i], this.vertexBuffer.getVertexCount(), INSTANCE_COUNT, 0, 0);
+                vkCmdBindIndexBuffer(this.commandBuffers[i],
+                                     this.indexBuffer.getBufferHandle(),
+                                     0,
+                                     VK_INDEX_TYPE_UINT16);
+                vkCmdDrawIndexed(this.commandBuffers[i],
+                                 this.indexBuffer.getElementCount(),
+                                 1,
+                                 0,
+                                 0,
+                                 0);
 
                 // End the pass/buffer
                 vkCmdEndRenderPass(this.commandBuffers[i]);

@@ -178,11 +178,11 @@ public final class GraphicsPipeline implements AutoCloseable {
 
     private static VkPipelineVertexInputStateCreateInfo createVertexInputInfo(final MemoryStack stack) {
         final var pVertexBindingDescriptions = VkVertexInputBindingDescription.callocStack(1, stack);
-        pVertexBindingDescriptions.put(0, Vertex.bindingDescription);
+        pVertexBindingDescriptions.put(0, Vertex.BINDING_DESCRIPTION);
 
         final var pVertexAttributeDescriptions = VkVertexInputAttributeDescription.callocStack(2, stack);
-        pVertexAttributeDescriptions.put(0, Vertex.attributeDescriptions[0]);
-        pVertexAttributeDescriptions.put(1, Vertex.attributeDescriptions[1]);
+        pVertexAttributeDescriptions.put(0, Vertex.ATTRIBUTE_DESCRIPTIONS[0]);
+        pVertexAttributeDescriptions.put(1, Vertex.ATTRIBUTE_DESCRIPTIONS[1]);
 
         return VkPipelineVertexInputStateCreateInfo
                 .callocStack(stack)
@@ -360,14 +360,16 @@ public final class GraphicsPipeline implements AutoCloseable {
     }
 
     public static class Vertex {
-        public static final int SIZE_IN_BYTES = 2 * 4 + 3 * 4;
-        private static final VkVertexInputBindingDescription bindingDescription = VkVertexInputBindingDescription
+        /** Size of a single vertex, in bytes. */
+        public static final int SIZE_IN_BYTES = 2 * Float.BYTES + 3 * Float.BYTES;
+
+        private static final VkVertexInputBindingDescription BINDING_DESCRIPTION = VkVertexInputBindingDescription
                 .calloc()
                 .binding(0)
                 .stride(SIZE_IN_BYTES)
                 .inputRate(VK_VERTEX_INPUT_RATE_VERTEX);
 
-        private static final VkVertexInputAttributeDescription[] attributeDescriptions =
+        private static final VkVertexInputAttributeDescription[] ATTRIBUTE_DESCRIPTIONS =
                 new VkVertexInputAttributeDescription[]{
                         VkVertexInputAttributeDescription
                                 .calloc()
@@ -386,14 +388,30 @@ public final class GraphicsPipeline implements AutoCloseable {
         private final Vector2f pos;
         private final Vector3f color;
 
+        /**
+         * Gets the associated position vector of this vector.
+         *
+         * @return the position
+         */
         public Vector2f getPos() {
             return pos;
         }
 
+        /**
+         * Gets the associated color of this vector.
+         *
+         * @return the color
+         */
         public Vector3f getColor() {
             return color;
         }
 
+        /**
+         * Constructs a new vector with a position and a color.
+         *
+         * @param pos   position
+         * @param color color
+         */
         public Vertex(final Vector2f pos, final Vector3f color) {
             this.pos = pos;
             this.color = color;

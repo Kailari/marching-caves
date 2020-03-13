@@ -5,6 +5,9 @@ import org.joml.Vector2f;
 import org.joml.Vector3f;
 import org.lwjgl.vulkan.VkCommandBuffer;
 
+import java.nio.ByteBuffer;
+import java.util.Arrays;
+
 import static org.lwjgl.glfw.GLFW.glfwGetFramebufferSize;
 import static org.lwjgl.glfw.GLFW.glfwWaitEvents;
 import static org.lwjgl.system.MemoryStack.stackPush;
@@ -19,7 +22,8 @@ public final class RenderingContext implements AutoCloseable {
     private final Framebuffers framebuffers;
     private final CommandPool commandPool;
 
-    private final VertexBuffer vertexBuffer;
+    private final GPUBuffer<GraphicsPipeline.Vertex> vertexBuffer;
+    private final GPUBuffer<Short> indexBuffer;
     private final RenderCommandBuffers renderCommandBuffers;
 
     private boolean mustRecreateSwapChain = false;
@@ -94,33 +98,92 @@ public final class RenderingContext implements AutoCloseable {
         this.framebuffers = new Framebuffers(deviceContext.getDevice(), this.graphicsPipeline, this.swapChain);
         this.commandPool = new CommandPool(deviceContext);
 
+        final var quadSize = 0.5f;
         final var vertices = new GraphicsPipeline.Vertex[]{
-                new GraphicsPipeline.Vertex(new Vector2f(0.0f, -0.5f), new Vector3f(1.0f, 0.0f, 0.0f)),
-                new GraphicsPipeline.Vertex(new Vector2f(0.5f, 0.5f), new Vector3f(0.0f, 1.0f, 0.0f)),
-                new GraphicsPipeline.Vertex(new Vector2f(-0.5f, 0.5f), new Vector3f(0.0f, 0.0f, 1.0f))
+                new GraphicsPipeline.Vertex(new Vector2f(-quadSize, -quadSize), new Vector3f(1.0f, 0.0f, 0.0f)),
+                new GraphicsPipeline.Vertex(new Vector2f(quadSize, -quadSize), new Vector3f(0.0f, 1.0f, 0.0f)),
+                new GraphicsPipeline.Vertex(new Vector2f(quadSize, quadSize), new Vector3f(0.0f, 0.0f, 1.0f)),
+                new GraphicsPipeline.Vertex(new Vector2f(-quadSize, quadSize), new Vector3f(1.0f, 0.0f, 1.0f)),
+        };
+        final var indices = new Short[]{
+                0, 1, 2,
+                2, 3, 0,
         };
 
-        final VertexBuffer stagingBuffer = new VertexBuffer(deviceContext,
-                                                            vertices.length,
-                                                            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                                                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-        this.vertexBuffer = new VertexBuffer(deviceContext,
-                                             vertices.length,
-                                             VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                                             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-        stagingBuffer.pushVertices(vertices);
-        stagingBuffer.copyToAndWait(this.commandPool.getHandle(),
-                                    this.deviceContext.getGraphicsQueue(),
-                                    this.vertexBuffer);
-        stagingBuffer.close();
+        this.vertexBuffer = createVertexBuffer(deviceContext, this.commandPool, vertices);
+        this.indexBuffer = createIndexBuffer(deviceContext, this.commandPool, indices);
 
         this.renderCommandBuffers = new RenderCommandBuffers(deviceContext,
                                                              this.commandPool,
                                                              this.swapChain,
                                                              this.framebuffers,
                                                              this.graphicsPipeline,
-                                                             this.vertexBuffer);
+                                                             this.vertexBuffer,
+                                                             this.indexBuffer);
 
+    }
+
+    private static GPUBuffer<GraphicsPipeline.Vertex> createVertexBuffer(
+            final DeviceContext deviceContext,
+            final CommandPool commandPool,
+            final GraphicsPipeline.Vertex[] vertices
+    ) {
+        final var stagingBuffer = new GPUBuffer<GraphicsPipeline.Vertex>(
+                deviceContext,
+                vertices.length,
+                GraphicsPipeline.Vertex.SIZE_IN_BYTES,
+                VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                (buffer, vertex) -> {
+                    buffer.putFloat(vertex.getPos().x());
+                    buffer.putFloat(vertex.getPos().y());
+
+                    buffer.putFloat(vertex.getColor().x());
+                    buffer.putFloat(vertex.getColor().y());
+                    buffer.putFloat(vertex.getColor().z());
+                });
+        final var vertexBuffer = new GPUBuffer<GraphicsPipeline.Vertex>(
+                deviceContext,
+                vertices.length,
+                GraphicsPipeline.Vertex.SIZE_IN_BYTES,
+                VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                null);
+        stagingBuffer.pushElements(Arrays.asList(vertices));
+        stagingBuffer.copyToAndWait(commandPool.getHandle(),
+                                    deviceContext.getGraphicsQueue(),
+                                    vertexBuffer);
+        stagingBuffer.close();
+
+        return vertexBuffer;
+    }
+
+    private static GPUBuffer<Short> createIndexBuffer(
+            final DeviceContext deviceContext,
+            final CommandPool commandPool,
+            final Short[] indices
+    ) {
+        final var stagingBuffer = new GPUBuffer<Short>(
+                deviceContext,
+                indices.length,
+                Short.BYTES,
+                VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                ByteBuffer::putShort);
+        final var vertexBuffer = new GPUBuffer<Short>(
+                deviceContext,
+                indices.length,
+                Short.BYTES,
+                VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                null);
+        stagingBuffer.pushElements(indices);
+        stagingBuffer.copyToAndWait(commandPool.getHandle(),
+                                    deviceContext.getGraphicsQueue(),
+                                    vertexBuffer);
+        stagingBuffer.close();
+
+        return vertexBuffer;
     }
 
     /**
@@ -144,6 +207,7 @@ public final class RenderingContext implements AutoCloseable {
         this.swapChain.close();
 
         this.vertexBuffer.close();
+        this.indexBuffer.close();
     }
 
     /**
