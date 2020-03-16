@@ -86,8 +86,8 @@ public final class ApplicationContext implements AutoCloseable {
             this.window = new GLFWVulkanWindow(width, height, this.instance);
 
             this.deviceContext = new DeviceContext(this.instance,
-                                                      this.window.getSurfaceHandle(),
-                                                      stack.pointers(stack.UTF8(VK_KHR_SWAPCHAIN_EXTENSION_NAME)));
+                                                   this.window.getSurfaceHandle(),
+                                                   stack.pointers(stack.UTF8(VK_KHR_SWAPCHAIN_EXTENSION_NAME)));
             this.renderContext = new RenderingContext(vertices,
                                                       indices,
                                                       this.deviceContext,

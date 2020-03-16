@@ -10,7 +10,6 @@ import java.nio.ByteBuffer;
 import java.util.Optional;
 
 import static caves.visualization.window.VKUtil.translateVulkanResult;
-import static org.lwjgl.system.MemoryStack.stackGet;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.vulkan.VK10.*;
 
@@ -88,17 +87,17 @@ public final class DeviceContext implements AutoCloseable {
     /**
      * Selects a new physical device and creates context for it using the given Vulkan instance.
      *
-     * @param instance         instance to select the device for
-     * @param surface          window surface to use
-     * @param deviceExtensions required device extensions
+     * @param instance           instance to select the device for
+     * @param surface            window surface to use
+     * @param requiredExtensions required device extensions
      */
     public DeviceContext(
             final VulkanInstance instance,
             final long surface,
-            final PointerBuffer deviceExtensions
+            final PointerBuffer requiredExtensions
     ) {
         try (var stack = stackPush()) {
-            final var pPhysicalDevices = getPhysicalDevices(instance.getInstance());
+            final var pPhysicalDevices = getPhysicalDevices(stack, instance.getInstance());
             // Just naively select the first suitable device
             // TODO: Sort by device suitability and select most suitable
             VkPhysicalDevice selected = null;
@@ -106,8 +105,8 @@ public final class DeviceContext implements AutoCloseable {
             while (pPhysicalDevices.hasRemaining()) {
                 final var device = new VkPhysicalDevice(pPhysicalDevices.get(), instance.getInstance());
 
-                indices = new QueueIndices(stack, surface, device);
-                if (isSuitableDevice(stack, device, indices, deviceExtensions, surface)) {
+                indices = new QueueIndices(surface, device);
+                if (isSuitableDevice(device, indices, requiredExtensions, surface)) {
                     selected = device;
                     break;
                 }
@@ -118,7 +117,7 @@ public final class DeviceContext implements AutoCloseable {
             }
 
             this.physicalDevice = selected;
-            this.deviceAndQueueFamilies = new DeviceAndQueueFamilies(selected, indices, deviceExtensions);
+            this.deviceAndQueueFamilies = new DeviceAndQueueFamilies(selected, indices, requiredExtensions);
         }
 
         this.memoryProperties = VkPhysicalDeviceMemoryProperties.malloc();
@@ -128,8 +127,10 @@ public final class DeviceContext implements AutoCloseable {
         this.presentQueue = getQueue(this.getDevice(), this.deviceAndQueueFamilies.getPresentFamily());
     }
 
-    private static PointerBuffer getPhysicalDevices(final VkInstance instance) {
-        final var stack = stackGet();
+    private static PointerBuffer getPhysicalDevices(
+            final MemoryStack stack,
+            final VkInstance instance
+    ) {
         final var pCount = stack.mallocInt(1);
         final var fetchCountResult = vkEnumeratePhysicalDevices(instance, pCount, null);
         if (fetchCountResult != VK_SUCCESS) {
@@ -150,23 +151,26 @@ public final class DeviceContext implements AutoCloseable {
 
     // TODO: Return "suitability value" instead of a boolean
     private static boolean isSuitableDevice(
-            final MemoryStack stack,
             final VkPhysicalDevice device,
             final QueueIndices indices,
             final PointerBuffer requiredExtensions,
             final long surface
     ) {
-        final var extensionsSupported = checkDeviceExtensionSupport(stack, device, requiredExtensions);
+        final var extensionsSupported = checkDeviceExtensionSupport(device, requiredExtensions);
         final var swapChainAdequate = extensionsSupported && isSwapChainAdequate(device, surface);
 
         if (!indices.isComplete() || !extensionsSupported || !swapChainAdequate) {
             return false;
         }
 
-        final var deviceProperties = VkPhysicalDeviceProperties.mallocStack(stack);
-        final var deviceFeatures = VkPhysicalDeviceFeatures.mallocStack(stack);
-        vkGetPhysicalDeviceProperties(device, deviceProperties);
-        vkGetPhysicalDeviceFeatures(device, deviceFeatures);
+        try (var stack = stackPush()) {
+            final var deviceProperties = VkPhysicalDeviceProperties.mallocStack(stack);
+            final var deviceFeatures = VkPhysicalDeviceFeatures.mallocStack(stack);
+            vkGetPhysicalDeviceProperties(device, deviceProperties);
+            vkGetPhysicalDeviceFeatures(device, deviceFeatures);
+
+            // adjust suitability here
+        }
 
         return true;
     }
@@ -180,25 +184,26 @@ public final class DeviceContext implements AutoCloseable {
     }
 
     private static boolean checkDeviceExtensionSupport(
-            final MemoryStack stack,
             final VkPhysicalDevice device,
             final PointerBuffer requiredExtensions
     ) {
-        final var extensionCount = stack.mallocInt(1);
-        vkEnumerateDeviceExtensionProperties(device, (ByteBuffer) null, extensionCount, null);
+        try (var stack = stackPush()) {
+            final var extensionCount = stack.mallocInt(1);
+            vkEnumerateDeviceExtensionProperties(device, (ByteBuffer) null, extensionCount, null);
 
-        final var availableExtensions = VkExtensionProperties.callocStack(extensionCount.get(0), stack);
-        vkEnumerateDeviceExtensionProperties(device, (ByteBuffer) null, extensionCount, availableExtensions);
+            final var availableExtensions = VkExtensionProperties.callocStack(extensionCount.get(0), stack);
+            vkEnumerateDeviceExtensionProperties(device, (ByteBuffer) null, extensionCount, availableExtensions);
 
-        return !BufferUtil.filteredForEachAsStringUTF8(
-                requiredExtensions,
-                name -> availableExtensions.stream()
-                                           .map(VkExtensionProperties::extensionNameString)
-                                           .noneMatch(name::equals),
-                notFound -> {
+            return !BufferUtil.filteredForEachAsStringUTF8(
+                    requiredExtensions,
+                    name -> availableExtensions.stream()
+                                               .map(VkExtensionProperties::extensionNameString)
+                                               .noneMatch(name::equals),
+                    notFound -> {
                     /* this is potentially called for all available devices and not finding
                        extensions on all devices is expected, so do not log errors here     */
-                });
+                    });
+        }
     }
 
     private static VkQueue getQueue(final VkDevice device, final int queueFamilyIndex) {
