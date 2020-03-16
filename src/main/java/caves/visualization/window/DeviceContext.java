@@ -82,7 +82,7 @@ public final class DeviceContext implements AutoCloseable {
      * @return the present queue
      */
     public VkQueue getPresentQueue() {
-        return this.graphicsQueue;
+        return this.presentQueue;
     }
 
     /**
