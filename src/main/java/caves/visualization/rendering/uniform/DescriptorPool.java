@@ -1,8 +1,8 @@
-package caves.visualization.window.rendering.uniform;
+package caves.visualization.rendering.uniform;
 
 import caves.visualization.window.DeviceContext;
-import caves.visualization.window.rendering.swapchain.RecreatedWithSwapChain;
-import caves.visualization.window.rendering.swapchain.SwapChain;
+import caves.visualization.rendering.swapchain.RecreatedWithSwapChain;
+import caves.visualization.rendering.swapchain.SwapChain;
 import org.lwjgl.vulkan.VkDescriptorPoolCreateInfo;
 import org.lwjgl.vulkan.VkDescriptorPoolSize;
 import org.lwjgl.vulkan.VkDevice;

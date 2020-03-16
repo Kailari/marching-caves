@@ -1,4 +1,4 @@
-package caves.visualization.window.rendering.swapchain;
+package caves.visualization.rendering.swapchain;
 
 import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkFramebufferCreateInfo;
@@ -14,20 +14,6 @@ public final class Framebuffers implements RecreatedWithSwapChain {
 
     private long[] swapChainFramebuffers;
     private boolean cleanedUp;
-
-    /**
-     * Gets the swapchain image framebuffers. Buffer with index <code>i</code> corresponds directly
-     * to swapchain image view with index <code>i</code>
-     *
-     * @return the framebuffers
-     */
-    public long[] getSwapChainFramebuffers() {
-        if (this.cleanedUp) {
-            throw new IllegalStateException("Tried to fetch framebuffers before re-creating!");
-        }
-
-        return this.swapChainFramebuffers;
-    }
 
     /**
      * Creates framebuffers for the swapchain. Each swapchain image gets its own attached
@@ -48,6 +34,22 @@ public final class Framebuffers implements RecreatedWithSwapChain {
         this.cleanedUp = true;
 
         recreate();
+    }
+
+    /**
+     * Gets the swapchain image framebuffers. Buffer with index <code>i</code> corresponds directly
+     * to swapchain image view with index <code>i</code>
+     *
+     * @param imageIndex image index of the desired framebuffer
+     *
+     * @return handle for the framebuffer with the given image index
+     */
+    public long get(final int imageIndex) {
+        if (this.cleanedUp) {
+            throw new IllegalStateException("Tried to fetch framebuffers before re-creating!");
+        }
+
+        return this.swapChainFramebuffers[imageIndex];
     }
 
     /**

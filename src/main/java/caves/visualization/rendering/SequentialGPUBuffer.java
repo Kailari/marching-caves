@@ -1,4 +1,4 @@
-package caves.visualization.window.rendering;
+package caves.visualization.rendering;
 
 import caves.visualization.window.DeviceContext;
 import org.lwjgl.vulkan.*;

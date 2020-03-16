@@ -1,7 +1,7 @@
 package caves.visualization.window;
 
-import caves.visualization.window.rendering.RenderingContext;
-import caves.visualization.window.rendering.swapchain.GraphicsPipeline;
+import caves.visualization.Vertex;
+import caves.visualization.rendering.RenderingContext;
 import org.lwjgl.PointerBuffer;
 
 import static org.lwjgl.glfw.GLFW.glfwInit;
@@ -69,7 +69,7 @@ public final class ApplicationContext implements AutoCloseable {
             final int width,
             final int height,
             final boolean enableValidation,
-            final GraphicsPipeline.Vertex[] vertices,
+            final Vertex[] vertices,
             final Short[] indices
     ) {
         if (!glfwInit()) {

@@ -1,9 +1,9 @@
-package caves.visualization.window.rendering.uniform;
+package caves.visualization.rendering.uniform;
 
 import caves.visualization.window.DeviceContext;
-import caves.visualization.window.rendering.GPUBuffer;
-import caves.visualization.window.rendering.swapchain.RecreatedWithSwapChain;
-import caves.visualization.window.rendering.swapchain.SwapChain;
+import caves.visualization.rendering.GPUBuffer;
+import caves.visualization.rendering.swapchain.RecreatedWithSwapChain;
+import caves.visualization.rendering.swapchain.SwapChain;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.lwjgl.vulkan.*;

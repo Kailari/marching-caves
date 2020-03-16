@@ -1,10 +1,8 @@
-package caves.visualization.window.rendering;
+package caves.visualization.rendering;
 
 import caves.visualization.window.DeviceContext;
-import caves.visualization.window.rendering.swapchain.SwapChain;
+import caves.visualization.rendering.swapchain.SwapChain;
 import org.lwjgl.vulkan.VkCommandPoolCreateInfo;
-import org.lwjgl.vulkan.VkDescriptorPoolCreateInfo;
-import org.lwjgl.vulkan.VkDescriptorPoolSize;
 import org.lwjgl.vulkan.VkDevice;
 
 import static caves.visualization.window.VKUtil.translateVulkanResult;

@@ -1,4 +1,4 @@
-package caves.visualization.window.rendering.swapchain;
+package caves.visualization.rendering.swapchain;
 
 public interface RecreatedWithSwapChain extends AutoCloseable {
     /**

@@ -1,10 +1,10 @@
 /**
- * Utilities for handling Vulkan-based rendering.
+ * Root package for the actual generator algorithm.
  */
-@MethodsReturnNonnullByDefault
 @ParametersAreNonnullByDefault
+@MethodsReturnNonnullByDefault
 @FieldsAreNonnullByDefault
-package caves.visualization.window.rendering;
+package caves.generator;
 
 import caves.visualization.util.annotation.FieldsAreNonnullByDefault;
 import caves.visualization.util.annotation.MethodsReturnNonnullByDefault;

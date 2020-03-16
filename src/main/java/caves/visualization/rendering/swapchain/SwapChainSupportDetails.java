@@ -1,4 +1,4 @@
-package caves.visualization.window.rendering.swapchain;
+package caves.visualization.rendering.swapchain;
 
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VkPhysicalDevice;

@@ -1,11 +1,12 @@
-package caves.visualization.window.rendering;
+package caves.visualization.rendering;
 
+import caves.visualization.Vertex;
 import caves.visualization.window.DeviceContext;
-import caves.visualization.window.rendering.swapchain.Framebuffers;
-import caves.visualization.window.rendering.swapchain.GraphicsPipeline;
-import caves.visualization.window.rendering.swapchain.SwapChain;
-import caves.visualization.window.rendering.uniform.DescriptorPool;
-import caves.visualization.window.rendering.uniform.UniformBufferObject;
+import caves.visualization.rendering.swapchain.Framebuffers;
+import caves.visualization.rendering.swapchain.GraphicsPipeline;
+import caves.visualization.rendering.swapchain.SwapChain;
+import caves.visualization.rendering.uniform.DescriptorPool;
+import caves.visualization.rendering.uniform.UniformBufferObject;
 import org.lwjgl.vulkan.VkCommandBuffer;
 
 import java.nio.ByteBuffer;
@@ -25,7 +26,7 @@ public final class RenderingContext implements AutoCloseable {
     private final Framebuffers framebuffers;
     private final CommandPool commandPool;
 
-    private final SequentialGPUBuffer<GraphicsPipeline.Vertex> vertexBuffer;
+    private final SequentialGPUBuffer<Vertex> vertexBuffer;
     private final SequentialGPUBuffer<Short> indexBuffer;
     private final RenderCommandBuffers renderCommandBuffers;
     private final UniformBufferObject uniformBufferObject;
@@ -62,7 +63,7 @@ public final class RenderingContext implements AutoCloseable {
      * @param windowHandle  handle to the window
      */
     public RenderingContext(
-            final GraphicsPipeline.Vertex[] vertices,
+            final Vertex[] vertices,
             final Short[] indices,
             final DeviceContext deviceContext,
             final long surface,
@@ -94,29 +95,22 @@ public final class RenderingContext implements AutoCloseable {
 
     }
 
-    private static SequentialGPUBuffer<GraphicsPipeline.Vertex> createVertexBuffer(
+    private static SequentialGPUBuffer<Vertex> createVertexBuffer(
             final DeviceContext deviceContext,
             final CommandPool commandPool,
-            final GraphicsPipeline.Vertex[] vertices
+            final Vertex[] vertices
     ) {
-        final var stagingBuffer = new SequentialGPUBuffer<GraphicsPipeline.Vertex>(
+        final var stagingBuffer = new SequentialGPUBuffer<Vertex>(
                 deviceContext,
                 vertices.length,
-                GraphicsPipeline.Vertex.SIZE_IN_BYTES,
+                Vertex.SIZE_IN_BYTES,
                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                (buffer, vertex) -> {
-                    buffer.putFloat(vertex.getPos().x());
-                    buffer.putFloat(vertex.getPos().y());
-
-                    buffer.putFloat(vertex.getColor().x());
-                    buffer.putFloat(vertex.getColor().y());
-                    buffer.putFloat(vertex.getColor().z());
-                });
-        final var vertexBuffer = new SequentialGPUBuffer<GraphicsPipeline.Vertex>(
+                Vertex::write);
+        final var vertexBuffer = new SequentialGPUBuffer<Vertex>(
                 deviceContext,
                 vertices.length,
-                GraphicsPipeline.Vertex.SIZE_IN_BYTES,
+                Vertex.SIZE_IN_BYTES,
                 VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                 null);

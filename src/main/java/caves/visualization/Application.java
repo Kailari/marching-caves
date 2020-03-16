@@ -2,8 +2,6 @@ package caves.visualization;
 
 import caves.visualization.window.ApplicationContext;
 import caves.visualization.window.DeviceContext;
-import caves.visualization.window.rendering.swapchain.GraphicsPipeline;
-import org.joml.Vector2f;
 import org.joml.Vector3f;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VkFenceCreateInfo;
@@ -48,11 +46,11 @@ public final class Application implements AutoCloseable {
      */
     public Application(final boolean validation) {
         final var quadSize = 0.5f;
-        final var vertices = new GraphicsPipeline.Vertex[]{
-                new GraphicsPipeline.Vertex(new Vector2f(-quadSize, -quadSize), new Vector3f(1.0f, 0.0f, 0.0f)),
-                new GraphicsPipeline.Vertex(new Vector2f(quadSize, -quadSize), new Vector3f(0.0f, 1.0f, 0.0f)),
-                new GraphicsPipeline.Vertex(new Vector2f(quadSize, quadSize), new Vector3f(0.0f, 0.0f, 1.0f)),
-                new GraphicsPipeline.Vertex(new Vector2f(-quadSize, quadSize), new Vector3f(1.0f, 0.0f, 1.0f)),
+        final var vertices = new Vertex[]{
+                new Vertex(new Vector3f(-quadSize, -quadSize, 0.0f), new Vector3f(1.0f, 0.0f, 0.0f)),
+                new Vertex(new Vector3f(quadSize, -quadSize, 0.0f), new Vector3f(0.0f, 1.0f, 0.0f)),
+                new Vertex(new Vector3f(quadSize, quadSize, 0.0f), new Vector3f(0.0f, 0.0f, 1.0f)),
+                new Vertex(new Vector3f(-quadSize, quadSize, 0.0f), new Vector3f(1.0f, 0.0f, 1.0f)),
         };
         final var indices = new Short[]{
                 0, 1, 2,
