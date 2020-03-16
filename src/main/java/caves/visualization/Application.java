@@ -1,5 +1,7 @@
 package caves.visualization;
 
+import caves.generator.PathGenerator;
+import caves.generator.util.Vector3;
 import caves.visualization.window.ApplicationContext;
 import caves.visualization.window.DeviceContext;
 import org.joml.Vector3f;
@@ -45,17 +47,18 @@ public final class Application implements AutoCloseable {
      * @param validation should validation/debug features be enabled.
      */
     public Application(final boolean validation) {
-        final var quadSize = 0.5f;
-        final var vertices = new Vertex[]{
-                new Vertex(new Vector3f(-quadSize, -quadSize, 0.0f), new Vector3f(1.0f, 0.0f, 0.0f)),
-                new Vertex(new Vector3f(quadSize, -quadSize, 0.0f), new Vector3f(0.0f, 1.0f, 0.0f)),
-                new Vertex(new Vector3f(quadSize, quadSize, 0.0f), new Vector3f(0.0f, 0.0f, 1.0f)),
-                new Vertex(new Vector3f(-quadSize, quadSize, 0.0f), new Vector3f(1.0f, 0.0f, 1.0f)),
-        };
-        final var indices = new Short[]{
-                0, 1, 2,
-                2, 3, 0,
-        };
+        final var caveLength = 100;
+        final var spacing = 0.5f;
+        final var cave = new PathGenerator().generate(new Vector3(0.0f, 0.0f, 0.0f), caveLength, spacing);
+        final var nodes = cave.getNodesOrdered();
+        final var vertices = Arrays.stream(nodes)
+                                   .map(vec -> new Vertex(new Vector3f(vec.getX(), vec.getY(), vec.getZ()),
+                                                          new Vector3f(1.0f, 1.0f, 0.0f)))
+                                   .toArray(Vertex[]::new);
+
+        final var indices = IntStream.range(0, caveLength)
+                                     .mapToObj(value -> (short) value)
+                                     .toArray(Short[]::new);
 
         this.appContext = new ApplicationContext(DEFAULT_WINDOW_WIDTH,
                                                  DEFAULT_WINDOW_HEIGHT,

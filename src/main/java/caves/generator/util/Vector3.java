@@ -44,4 +44,17 @@ public final class Vector3 {
         this.y = y;
         this.z = z;
     }
+
+    /**
+     * Copy-constructor. Initializes a new vector with values from the another vector.
+     *
+     * @param other the vector which values to copy
+     */
+    public Vector3(final Vector3 other) {
+        this(other.x, other.y, other.z);
+    }
+
+    public Vector3 add(final float x, final float y, final float z) {
+        return new Vector3(this.x + x, this.y + y, this.z + z);
+    }
 }
