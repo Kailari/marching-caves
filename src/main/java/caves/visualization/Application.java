@@ -2,6 +2,9 @@ package caves.visualization;
 
 import caves.visualization.window.ApplicationContext;
 import caves.visualization.window.DeviceContext;
+import caves.visualization.window.rendering.swapchain.GraphicsPipeline;
+import org.joml.Vector2f;
+import org.joml.Vector3f;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VkFenceCreateInfo;
 import org.lwjgl.vulkan.VkPresentInfoKHR;
@@ -9,16 +12,17 @@ import org.lwjgl.vulkan.VkSemaphoreCreateInfo;
 import org.lwjgl.vulkan.VkSubmitInfo;
 
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.stream.IntStream;
 
 import static caves.visualization.window.VKUtil.translateVulkanResult;
 import static org.lwjgl.glfw.GLFW.glfwPollEvents;
 import static org.lwjgl.system.MemoryStack.stackPush;
-import static org.lwjgl.system.MemoryUtil.*;
+import static org.lwjgl.system.MemoryUtil.memAllocLong;
 import static org.lwjgl.vulkan.KHRSwapchain.*;
 import static org.lwjgl.vulkan.VK10.*;
 
-public final class Application {
+public final class Application implements AutoCloseable {
     private static final int DEFAULT_WINDOW_WIDTH = 800;
     private static final int DEFAULT_WINDOW_HEIGHT = 600;
     private static final long UINT64_MAX = 0xFFFFFFFFFFFFFFFFL; // or "-1L", but this looks nicer.
@@ -26,10 +30,16 @@ public final class Application {
 
     private static final float DEGREES_PER_SECOND = 90.0f;
 
-    private final boolean validation;
+    private final ApplicationContext appContext;
+    private final long[] imageAvailableSemaphores;
+    private final long[] renderFinishedSemaphores;
+
+    /** Fences for ensuring images that have been sent to GPU are presented before re-using them. */
+    private final long[] inFlightFences;
+    private final long[] imagesInFlight;
 
     /** Indicates that framebuffers have just resized and the swapchain should be re-created. */
-    private boolean framebufferResized = false;
+    private boolean framebufferResized;
 
     /**
      * Configures a new visualization application. Call {@link #run()} to start the app.
@@ -37,7 +47,33 @@ public final class Application {
      * @param validation should validation/debug features be enabled.
      */
     public Application(final boolean validation) {
-        this.validation = validation;
+        final var quadSize = 0.5f;
+        final var vertices = new GraphicsPipeline.Vertex[]{
+                new GraphicsPipeline.Vertex(new Vector2f(-quadSize, -quadSize), new Vector3f(1.0f, 0.0f, 0.0f)),
+                new GraphicsPipeline.Vertex(new Vector2f(quadSize, -quadSize), new Vector3f(0.0f, 1.0f, 0.0f)),
+                new GraphicsPipeline.Vertex(new Vector2f(quadSize, quadSize), new Vector3f(0.0f, 0.0f, 1.0f)),
+                new GraphicsPipeline.Vertex(new Vector2f(-quadSize, quadSize), new Vector3f(1.0f, 0.0f, 1.0f)),
+        };
+        final var indices = new Short[]{
+                0, 1, 2,
+                2, 3, 0,
+        };
+
+        this.appContext = new ApplicationContext(DEFAULT_WINDOW_WIDTH,
+                                                 DEFAULT_WINDOW_HEIGHT,
+                                                 validation,
+                                                 vertices,
+                                                 indices);
+        this.appContext.getWindow().onResize((windowHandle, width, height) -> this.framebufferResized = true);
+
+        final var deviceContext = this.appContext.getDeviceContext();
+        final var renderContext = this.appContext.getRenderContext();
+
+        this.imageAvailableSemaphores = createSemaphores(MAX_FRAMES_IN_FLIGHT, deviceContext);
+        this.renderFinishedSemaphores = createSemaphores(MAX_FRAMES_IN_FLIGHT, deviceContext);
+        this.inFlightFences = createFences(MAX_FRAMES_IN_FLIGHT, deviceContext);
+        this.imagesInFlight = new long[renderContext.getSwapChainImageCount()];
+        Arrays.fill(imagesInFlight, VK_NULL_HANDLE);
     }
 
     private static long[] createFences(final int count, final DeviceContext deviceContext) {
@@ -55,10 +91,10 @@ public final class Application {
                 .flags(VK_FENCE_CREATE_SIGNALED_BIT); // Create as signaled to prevent issues during first frames
 
         final var pFence = memAllocLong(1);
-        final var error = vkCreateFence(deviceContext.getDevice(), fenceInfo, null, pFence);
-        if (error != VK_SUCCESS) {
+        final var result = vkCreateFence(deviceContext.getDevice(), fenceInfo, null, pFence);
+        if (result != VK_SUCCESS) {
             throw new IllegalStateException("Creating fence failed: "
-                                                    + translateVulkanResult(error));
+                                                    + translateVulkanResult(result));
         }
         return pFence.get(0);
     }
@@ -75,9 +111,8 @@ public final class Application {
             final MemoryStack stack,
             final DeviceContext deviceContext
     ) {
-        final var semaphoreInfo = VkSemaphoreCreateInfo
-                .callocStack(stack)
-                .sType(VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO);
+        final var semaphoreInfo = VkSemaphoreCreateInfo.callocStack(stack)
+                                                       .sType(VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO);
 
         final var pSemaphore = memAllocLong(1);
         final var error = vkCreateSemaphore(deviceContext.getDevice(),
@@ -95,143 +130,138 @@ public final class Application {
      * Runs the application. This method blocks until execution has finished.
      */
     public void run() {
-        try (var app = new ApplicationContext(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT, this.validation)) {
-            final var deviceContext = app.getDeviceContext();
-            final var renderContext = app.getRenderContext();
-            final var graphicsQueue = deviceContext.getGraphicsQueue();
-            final var presentQueue = deviceContext.getPresentQueue();
+        this.appContext.getWindow().show();
+        var angle = 0.0f;
+        var currentFrame = 0L;
+        var lastFrameTime = System.currentTimeMillis();
+        this.framebufferResized = false;
+        while (!this.appContext.getWindow().shouldClose()) {
+            final var currentTime = System.currentTimeMillis();
+            final var delta = (lastFrameTime - currentTime) / 1000.0;
+            lastFrameTime = currentTime;
 
-            final var imageAvailableSemaphores = createSemaphores(MAX_FRAMES_IN_FLIGHT, deviceContext);
-            final var renderFinishedSemaphores = createSemaphores(MAX_FRAMES_IN_FLIGHT, deviceContext);
-            final var inFlightFences = createFences(MAX_FRAMES_IN_FLIGHT, deviceContext);
-            final var imagesInFlight = new long[renderContext.getSwapChainImageCount()];
-            Arrays.fill(imagesInFlight, VK_NULL_HANDLE);
+            glfwPollEvents();
+            this.appContext.getRenderContext().updateSwapChain();
 
-            this.framebufferResized = false;
-            app.getWindow().onResize((windowHandle, width, height) -> this.framebufferResized = true);
-
-            app.getWindow().show();
-            var angle = 0.0f;
-            var currentFrame = 0L;
-            var lastFrameTime = System.currentTimeMillis();
-            while (!app.getWindow().shouldClose()) {
-                final var currentTime = System.currentTimeMillis();
-                final var delta = (lastFrameTime - currentTime) / 1000.0;
-                lastFrameTime = currentTime;
-
-                glfwPollEvents();
-                final var swapchain = renderContext.getSwapChain();
-
-                final var imageAvailableSemaphore =
-                        imageAvailableSemaphores[(int) (currentFrame % MAX_FRAMES_IN_FLIGHT)];
-                final var renderFinishedSemaphore =
-                        renderFinishedSemaphores[(int) (currentFrame % MAX_FRAMES_IN_FLIGHT)];
-                final var inFlightFence =
-                        inFlightFences[(int) (currentFrame % MAX_FRAMES_IN_FLIGHT)];
-
-                vkWaitForFences(deviceContext.getDevice(), inFlightFence, true, UINT64_MAX);
-                try (var stack = stackPush()) {
-                    final var pImageIndex = stack.callocInt(1);
-                    final var acquireResult = vkAcquireNextImageKHR(deviceContext.getDevice(),
-                                                                    swapchain.getHandle(),
-                                                                    UINT64_MAX,
-                                                                    imageAvailableSemaphore,
-                                                                    VK_NULL_HANDLE,
-                                                                    pImageIndex);
-                    if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR) {
-                        renderContext.notifyOutOfDateSwapchain();
-                        continue;
-                    } else if (acquireResult != VK_SUCCESS && acquireResult != VK_SUBOPTIMAL_KHR) {
-                        throw new IllegalStateException("Acquiring swapchain image has failed!");
-                    }
-                    final var imageIndex = pImageIndex.get(0);
-
-                    // AFTER we have acquired an image, wait until no-one else uses that image
-                    if (imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
-                        vkWaitForFences(deviceContext.getDevice(), imagesInFlight[imageIndex], true, UINT64_MAX);
-                    }
-                    // Now we know that no-one else is using the image, thus we can safely claim it
-                    // ourselves.
-                    imagesInFlight[imageIndex] = inFlightFence;
-
-                    // Update uniforms
-                    angle += DEGREES_PER_SECOND * delta;
-                    renderContext.updateUniforms(imageIndex, angle);
-
-                    // Submit the render command buffers
-                    final var signalSemaphores = stack.mallocLong(1);
-                    signalSemaphores.put(renderFinishedSemaphore);
-                    signalSemaphores.flip();
-
-                    final var waitSemaphores = stack.mallocLong(1);
-                    waitSemaphores.put(imageAvailableSemaphore);
-                    waitSemaphores.flip();
-
-                    final var waitStages = stack.mallocInt(1);
-                    waitStages.put(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
-                    waitStages.flip();
-
-                    final var pCommandBuffer = memAllocPointer(1);
-                    pCommandBuffer.put(renderContext.getCommandBufferForImage(imageIndex));
-                    pCommandBuffer.flip();
-
-                    final var submitInfo = VkSubmitInfo
-                            .calloc()
-                            .sType(VK_STRUCTURE_TYPE_SUBMIT_INFO)
-                            .waitSemaphoreCount(1)
-                            .pWaitSemaphores(waitSemaphores)
-                            .pWaitDstStageMask(waitStages)
-                            .pSignalSemaphores(signalSemaphores)
-                            .pCommandBuffers(pCommandBuffer);
-
-                    // We have claimed this fence, but have no clue in what state it is in. As we
-                    // know by now that the fence has no other users anymore, we can just reset
-                    // the darn thing to be sure its in valid state.
-                    vkResetFences(deviceContext.getDevice(), inFlightFence);
-                    final var error = vkQueueSubmit(graphicsQueue, submitInfo, inFlightFence);
-                    if (error != VK_SUCCESS) {
-                        throw new IllegalStateException("Submitting draw command buffer failed: "
-                                                                + translateVulkanResult(error));
-                    }
-                    memFree(pCommandBuffer);
-                    submitInfo.free();
-
-                    final var swapChains = stack.mallocLong(1);
-                    swapChains.put(swapchain.getHandle());
-                    swapChains.flip();
-
-                    final var presentInfo = VkPresentInfoKHR
-                            .callocStack(stack)
-                            .sType(VK_STRUCTURE_TYPE_PRESENT_INFO_KHR)
-                            .pWaitSemaphores(signalSemaphores)
-                            .swapchainCount(1)
-                            .pSwapchains(swapChains)
-                            .pImageIndices(pImageIndex);
-
-                    final var presentResult = vkQueuePresentKHR(presentQueue, presentInfo);
-                    final var framebufferOutOfDateOrSuboptimal =
-                            presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR;
-                    if (framebufferOutOfDateOrSuboptimal || framebufferResized) {
-                        renderContext.notifyOutOfDateSwapchain();
-                        framebufferResized = false;
-                    } else if (presentResult != VK_SUCCESS) {
-                        throw new IllegalStateException("Presenting a swapchain image has failed!");
-                    }
-                }
-                currentFrame++;
+            final var frameIndex = (int) (currentFrame % MAX_FRAMES_IN_FLIGHT);
+            final var maybeImgIndex = tryAcquireNextImage(frameIndex);
+            if (maybeImgIndex.isEmpty()) {
+                // Swapchain was recreated, restart the frame. Note that frame index is NOT incremented.
+                continue;
             }
+            final int imageIndex = maybeImgIndex.get();
 
-            // Wait until everything has finished
-            vkQueueWaitIdle(graphicsQueue);
-            vkQueueWaitIdle(presentQueue);
+            // Update uniforms
+            angle += DEGREES_PER_SECOND * delta;
+            this.appContext.getRenderContext().updateUniforms(imageIndex, angle);
 
-            for (var i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
-                vkDestroySemaphore(deviceContext.getDevice(), imageAvailableSemaphores[i], null);
-                vkDestroySemaphore(deviceContext.getDevice(), renderFinishedSemaphores[i], null);
-                vkDestroyFence(deviceContext.getDevice(), inFlightFences[i], null);
-            }
-            System.out.println("Finished.");
+            // Submit and present
+            submitCommandBuffer(imageIndex, frameIndex);
+            presentFrame(imageIndex, frameIndex);
+            currentFrame++;
         }
     }
 
+    private Optional<Integer> tryAcquireNextImage(final int frameIndex) {
+        final var inFlightFence = this.inFlightFences[frameIndex];
+        final var imgAvailableSemaphore = this.imageAvailableSemaphores[frameIndex];
+
+        final var device = this.appContext.getDeviceContext().getDevice();
+        vkWaitForFences(device, inFlightFence, true, UINT64_MAX);
+
+        final int imageIndex;
+        try (var stack = stackPush()) {
+            final var pImageIndex = stack.callocInt(1);
+            final var acquireResult = vkAcquireNextImageKHR(device,
+                                                            this.appContext.getRenderContext()
+                                                                           .getSwapChain()
+                                                                           .getHandle(),
+                                                            UINT64_MAX,
+                                                            imgAvailableSemaphore,
+                                                            VK_NULL_HANDLE,
+                                                            pImageIndex);
+            if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR) {
+                this.appContext.getRenderContext()
+                               .notifyOutOfDateSwapchain();
+                return Optional.empty();
+            } else if (acquireResult != VK_SUCCESS && acquireResult != VK_SUBOPTIMAL_KHR) {
+                throw new IllegalStateException("Acquiring swapchain image has failed!");
+            }
+            imageIndex = pImageIndex.get(0);
+        }
+
+        // AFTER we have acquired an image, wait until no-one else uses that image
+        if (this.imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
+            vkWaitForFences(device, this.imagesInFlight[imageIndex], true, UINT64_MAX);
+        }
+        // Now we know that no-one else is using the image, thus we can safely claim it
+        // ourselves.
+        this.imagesInFlight[imageIndex] = inFlightFence;
+
+        return Optional.of(imageIndex);
+    }
+
+    private void submitCommandBuffer(final int imageIndex, final int frameIndex) {
+        try (var stack = stackPush()) {
+            final var submitInfo = VkSubmitInfo
+                    .callocStack(stack)
+                    .sType(VK_STRUCTURE_TYPE_SUBMIT_INFO)
+                    .waitSemaphoreCount(1)
+                    .pWaitSemaphores(stack.longs(this.imageAvailableSemaphores[frameIndex]))
+                    .pWaitDstStageMask(stack.ints(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT))
+                    .pSignalSemaphores(stack.longs(this.renderFinishedSemaphores[frameIndex]))
+                    .pCommandBuffers(stack.pointers(this.appContext.getRenderContext()
+                                                                   .getCommandBufferForImage(imageIndex)));
+
+            final var inFlightFence = this.inFlightFences[frameIndex];
+            final var device = this.appContext.getDeviceContext().getDevice();
+            vkResetFences(device, inFlightFence);
+
+            final var queue = this.appContext.getDeviceContext().getGraphicsQueue();
+            final var result = vkQueueSubmit(queue, submitInfo, inFlightFence);
+            if (result != VK_SUCCESS) {
+                throw new IllegalStateException("Submitting draw command buffer failed: "
+                                                        + translateVulkanResult(result));
+            }
+        }
+    }
+
+    private void presentFrame(final int imageIndex, final int frameIndex) {
+        try (var stack = stackPush()) {
+            final var presentInfo = VkPresentInfoKHR
+                    .callocStack(stack)
+                    .sType(VK_STRUCTURE_TYPE_PRESENT_INFO_KHR)
+                    .pWaitSemaphores(stack.longs(this.renderFinishedSemaphores[frameIndex]))
+                    .swapchainCount(1)
+                    .pSwapchains(stack.longs(this.appContext.getRenderContext().getSwapChain().getHandle()))
+                    .pImageIndices(stack.ints(imageIndex));
+
+            final var result = vkQueuePresentKHR(this.appContext.getDeviceContext().getPresentQueue(), presentInfo);
+            final var framebufferOODOrSuboptimal = result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR;
+            if (framebufferOODOrSuboptimal || this.framebufferResized) {
+                this.appContext.getRenderContext().notifyOutOfDateSwapchain();
+                this.framebufferResized = false;
+            } else if (result != VK_SUCCESS) {
+                throw new IllegalStateException("Presenting a swapchain image has failed: "
+                                                        + translateVulkanResult(result));
+            }
+        }
+    }
+
+    @Override
+    public void close() {
+        // Wait until everything has finished
+        final var deviceContext = this.appContext.getDeviceContext();
+        vkQueueWaitIdle(deviceContext.getGraphicsQueue());
+        vkQueueWaitIdle(deviceContext.getPresentQueue());
+
+        final var device = deviceContext.getDevice();
+        for (var i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+            vkDestroySemaphore(device, this.imageAvailableSemaphores[i], null);
+            vkDestroySemaphore(device, this.renderFinishedSemaphores[i], null);
+            vkDestroyFence(device, this.inFlightFences[i], null);
+        }
+
+        this.appContext.close();
+    }
 }

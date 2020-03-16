@@ -6,8 +6,6 @@ import caves.visualization.window.rendering.swapchain.GraphicsPipeline;
 import caves.visualization.window.rendering.swapchain.SwapChain;
 import caves.visualization.window.rendering.uniform.DescriptorPool;
 import caves.visualization.window.rendering.uniform.UniformBufferObject;
-import org.joml.Vector2f;
-import org.joml.Vector3f;
 import org.lwjgl.vulkan.VkCommandBuffer;
 
 import java.nio.ByteBuffer;
@@ -45,58 +43,27 @@ public final class RenderingContext implements AutoCloseable {
     }
 
     /**
-     * Gets the swapchain and re-creates it in case the current instance has been invalidated. The
-     * result is considered invalid after GLFW events have been polled. Thus, the intended usage is
-     * to call get the swapchain once, immediately after polling the events:
-     * <pre><code>
-     *     glfwPollEvents();
-     *     final var swapchain = context.getSwapChain();
-     * </code></pre>
+     * Gets the swapchain instance. The swapchain state is valid only if {@link #updateSwapChain()}
+     * has been called for the current frame.
      *
-     * @return the current swapchain instance, which is guaranteed to be valid
+     * @return the swapchain state
      */
     public SwapChain getSwapChain() {
-        if (this.mustRecreateSwapChain) {
-            System.out.println("Re-creating swapchain!");
-            try (var stack = stackPush()) {
-                final var pWidth = stack.mallocInt(1);
-                final var pHeight = stack.mallocInt(1);
-                glfwGetFramebufferSize(this.windowHandle, pWidth, pHeight);
-                while (pWidth.get(0) == 0 && pHeight.get(0) == 0) {
-                    glfwGetFramebufferSize(this.windowHandle, pWidth, pHeight);
-                    glfwWaitEvents();
-                }
-            }
-
-            vkDeviceWaitIdle(this.deviceContext.getDevice());
-
-            this.renderCommandBuffers.cleanup();
-            this.framebuffers.cleanup();
-            this.graphicsPipeline.cleanup();
-            this.uniformBufferObject.cleanup();
-            this.descriptorPool.cleanup();
-            this.swapChain.cleanup();
-
-            this.swapChain.recreate();
-            this.descriptorPool.recreate();
-            this.uniformBufferObject.recreate();
-            this.graphicsPipeline.recreate();
-            this.framebuffers.recreate();
-            this.renderCommandBuffers.recreate();
-            this.mustRecreateSwapChain = false;
-        }
-
-        return this.swapChain;
+        return swapChain;
     }
 
     /**
      * Initializes the required context for rendering on the screen.
      *
+     * @param vertices      vertices that will be rendered
+     * @param indices       indices to the vertex array for rendering
      * @param deviceContext device context information to use for creating the swapchain
      * @param surface       surface to create the chain for
      * @param windowHandle  handle to the window
      */
     public RenderingContext(
+            final GraphicsPipeline.Vertex[] vertices,
+            final Short[] indices,
             final DeviceContext deviceContext,
             final long surface,
             final long windowHandle
@@ -112,18 +79,6 @@ public final class RenderingContext implements AutoCloseable {
                                                      this.uniformBufferObject);
         this.framebuffers = new Framebuffers(deviceContext.getDevice(), this.graphicsPipeline, this.swapChain);
         this.commandPool = new CommandPool(deviceContext, this.swapChain);
-
-        final var quadSize = 0.5f;
-        final var vertices = new GraphicsPipeline.Vertex[]{
-                new GraphicsPipeline.Vertex(new Vector2f(-quadSize, -quadSize), new Vector3f(1.0f, 0.0f, 0.0f)),
-                new GraphicsPipeline.Vertex(new Vector2f(quadSize, -quadSize), new Vector3f(0.0f, 1.0f, 0.0f)),
-                new GraphicsPipeline.Vertex(new Vector2f(quadSize, quadSize), new Vector3f(0.0f, 0.0f, 1.0f)),
-                new GraphicsPipeline.Vertex(new Vector2f(-quadSize, quadSize), new Vector3f(1.0f, 0.0f, 1.0f)),
-        };
-        final var indices = new Short[]{
-                0, 1, 2,
-                2, 3, 0,
-        };
 
         this.vertexBuffer = createVertexBuffer(deviceContext, this.commandPool, vertices);
         this.indexBuffer = createIndexBuffer(deviceContext, this.commandPool, indices);
@@ -203,6 +158,51 @@ public final class RenderingContext implements AutoCloseable {
     }
 
     /**
+     * Re-creates the swapchain it in case the current instance has been invalidated. The swapchain
+     * is most commonly invalidated on resize, which occurs after GLFW events have been polled.
+     * Thus, the intended usage is to call this immediately after <code>glfwPollEvents</code> is
+     * called, like this:
+     * <pre><code>
+     *     glfwPollEvents();
+     *     context.updateSwapChain();
+     * </code></pre>
+     */
+    public void updateSwapChain() {
+        if (!this.mustRecreateSwapChain) {
+            return;
+        }
+
+        // Handle minimize
+        try (var stack = stackPush()) {
+            final var pWidth = stack.mallocInt(1);
+            final var pHeight = stack.mallocInt(1);
+            glfwGetFramebufferSize(this.windowHandle, pWidth, pHeight);
+            while (pWidth.get(0) == 0 && pHeight.get(0) == 0) {
+                glfwGetFramebufferSize(this.windowHandle, pWidth, pHeight);
+                glfwWaitEvents();
+            }
+        }
+
+        vkDeviceWaitIdle(this.deviceContext.getDevice());
+        System.out.println("Re-creating the swapchain!");
+
+        this.renderCommandBuffers.cleanup();
+        this.framebuffers.cleanup();
+        this.graphicsPipeline.cleanup();
+        this.uniformBufferObject.cleanup();
+        this.descriptorPool.cleanup();
+        this.swapChain.cleanup();
+
+        this.swapChain.recreate();
+        this.descriptorPool.recreate();
+        this.uniformBufferObject.recreate();
+        this.graphicsPipeline.recreate();
+        this.framebuffers.recreate();
+        this.renderCommandBuffers.recreate();
+        this.mustRecreateSwapChain = false;
+    }
+
+    /**
      * Gets the command buffer for given image index. The indices match those of the framebuffers
      * and the swapchain image views.
      *
@@ -230,7 +230,7 @@ public final class RenderingContext implements AutoCloseable {
 
     /**
      * Notifies the rendering context that the swapchain has been invalidated and should be
-     * re-created. Causes the next call to {@link #getSwapChain()} to trigger re-creating the
+     * re-created. Causes the next call to {@link #updateSwapChain()} to trigger re-creating the
      * context.
      */
     public void notifyOutOfDateSwapchain() {

@@ -7,10 +7,10 @@ import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
 
 import java.nio.ByteBuffer;
-import java.nio.IntBuffer;
 import java.util.Optional;
 
 import static caves.visualization.window.VKUtil.translateVulkanResult;
+import static org.lwjgl.system.MemoryStack.stackGet;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.vulkan.VK10.*;
 
@@ -85,100 +85,67 @@ public final class DeviceContext implements AutoCloseable {
         return this.graphicsQueue;
     }
 
-    private DeviceContext(
-            final VkPhysicalDevice physicalDevice,
-            final DeviceAndQueueFamilies deviceAndQueueFamilies
-    ) {
-        this.physicalDevice = physicalDevice;
-        this.memoryProperties = VkPhysicalDeviceMemoryProperties.malloc();
-        vkGetPhysicalDeviceMemoryProperties(this.physicalDevice, this.memoryProperties);
-
-        this.deviceAndQueueFamilies = deviceAndQueueFamilies;
-
-        this.graphicsQueue = getQueue(this.getDevice(), this.deviceAndQueueFamilies.getGraphicsFamily());
-        this.presentQueue = getQueue(this.getDevice(), this.deviceAndQueueFamilies.getPresentFamily());
-    }
-
     /**
      * Selects a new physical device and creates context for it using the given Vulkan instance.
      *
      * @param instance         instance to select the device for
      * @param surface          window surface to use
      * @param deviceExtensions required device extensions
-     *
-     * @return device context for the given vulkan instance
      */
-    public static DeviceContext getForInstance(
+    public DeviceContext(
             final VulkanInstance instance,
             final long surface,
             final PointerBuffer deviceExtensions
     ) {
         try (var stack = stackPush()) {
-            final var pPhysicalDeviceCount = getPhysicalDeviceCount(instance, stack);
-            final var pPhysicalDevices = getPhysicalDevices(instance, stack, pPhysicalDeviceCount);
-            return createContext(stack,
-                                 pPhysicalDevices,
-                                 instance.getInstance(),
-                                 surface,
-                                 deviceExtensions);
-        }
-    }
+            final var pPhysicalDevices = getPhysicalDevices(instance.getInstance());
+            // Just naively select the first suitable device
+            // TODO: Sort by device suitability and select most suitable
+            VkPhysicalDevice selected = null;
+            QueueIndices indices = null;
+            while (pPhysicalDevices.hasRemaining()) {
+                final var device = new VkPhysicalDevice(pPhysicalDevices.get(), instance.getInstance());
 
-    private static IntBuffer getPhysicalDeviceCount(
-            final VulkanInstance instance,
-            final MemoryStack stack
-    ) {
-        final var pPhysicalDeviceCount = stack.mallocInt(1);
-
-        // Enumerate with `null` ptr at first as we do not know the device count yet.
-        final var error = vkEnumeratePhysicalDevices(instance.getInstance(), pPhysicalDeviceCount, null);
-        if (error != VK_SUCCESS) {
-            throw new IllegalStateException("Fetching number of physical devices failed: "
-                                                    + translateVulkanResult(error));
-        }
-        return pPhysicalDeviceCount;
-    }
-
-    private static PointerBuffer getPhysicalDevices(
-            final VulkanInstance instance,
-            final MemoryStack stack,
-            final IntBuffer pPhysicalDeviceCount
-    ) {
-        // We know the count, enumerate with pointer buffer reserved for devices
-        final var pPhysicalDevices = stack.mallocPointer(pPhysicalDeviceCount.get(0));
-        final var error = vkEnumeratePhysicalDevices(instance.getInstance(), pPhysicalDeviceCount, pPhysicalDevices);
-        if (error != VK_SUCCESS) {
-            throw new IllegalStateException("Fetching a physical device failed: "
-                                                    + translateVulkanResult(error));
-        }
-        return pPhysicalDevices;
-    }
-
-    private static DeviceContext createContext(
-            final MemoryStack stack,
-            final PointerBuffer pPhysicalDevices,
-            final VkInstance instance,
-            final long surface,
-            final PointerBuffer deviceExtensions
-    ) {
-        // Just naively select the first suitable device
-        // TODO: Sort by device suitability and select most suitable
-        VkPhysicalDevice selected = null;
-        QueueIndices indices = null;
-        while (pPhysicalDevices.hasRemaining()) {
-            final var device = new VkPhysicalDevice(pPhysicalDevices.get(), instance);
-
-            indices = new QueueIndices(stack, surface, device);
-            if (isSuitableDevice(stack, device, indices, deviceExtensions, surface)) {
-                selected = device;
-                break;
+                indices = new QueueIndices(stack, surface, device);
+                if (isSuitableDevice(stack, device, indices, deviceExtensions, surface)) {
+                    selected = device;
+                    break;
+                }
             }
+
+            if (selected == null || !indices.isComplete()) {
+                throw new IllegalStateException("Could not find suitable physical device!");
+            }
+
+            this.physicalDevice = selected;
+            this.deviceAndQueueFamilies = new DeviceAndQueueFamilies(selected, indices, deviceExtensions);
         }
 
-        if (selected == null || !indices.isComplete()) {
-            throw new IllegalStateException("Could not find suitable physical device!");
+        this.memoryProperties = VkPhysicalDeviceMemoryProperties.malloc();
+        vkGetPhysicalDeviceMemoryProperties(this.physicalDevice, this.memoryProperties);
+
+        this.graphicsQueue = getQueue(this.getDevice(), this.deviceAndQueueFamilies.getGraphicsFamily());
+        this.presentQueue = getQueue(this.getDevice(), this.deviceAndQueueFamilies.getPresentFamily());
+    }
+
+    private static PointerBuffer getPhysicalDevices(final VkInstance instance) {
+        final var stack = stackGet();
+        final var pCount = stack.mallocInt(1);
+        final var fetchCountResult = vkEnumeratePhysicalDevices(instance, pCount, null);
+        if (fetchCountResult != VK_SUCCESS) {
+            throw new IllegalStateException("Fetching number of physical devices failed: "
+                                                    + translateVulkanResult(fetchCountResult));
         }
-        return new DeviceContext(selected, new DeviceAndQueueFamilies(selected, indices, deviceExtensions));
+
+        // We know the count, enumerate with pointer buffer reserved for devices
+        final var pPhysicalDevices = stack.mallocPointer(pCount.get(0));
+        final var fetchDevicesResult = vkEnumeratePhysicalDevices(instance, pCount, pPhysicalDevices);
+        if (fetchDevicesResult != VK_SUCCESS) {
+            throw new IllegalStateException("Fetching a physical device failed: "
+                                                    + translateVulkanResult(fetchDevicesResult));
+        }
+
+        return pPhysicalDevices;
     }
 
     // TODO: Return "suitability value" instead of a boolean
@@ -244,18 +211,28 @@ public final class DeviceContext implements AutoCloseable {
 
     @Override
     public void close() {
-        // Physical device is automatically destroyed with the instance so do not destroy it here
+        // NOTE: Physical device is automatically destroyed with the instance so do not destroy it here
         this.memoryProperties.free();
         this.deviceAndQueueFamilies.close();
     }
 
-    public Optional<Integer> findSuitableMemoryType(final int typeFilter, final int propertyFlags) {
+    /**
+     * Searches the physical device for a memory type matching the given type filter and property
+     * flags. If no such memory type can be found, an empty optional is returned.
+     *
+     * @param typeFilter    memory type filter bit flags
+     * @param propertyFlags property bit flags
+     *
+     * @return <code>Optional</code> containing the memory type, if available.
+     *         <code>Optional.empty()</code> otherwise.
+     */
+    public Optional<Integer> findMemoryType(final int typeFilter, final int propertyFlags) {
         for (var i = 0; i < this.memoryProperties.memoryTypeCount(); ++i) {
             final var typeIsSuitable = (typeFilter & (1 << i)) != 0;
-            final var propertiesAreSuitable =
+            final var hasAllProperties =
                     (this.memoryProperties.memoryTypes(i).propertyFlags() & propertyFlags) == propertyFlags;
 
-            if (typeIsSuitable && propertiesAreSuitable) {
+            if (typeIsSuitable && hasAllProperties) {
                 return Optional.of(i);
             }
         }

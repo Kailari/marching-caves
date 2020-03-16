@@ -105,8 +105,8 @@ public class GPUBuffer implements AutoCloseable {
             vkGetBufferMemoryRequirements(device, bufferHandle, memoryRequirements);
 
             final var memoryType = deviceContext
-                    .findSuitableMemoryType(memoryRequirements.memoryTypeBits(),
-                                            propertyFlags)
+                    .findMemoryType(memoryRequirements.memoryTypeBits(),
+                                    propertyFlags)
                     .orElseThrow(() -> new IllegalStateException("Could not find suitable memory type!"));
 
             final var allocInfo = VkMemoryAllocateInfo

@@ -15,7 +15,9 @@ public final class Main {
      */
     public static void main(final String[] args) {
         System.out.println("Validation: " + VALIDATION);
-        final var app = new Application(VALIDATION);
-        app.run();
+        try (var app = new Application(VALIDATION)) {
+            app.run();
+        }
+        System.out.println("Finished.");
     }
 }
