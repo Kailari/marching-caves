@@ -10,6 +10,7 @@ import java.util.function.BiConsumer;
 
 import static caves.visualization.window.VKUtil.translateVulkanResult;
 import static org.lwjgl.system.MemoryStack.stackPush;
+import static org.lwjgl.system.MemoryUtil.memAlloc;
 import static org.lwjgl.vulkan.VK10.*;
 
 public final class SequentialGPUBuffer<T> extends GPUBuffer {
@@ -76,15 +77,13 @@ public final class SequentialGPUBuffer<T> extends GPUBuffer {
             throw new IllegalStateException("Tried to push elements to GPU-only buffer!");
         }
 
-        try (var stack = stackPush()) {
-            final var buffer = stack.malloc((int) getSize());
-            for (final var vertex : elements) {
-                this.memoryMapper.accept(buffer, vertex);
-            }
-            buffer.flip();
-
-            super.pushMemory(buffer);
+        final var buffer = memAlloc((int) getSize());
+        for (final var vertex : elements) {
+            this.memoryMapper.accept(buffer, vertex);
         }
+        buffer.flip();
+
+        super.pushMemory(buffer);
     }
 
     /**

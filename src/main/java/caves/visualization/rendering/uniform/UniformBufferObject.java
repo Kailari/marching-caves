@@ -1,9 +1,9 @@
 package caves.visualization.rendering.uniform;
 
-import caves.visualization.window.DeviceContext;
 import caves.visualization.rendering.GPUBuffer;
 import caves.visualization.rendering.swapchain.RecreatedWithSwapChain;
 import caves.visualization.rendering.swapchain.SwapChain;
+import caves.visualization.window.DeviceContext;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.lwjgl.vulkan.*;
@@ -131,8 +131,10 @@ public final class UniformBufferObject implements RecreatedWithSwapChain {
      * @param angle      model matrix angle
      */
     public void update(final int imageIndex, final double angle) {
+        final var lookAtDistance = 160.0f;
+
         this.tmpModel.identity().rotateLocalZ((float) Math.toRadians(angle));
-        this.tmpView.identity().lookAt(new Vector3f(2.0f, 2.0f, 2.0f),
+        this.tmpView.identity().lookAt(new Vector3f(lookAtDistance, lookAtDistance, lookAtDistance),
                                        new Vector3f(0.0f, 0.0f, 0.0f),
                                        new Vector3f(0.0f, 0.0f, 1.0f));
 
@@ -141,7 +143,7 @@ public final class UniformBufferObject implements RecreatedWithSwapChain {
 
         final var fovY = (float) Math.toRadians(45.0f);
         final float zNear = 0.1f;
-        final float zFar = 10.0f;
+        final float zFar = 1000.0f;
         this.tmpProjection.identity().perspective(fovY, aspectRatio, zNear, zFar);
         this.tmpProjection.m11(-1 * this.tmpProjection.m11()); // Flip Y-axis
 
