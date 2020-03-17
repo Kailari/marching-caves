@@ -61,6 +61,15 @@ public final class Vector3 {
         this(other.x, other.y, other.z);
     }
 
+    /**
+     * Sets the component values of this vector.
+     *
+     * @param x new value for the x-component
+     * @param y new value for the y-component
+     * @param z new value for the z-component
+     *
+     * @return self
+     */
     public Vector3 set(final float x, final float y, final float z) {
         this.x = x;
         this.y = y;
@@ -68,8 +77,30 @@ public final class Vector3 {
         return this;
     }
 
+    /**
+     * Calculates the sum of this vector and vector with the given components x, y and z.
+     *
+     * @param x      the x-component to be added
+     * @param y      the y-component to be added
+     * @param z      the z-component to be added
+     * @param result vector for storing the result
+     *
+     * @return vector storing the result
+     */
     public Vector3 add(final float x, final float y, final float z, final Vector3 result) {
         return result.set(this.x + x, this.y + y, this.z + z);
+    }
+
+    /**
+     * Calculates the sum of this vector and the given other vector.
+     *
+     * @param other  the other vector to be summed
+     * @param result vector for storing the result
+     *
+     * @return vector storing the result
+     */
+    public Vector3 add(final Vector3 other, final Vector3 result) {
+        return add(other.x, other.y, other.z, result);
     }
 
     public Vector3 sub(final Vector3 other, final Vector3 result) {

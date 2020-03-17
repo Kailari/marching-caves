@@ -8,7 +8,7 @@ public final class PathGenerator {
     public CavePath generate(final Vector3 start, final int length, final float nodeSpacing) {
         final var path = new CavePath();
 
-        final var random = new Random();
+        final var random = new Random(1337);
 
         var previous = new Vector3(start);
         final var sum = new Vector3(0, 0, 0);
@@ -18,7 +18,7 @@ public final class PathGenerator {
             final var z = (random.nextFloat() * 2.0f - 1.0f) * nodeSpacing;
             final var next = previous.add(x, y, z, new Vector3());
             path.addNode(next);
-            sum.add(x, y, z, sum);
+            sum.add(next, sum);
 
             previous = next;
         }
