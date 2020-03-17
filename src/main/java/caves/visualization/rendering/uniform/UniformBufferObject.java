@@ -144,7 +144,7 @@ public final class UniformBufferObject implements RecreatedWithSwapChain {
         final var fovY = (float) Math.toRadians(45.0f);
         final float zNear = 0.1f;
         final float zFar = 1000.0f;
-        this.tmpProjection.identity().perspective(fovY, aspectRatio, zNear, zFar);
+        this.tmpProjection.identity().perspective(fovY, aspectRatio, zNear, zFar, true);
         this.tmpProjection.m11(-1 * this.tmpProjection.m11()); // Flip Y-axis
 
         try (var stack = stackPush()) {

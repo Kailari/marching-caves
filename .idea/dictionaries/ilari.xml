@@ -13,6 +13,7 @@
       <w>scancode</w>
       <w>shaderc</w>
       <w>spirv</w>
+      <w>sqrt</w>
       <w>swapchain</w>
       <w>uint</w>
       <w>unsignaled</w>

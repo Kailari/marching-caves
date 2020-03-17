@@ -48,8 +48,8 @@ public final class Application implements AutoCloseable {
      * @param validation should validation/debug features be enabled.
      */
     public Application(final boolean validation) {
-        final var caveLength = 100;
-        final var spacing = 1f;
+        final var caveLength = 40;
+        final var spacing = 2f;
         final var cave = new PathGenerator().generate(new Vector3(0.0f, 0.0f, 0.0f), caveLength, spacing);
         final var sampleSpace = new CaveSampleSpace(cave, 1.0f, 0.25f);
 

@@ -26,9 +26,9 @@ public class CaveSampleSpace {
         final var nodes = cave.getNodesOrdered();
 
         this.min = Arrays.stream(nodes)
-                         .reduce(new Vector3(), (accumulator, v) -> accumulator.min(v, accumulator));
+                         .reduce(new Vector3(), (acc, b) -> acc.min(b, acc));
         this.max = Arrays.stream(nodes)
-                         .reduce(new Vector3(), (accumulator, v) -> accumulator.max(v, accumulator));
+                         .reduce(new Vector3(), (acc, b) -> acc.max(b, acc));
 
         this.margin = margin;
         this.sampleSpaceSizeX = (float) Math.ceil(Math.abs(this.max.getX() - this.min.getX())) + 2 * this.margin;
