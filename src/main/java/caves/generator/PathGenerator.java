@@ -5,10 +5,15 @@ import caves.generator.util.Vector3;
 import java.util.Random;
 
 public final class PathGenerator {
-    public CavePath generate(final Vector3 start, final int length, final float nodeSpacing) {
+    public CavePath generate(
+            final Vector3 start,
+            final int length,
+            final float nodeSpacing,
+            final long seed
+    ) {
         final var path = new CavePath();
 
-        final var random = new Random(1337);
+        final var random = new Random(seed);
 
         var previous = new Vector3(start);
         final var sum = new Vector3(0, 0, 0);

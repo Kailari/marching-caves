@@ -12,6 +12,7 @@ import org.lwjgl.vulkan.VkPresentInfoKHR;
 import org.lwjgl.vulkan.VkSemaphoreCreateInfo;
 import org.lwjgl.vulkan.VkSubmitInfo;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.stream.IntStream;
@@ -50,30 +51,35 @@ public final class Application implements AutoCloseable {
     public Application(final boolean validation) {
         final var caveLength = 40;
         final var spacing = 2f;
-        final var cave = new PathGenerator().generate(new Vector3(0.0f, 0.0f, 0.0f), caveLength, spacing);
+        final var cave = new PathGenerator().generate(new Vector3(0.0f, 0.0f, 0.0f),
+                                                      caveLength,
+                                                      spacing,
+                                                      42);
         final var sampleSpace = new CaveSampleSpace(cave, 1.0f, 0.25f);
 
-        final var vertices = new Vertex[sampleSpace.getSize()];
-        for (var sampleIndex = 0; sampleIndex < vertices.length; ++sampleIndex) {
+        final var vertices = new ArrayList<Vertex>(sampleSpace.getSize());
+        for (var sampleIndex = 0; sampleIndex < sampleSpace.getSize(); ++sampleIndex) {
             final var density = sampleSpace.getDensity(sampleIndex);
             final var pos = sampleSpace.getPos(sampleIndex);
 
             final var threshold = 0.75f;
-            final var color = density < threshold
-                    ? 1.0f
-                    : 0.0f;
-            vertices[sampleIndex] = new Vertex(new Vector3f(pos.getX(), pos.getY(), pos.getZ()),
-                                               new Vector3f(color, color, color));
+            if (density > threshold) {
+                continue;
+            }
+
+            final var color = 1.0f;
+            vertices.add(new Vertex(new Vector3f(pos.getX(), pos.getY(), pos.getZ()),
+                                    new Vector3f(color, color, color)));
         }
 
-        final var indices = IntStream.range(0, vertices.length)
+        final var indices = IntStream.range(0, vertices.size())
                                      .boxed()
                                      .toArray(Integer[]::new);
 
         this.appContext = new ApplicationContext(DEFAULT_WINDOW_WIDTH,
                                                  DEFAULT_WINDOW_HEIGHT,
                                                  validation,
-                                                 vertices,
+                                                 vertices.toArray(Vertex[]::new),
                                                  indices);
         this.appContext.getWindow().onResize((windowHandle, width, height) -> this.framebufferResized = true);
 

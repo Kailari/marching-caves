@@ -22,7 +22,11 @@ public class CaveSampleSpace {
         return this.sampleCountX * this.sampleCountY * this.sampleCountZ;
     }
 
-    public CaveSampleSpace(final CavePath cave, final float margin, final float resolution) {
+    public CaveSampleSpace(
+            final CavePath cave,
+            final float margin,
+            final float resolution
+    ) {
         final var nodes = cave.getNodesOrdered();
 
         this.min = Arrays.stream(nodes)
