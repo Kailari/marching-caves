@@ -1,5 +1,6 @@
 package caves.generator.util;
 
+@SuppressWarnings({"unused", "UnusedReturnValue"})
 public final class Vector3 {
     private float x;
     private float y;
@@ -95,35 +96,77 @@ public final class Vector3 {
      * Calculates the sum of this vector and the given other vector.
      *
      * @param other  the other vector to be summed
-     * @param result vector for storing the result
+     * @param result vector to hold the result
      *
-     * @return vector storing the result
+     * @return vector holding the result
      */
     public Vector3 add(final Vector3 other, final Vector3 result) {
         return add(other.x, other.y, other.z, result);
     }
 
+    /**
+     * Calculates the subtraction of this vector and the given other vector.
+     *
+     * @param other  the other vector to subtract from this
+     * @param result vector to hold the result
+     *
+     * @return vector holding the result
+     */
     public Vector3 sub(final Vector3 other, final Vector3 result) {
         return result.set(this.x - other.x, this.y - other.y, this.z - other.z);
     }
 
+    /**
+     * Calculates the subtraction of this vector and vector with the given components x, y and z.
+     *
+     * @param x      the x-component to be subtracted
+     * @param y      the y-component to be subtracted
+     * @param z      the z-component to be subtracted
+     * @param result vector to hold the result
+     *
+     * @return vector holding the result
+     */
+    public Vector3 sub(final float x, final float y, final float z, final Vector3 result) {
+        return result.set(this.x + x, this.y + y, this.z + z);
+    }
+
+    /**
+     * Calculates the component-wise minimum of this and the given other vector.
+     *
+     * @param other  the other vector
+     * @param result vector to hold the result
+     *
+     * @return vector holding the result
+     */
     public Vector3 min(final Vector3 other, final Vector3 result) {
         return result.set(Math.min(this.x, other.x),
                           Math.min(this.y, other.y),
                           Math.min(this.z, other.z));
     }
 
+    /**
+     * Calculates the component-wise maximum of this and the given other vector.
+     *
+     * @param other  the other vector
+     * @param result vector to hold the result
+     *
+     * @return vector holding the result
+     */
     public Vector3 max(final Vector3 other, final Vector3 result) {
         return result.set(Math.max(this.x, other.x),
                           Math.max(this.y, other.y),
                           Math.max(this.z, other.z));
     }
 
-    public float distanceSq(final Vector3 pos) {
-        final var dx = this.x - pos.x;
-        final var dy = this.y - pos.y;
-        final var dz = this.z - pos.z;
-        return dx * dx + dy * dy + dz * dz;
+    /**
+     * Calculates dot-product between this vector and the given other vector.
+     *
+     * @param other the other vector
+     *
+     * @return the dot product
+     */
+    public float dot(final Vector3 other) {
+        return this.x * other.x + this.y * other.y + this.z * other.z;
     }
 
     /**
@@ -142,6 +185,20 @@ public final class Vector3 {
     }
 
     /**
+     * Calculates the squared distance between this and the given other vector.
+     *
+     * @param other the other vector
+     *
+     * @return the distance squared
+     */
+    public float distanceSq(final Vector3 other) {
+        final var dx = this.x - other.x;
+        final var dy = this.y - other.y;
+        final var dz = this.z - other.z;
+        return dx * dx + dy * dy + dz * dz;
+    }
+
+    /**
      * Calculates the squared length of this vector.
      *
      * @return the squared length
@@ -150,20 +207,40 @@ public final class Vector3 {
         return this.x * this.x + this.y * this.y + this.z * this.z;
     }
 
+    /**
+     * Calculates the length of this vector.
+     *
+     * @return the length
+     */
     public float length() {
         return (float) Math.sqrt(lengthSq());
     }
 
+    /**
+     * Normalizes this vector. Does not modify self
+     *
+     * @param result vector to hold the result
+     *
+     * @return copy of this vector, normalized.
+     */
+    public Vector3 normalize(final Vector3 result) {
+        final var length = this.length();
+        return result.set(this.x / length,
+                          this.y / length,
+                          this.z / length);
+    }
+
+    /**
+     * Normalizes this vector. Note that this modifies the original.
+     *
+     * @return this vector, normalized.
+     */
     public Vector3 normalize() {
         final var length = this.length();
         this.x /= length;
         this.y /= length;
         this.z /= length;
         return this;
-    }
-
-    public float dot(final Vector3 other) {
-        return this.x * other.x + this.y * other.y + this.z * other.z;
     }
 
     @Override
