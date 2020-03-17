@@ -27,7 +27,7 @@ public final class RenderingContext implements AutoCloseable {
     private final CommandPool commandPool;
 
     private final SequentialGPUBuffer<Vertex> vertexBuffer;
-    private final SequentialGPUBuffer<Short> indexBuffer;
+    private final SequentialGPUBuffer<Integer> indexBuffer;
     private final RenderCommandBuffers renderCommandBuffers;
     private final UniformBufferObject uniformBufferObject;
     private final DescriptorPool descriptorPool;
@@ -64,7 +64,7 @@ public final class RenderingContext implements AutoCloseable {
      */
     public RenderingContext(
             final Vertex[] vertices,
-            final Short[] indices,
+            final Integer[] indices,
             final DeviceContext deviceContext,
             final long surface,
             final long windowHandle
@@ -123,32 +123,32 @@ public final class RenderingContext implements AutoCloseable {
         return vertexBuffer;
     }
 
-    private static SequentialGPUBuffer<Short> createIndexBuffer(
+    private static SequentialGPUBuffer<Integer> createIndexBuffer(
             final DeviceContext deviceContext,
             final CommandPool commandPool,
-            final Short[] indices
+            final Integer[] indices
     ) {
-        final var stagingBuffer = new SequentialGPUBuffer<Short>(
+        final var stagingBuffer = new SequentialGPUBuffer<Integer>(
                 deviceContext,
                 indices.length,
-                Short.BYTES,
+                Integer.BYTES,
                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                ByteBuffer::putShort);
-        final var vertexBuffer = new SequentialGPUBuffer<Short>(
+                ByteBuffer::putInt);
+        final var buffer = new SequentialGPUBuffer<Integer>(
                 deviceContext,
                 indices.length,
-                Short.BYTES,
+                Integer.BYTES,
                 VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                 null);
         stagingBuffer.pushElements(indices);
         stagingBuffer.copyToAndWait(commandPool.getHandle(),
                                     deviceContext.getGraphicsQueue(),
-                                    vertexBuffer);
+                                    buffer);
         stagingBuffer.close();
 
-        return vertexBuffer;
+        return buffer;
     }
 
     /**

@@ -131,7 +131,7 @@ public final class UniformBufferObject implements RecreatedWithSwapChain {
      * @param angle      model matrix angle
      */
     public void update(final int imageIndex, final double angle) {
-        final var lookAtDistance = 160.0f;
+        final var lookAtDistance = 10.0f;
 
         this.tmpModel.identity().rotateLocalZ((float) Math.toRadians(angle));
         this.tmpView.identity().lookAt(new Vector3f(lookAtDistance, lookAtDistance, lookAtDistance),

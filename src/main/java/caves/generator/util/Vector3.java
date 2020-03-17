@@ -75,4 +75,32 @@ public final class Vector3 {
     public Vector3 sub(final Vector3 other, final Vector3 result) {
         return result.set(this.x - other.x, this.y - other.y, this.z - other.z);
     }
+
+    public Vector3 min(final Vector3 other, final Vector3 result) {
+        return result.set(Math.min(this.x, other.x),
+                          Math.min(this.y, other.y),
+                          Math.min(this.z, other.z));
+    }
+
+    public Vector3 max(final Vector3 other, final Vector3 result) {
+        return result.set(Math.max(this.x, other.x),
+                          Math.max(this.y, other.y),
+                          Math.max(this.z, other.z));
+    }
+
+    @Override
+    public String toString() {
+        return "Vector3{"
+                + "x=" + x
+                + ", y=" + y
+                + ", z=" + z
+                + '}';
+    }
+
+    public float distanceSq(final Vector3 pos) {
+        final var dx = this.x - pos.x;
+        final var dy = this.y - pos.y;
+        final var dz = this.z - pos.z;
+        return dx * dx + dy * dy + dz * dz;
+    }
 }

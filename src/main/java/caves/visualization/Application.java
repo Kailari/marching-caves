@@ -1,5 +1,6 @@
 package caves.visualization;
 
+import caves.generator.CaveSampleSpace;
 import caves.generator.PathGenerator;
 import caves.generator.util.Vector3;
 import caves.visualization.window.ApplicationContext;
@@ -28,7 +29,7 @@ public final class Application implements AutoCloseable {
     private static final long UINT64_MAX = 0xFFFFFFFFFFFFFFFFL; // or "-1L", but this looks nicer.
     private static final int MAX_FRAMES_IN_FLIGHT = 2;
 
-    private static final float DEGREES_PER_SECOND = 90.0f;
+    private static final float DEGREES_PER_SECOND = 45.0f;
 
     private final ApplicationContext appContext;
     private final long[] imageAvailableSemaphores;
@@ -47,18 +48,27 @@ public final class Application implements AutoCloseable {
      * @param validation should validation/debug features be enabled.
      */
     public Application(final boolean validation) {
-        final var caveLength = 10_000_000;
-        final var spacing = 0.5f;
+        final var caveLength = 100;
+        final var spacing = 1f;
         final var cave = new PathGenerator().generate(new Vector3(0.0f, 0.0f, 0.0f), caveLength, spacing);
-        final var nodes = cave.getNodesOrdered();
-        final var vertices = Arrays.stream(nodes)
-                                   .map(vec -> new Vertex(new Vector3f(vec.getX(), vec.getY(), vec.getZ()),
-                                                          new Vector3f(1.0f, 1.0f, 0.0f)))
-                                   .toArray(Vertex[]::new);
+        final var sampleSpace = new CaveSampleSpace(cave, 1.0f, 0.25f);
 
-        final var indices = IntStream.range(0, caveLength)
-                                     .mapToObj(value -> (short) value)
-                                     .toArray(Short[]::new);
+        final var vertices = new Vertex[sampleSpace.getSize()];
+        for (var sampleIndex = 0; sampleIndex < vertices.length; ++sampleIndex) {
+            final var density = sampleSpace.getDensity(sampleIndex);
+            final var pos = sampleSpace.getPos(sampleIndex);
+
+            final var threshold = 0.75f;
+            final var color = density < threshold
+                    ? 1.0f
+                    : 0.0f;
+            vertices[sampleIndex] = new Vertex(new Vector3f(pos.getX(), pos.getY(), pos.getZ()),
+                                               new Vector3f(color, color, color));
+        }
+
+        final var indices = IntStream.range(0, vertices.length)
+                                     .boxed()
+                                     .toArray(Integer[]::new);
 
         this.appContext = new ApplicationContext(DEFAULT_WINDOW_WIDTH,
                                                  DEFAULT_WINDOW_HEIGHT,

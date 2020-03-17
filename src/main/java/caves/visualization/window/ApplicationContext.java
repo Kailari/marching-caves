@@ -70,7 +70,7 @@ public final class ApplicationContext implements AutoCloseable {
             final int height,
             final boolean enableValidation,
             final Vertex[] vertices,
-            final Short[] indices
+            final Integer[] indices
     ) {
         if (!glfwInit()) {
             throw new IllegalStateException("Initializing GLFW failed.");

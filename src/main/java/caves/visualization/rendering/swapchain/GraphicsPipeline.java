@@ -191,7 +191,7 @@ public final class GraphicsPipeline implements RecreatedWithSwapChain {
         return VkPipelineInputAssemblyStateCreateInfo
                 .callocStack()
                 .sType(VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO)
-                .topology(VK_PRIMITIVE_TOPOLOGY_LINE_STRIP)
+                .topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
                 .primitiveRestartEnable(false);
     }
 

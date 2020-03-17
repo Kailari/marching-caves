@@ -26,7 +26,7 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
     private final Framebuffers framebuffers;
     private final GraphicsPipeline graphicsPipeline;
     private final SequentialGPUBuffer<Vertex> vertexBuffer;
-    private final SequentialGPUBuffer<Short> indexBuffer;
+    private final SequentialGPUBuffer<Integer> indexBuffer;
     private final UniformBufferObject ubo;
 
     private VkCommandBuffer[] commandBuffers;
@@ -61,7 +61,7 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
             final Framebuffers framebuffers,
             final GraphicsPipeline graphicsPipeline,
             final SequentialGPUBuffer<Vertex> vertexBuffer,
-            final SequentialGPUBuffer<Short> indexBuffer,
+            final SequentialGPUBuffer<Integer> indexBuffer,
             final UniformBufferObject ubo
     ) {
         this.device = deviceContext.getDevice();
@@ -168,7 +168,7 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
                 vkCmdBindIndexBuffer(this.commandBuffers[imageIndex],
                                      this.indexBuffer.getBufferHandle(),
                                      0,
-                                     VK_INDEX_TYPE_UINT16);
+                                     VK_INDEX_TYPE_UINT32);
 
                 vkCmdBindDescriptorSets(this.commandBuffers[imageIndex],
                                         VK_PIPELINE_BIND_POINT_GRAPHICS,
