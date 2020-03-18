@@ -1,5 +1,6 @@
 package caves.visualization.rendering.renderpass;
 
+import caves.visualization.rendering.DepthBuffer;
 import caves.visualization.rendering.swapchain.RecreatedWithSwapChain;
 import caves.visualization.rendering.swapchain.SwapChain;
 import caves.visualization.window.DeviceContext;
@@ -22,8 +23,16 @@ public final class RenderPass implements RecreatedWithSwapChain {
      */
     public static final int COLOR_ATTACHMENT_INDEX = 0;
 
+    /**
+     * Index of the depth attachment.
+     *
+     * @see #COLOR_ATTACHMENT_INDEX
+     */
+    public static final int DEPTH_ATTACHMENT_INDEX = 1;
+
     private final VkDevice device;
     private final SwapChain swapChain;
+    private final DepthBuffer depthBuffer;
 
     private long handle;
 
@@ -44,10 +53,16 @@ public final class RenderPass implements RecreatedWithSwapChain {
      *
      * @param deviceContext device to render on
      * @param swapChain     swapchain to render to
+     * @param depthBuffer   the depth buffer to render depth info to
      */
-    public RenderPass(final DeviceContext deviceContext, final SwapChain swapChain) {
+    public RenderPass(
+            final DeviceContext deviceContext,
+            final SwapChain swapChain,
+            final DepthBuffer depthBuffer
+    ) {
         this.device = deviceContext.getDeviceHandle();
         this.swapChain = swapChain;
+        this.depthBuffer = depthBuffer;
         this.cleanedUp = true;
 
         recreate();
@@ -66,7 +81,7 @@ public final class RenderPass implements RecreatedWithSwapChain {
         assert this.cleanedUp : "Cannot re-create render pass before it is cleaned up!";
 
         try (var stack = stackPush()) {
-            final var attachments = VkAttachmentDescription.callocStack(1);
+            final var attachments = VkAttachmentDescription.callocStack(2);
             attachments.get(COLOR_ATTACHMENT_INDEX)
                        .format(this.swapChain.getImageFormat())
                        .samples(VK_SAMPLE_COUNT_1_BIT)
@@ -76,17 +91,33 @@ public final class RenderPass implements RecreatedWithSwapChain {
                        .stencilStoreOp(VK_ATTACHMENT_STORE_OP_DONT_CARE)
                        .initialLayout(VK_IMAGE_LAYOUT_UNDEFINED)        // We are going to clear the image anyway
                        .finalLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);   // We promise to produce a presentable image
+            attachments.get(DEPTH_ATTACHMENT_INDEX)
+                       .format(this.depthBuffer.getImageFormat())
+                       .samples(VK_SAMPLE_COUNT_1_BIT)
+                       .loadOp(VK_ATTACHMENT_LOAD_OP_CLEAR)
+                       .storeOp(VK_ATTACHMENT_STORE_OP_DONT_CARE)
+                       .stencilLoadOp(VK_ATTACHMENT_STORE_OP_DONT_CARE)
+                       .stencilStoreOp(VK_ATTACHMENT_STORE_OP_DONT_CARE)
+                       .initialLayout(VK_IMAGE_LAYOUT_UNDEFINED)
+                       .finalLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
 
             final var colorAttachmentRefs = VkAttachmentReference.callocStack(1);
             colorAttachmentRefs.get(0)
                                .attachment(COLOR_ATTACHMENT_INDEX)
                                .layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
+            final var depthAttachmentRef = VkAttachmentReference
+                    .callocStack()
+                    .attachment(DEPTH_ATTACHMENT_INDEX)
+                    .layout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
             final var subpasses = VkSubpassDescription.callocStack(1);
             subpasses.get(0)
                      .pipelineBindPoint(VK_PIPELINE_BIND_POINT_GRAPHICS)
                      .colorAttachmentCount(1)
-                     .pColorAttachments(colorAttachmentRefs);
+                     .pColorAttachments(colorAttachmentRefs)
+                     .pDepthStencilAttachment(depthAttachmentRef);
 
             final var dependencies = VkSubpassDependency.callocStack(1);
             dependencies.get(0)

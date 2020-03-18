@@ -239,4 +239,36 @@ public final class DeviceContext implements AutoCloseable {
         }
         return Optional.empty();
     }
+
+    /**
+     * Finds a supported image format matching given criteria.
+     *
+     * @param candidates   format candidates to test
+     * @param tiling       desired tiling features
+     * @param featureFlags desired feature flags
+     *
+     * @return supported format or empty optional if none is found
+     */
+    public Optional<Integer> findImageFormat(
+            final int[] candidates,
+            final int tiling,
+            final int featureFlags
+    ) {
+        try (var ignored = stackPush()) {
+            for (final var format : candidates) {
+                final var pProps = VkFormatProperties.callocStack();
+                vkGetPhysicalDeviceFormatProperties(this.physicalDevice, format, pProps);
+
+                final var hasTilingBits = (pProps.linearTilingFeatures() & featureFlags) == featureFlags;
+                final var hasOptimalBits = (pProps.optimalTilingFeatures() & featureFlags) == featureFlags;
+                if (tiling == VK_IMAGE_TILING_LINEAR && hasTilingBits) {
+                    return Optional.of(format);
+                } else if (tiling == VK_IMAGE_TILING_OPTIMAL && hasOptimalBits) {
+                    return Optional.of(format);
+                }
+            }
+        }
+
+        return Optional.empty();
+    }
 }

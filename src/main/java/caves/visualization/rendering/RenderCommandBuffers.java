@@ -48,6 +48,12 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
         return clearColor;
     }
 
+    private static VkClearValue getDepthClearValue() {
+        final var depthValue = VkClearValue.callocStack();
+        depthValue.depthStencil().set(1.0f, 0);
+        return depthValue;
+    }
+
     /**
      * Creates new render command buffers for rendering the given fixed vertex buffer.
      *
@@ -165,8 +171,9 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
             renderArea.offset().set(0, 0);
             renderArea.extent().set(this.swapChain.getExtent());
 
-            final var clearValues = VkClearValue.callocStack(1, stack);
+            final var clearValues = VkClearValue.callocStack(2, stack);
             clearValues.put(RenderPass.COLOR_ATTACHMENT_INDEX, getClearColor());
+            clearValues.put(RenderPass.DEPTH_ATTACHMENT_INDEX, getDepthClearValue());
 
             try (var ignored = this.renderPass.begin(this.commandBuffers[imageIndex],
                                                      this.framebuffers.get(imageIndex),

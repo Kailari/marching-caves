@@ -134,7 +134,7 @@ public final class GraphicsPipeline implements RecreatedWithSwapChain {
                 .polygonMode(VK_POLYGON_MODE_FILL)
                 .lineWidth(1.0f)
                 .cullMode(VK_CULL_MODE_BACK_BIT)
-                .frontFace(VK_FRONT_FACE_COUNTER_CLOCKWISE)
+                .frontFace(VK_FRONT_FACE_CLOCKWISE)
                 .depthBiasEnable(false)
                 .depthBiasConstantFactor(0.0f)
                 .depthBiasClamp(0.0f)
@@ -238,6 +238,7 @@ public final class GraphicsPipeline implements RecreatedWithSwapChain {
             final var rasterizer = createRasterizationState();
             final var multisampling = createMultisampleState();
             final var colorBlend = createColorBlendInfo();
+            final var depthStencil = createDepthStencilState();
 
             this.pipelineLayout = createPipelineLayout(this.device, this.uniformBufferObject);
 
@@ -251,7 +252,7 @@ public final class GraphicsPipeline implements RecreatedWithSwapChain {
                          .pRasterizationState(rasterizer)
                          .pMultisampleState(multisampling)
                          .pColorBlendState(colorBlend)
-                         //.pDepthStencilState(XXX);
+                         .pDepthStencilState(depthStencil)
                          //.pDynamicState(dynamicState)
                          .layout(this.pipelineLayout)
                          .renderPass(this.renderPass.getHandle())
@@ -276,6 +277,17 @@ public final class GraphicsPipeline implements RecreatedWithSwapChain {
         }
 
         this.cleanedUp = false;
+    }
+
+    private VkPipelineDepthStencilStateCreateInfo createDepthStencilState() {
+        return VkPipelineDepthStencilStateCreateInfo
+                .callocStack()
+                .sType(VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO)
+                .depthTestEnable(true)
+                .depthWriteEnable(true)
+                .depthCompareOp(VK_COMPARE_OP_LESS)
+                .depthBoundsTestEnable(false)
+                .stencilTestEnable(false);
     }
 
     /**

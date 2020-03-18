@@ -1,5 +1,6 @@
 package caves.visualization.rendering.swapchain;
 
+import caves.visualization.rendering.DepthBuffer;
 import caves.visualization.rendering.renderpass.RenderPass;
 import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkFramebufferCreateInfo;
@@ -12,6 +13,7 @@ public final class Framebuffers implements RecreatedWithSwapChain {
     private final VkDevice device;
     private final RenderPass renderPass;
     private final SwapChain swapChain;
+    private final DepthBuffer depthBuffer;
 
     private long[] swapChainFramebuffers;
     private boolean cleanedUp;
@@ -20,18 +22,22 @@ public final class Framebuffers implements RecreatedWithSwapChain {
      * Creates framebuffers for the swapchain. Each swapchain image gets its own attached
      * framebuffer.
      *
-     * @param device     logical device the swapchain is created on
-     * @param renderPass which render pass these framebuffers are used with
-     * @param swapChain  the swapchain to use
+     * @param device      logical device the swapchain is created on
+     * @param renderPass  which render pass these framebuffers are used with
+     * @param swapChain   the swapchain to use
+     * @param depthBuffer depthbuffer to use
      */
     public Framebuffers(
             final VkDevice device,
             final RenderPass renderPass,
-            final SwapChain swapChain
+            final SwapChain swapChain,
+            final DepthBuffer depthBuffer
     ) {
         this.device = device;
         this.renderPass = renderPass;
         this.swapChain = swapChain;
+        this.depthBuffer = depthBuffer;
+
         this.cleanedUp = true;
 
         recreate();
@@ -68,8 +74,8 @@ public final class Framebuffers implements RecreatedWithSwapChain {
             final var extent = this.swapChain.getExtent();
             final var pFramebuffer = stack.mallocLong(1);
             for (var i = 0; i < imageCount; ++i) {
-                final var pAttachments = stack.mallocLong(1);
-                pAttachments.put(0, swapChainImageViews[i]);
+                final var pAttachments = stack.longs(swapChainImageViews[i],
+                                                     this.depthBuffer.getImageView());
                 final var createInfo = VkFramebufferCreateInfo
                         .callocStack(stack)
                         .sType(VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO)

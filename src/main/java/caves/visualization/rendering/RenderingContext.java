@@ -25,6 +25,7 @@ public final class RenderingContext implements AutoCloseable {
     private final GraphicsPipeline linePipeline;
     private final GraphicsPipeline polygonPipeline;
     private final Framebuffers framebuffers;
+    private final DepthBuffer depthBuffer;
     private final CommandPool commandPool;
 
     private final RenderCommandBuffers renderCommandBuffers;
@@ -57,7 +58,7 @@ public final class RenderingContext implements AutoCloseable {
      *
      * @param pointMesh     mesh to be rendered as points
      * @param lineMesh      mesh to be rendered as lines
-     * @param polygonMesh      mesh to be rendered as polygons
+     * @param polygonMesh   mesh to be rendered as polygons
      * @param deviceContext device context information to use for creating the swapchain
      * @param surface       surface to create the chain for
      * @param windowHandle  handle to the window
@@ -74,9 +75,18 @@ public final class RenderingContext implements AutoCloseable {
         this.windowHandle = windowHandle;
 
         this.swapChain = new SwapChain(deviceContext, surface, windowHandle);
-        this.renderPass = new RenderPass(this.deviceContext, this.swapChain);
+        this.commandPool = new CommandPool(deviceContext,
+                                           deviceContext.getQueueFamilies().getGraphics());
+
         this.descriptorPool = new DescriptorPool(this.deviceContext, this.swapChain);
         this.uniformBufferObject = new UniformBufferObject(this.deviceContext, this.swapChain, this.descriptorPool);
+
+        this.depthBuffer = new DepthBuffer(deviceContext, this.swapChain, this.commandPool);
+        this.renderPass = new RenderPass(this.deviceContext, this.swapChain, this.depthBuffer);
+        this.framebuffers = new Framebuffers(deviceContext.getDeviceHandle(),
+                                             this.renderPass,
+                                             this.swapChain,
+                                             this.depthBuffer);
 
         this.pointPipeline = new GraphicsPipeline(deviceContext.getDeviceHandle(),
                                                   this.swapChain,
@@ -89,13 +99,10 @@ public final class RenderingContext implements AutoCloseable {
                                                  this.uniformBufferObject,
                                                  VK_PRIMITIVE_TOPOLOGY_LINE_STRIP);
         this.polygonPipeline = new GraphicsPipeline(deviceContext.getDeviceHandle(),
-                                                 this.swapChain,
-                                                 this.renderPass,
-                                                 this.uniformBufferObject,
-                                                 VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-        this.framebuffers = new Framebuffers(deviceContext.getDeviceHandle(), this.renderPass, this.swapChain);
-        this.commandPool = new CommandPool(deviceContext,
-                                           deviceContext.getQueueFamilies().getGraphics());
+                                                    this.swapChain,
+                                                    this.renderPass,
+                                                    this.uniformBufferObject,
+                                                    VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 
         this.renderCommandBuffers = new RenderCommandBuffers(deviceContext,
                                                              this.commandPool,
@@ -142,6 +149,7 @@ public final class RenderingContext implements AutoCloseable {
 
         this.renderCommandBuffers.cleanup();
         this.framebuffers.cleanup();
+        this.depthBuffer.cleanup();
 
         this.pointPipeline.cleanup();
         this.linePipeline.cleanup();
@@ -154,15 +162,17 @@ public final class RenderingContext implements AutoCloseable {
 
 
         this.swapChain.recreate();
-        this.renderPass.recreate();
         this.descriptorPool.recreate();
         this.uniformBufferObject.recreate();
+
+        this.depthBuffer.recreate();
+        this.renderPass.recreate();
+        this.framebuffers.recreate();
 
         this.pointPipeline.recreate();
         this.linePipeline.recreate();
         this.polygonPipeline.recreate();
 
-        this.framebuffers.recreate();
         this.renderCommandBuffers.recreate();
         this.mustRecreateSwapChain = false;
     }
@@ -185,6 +195,7 @@ public final class RenderingContext implements AutoCloseable {
         this.commandPool.close();
         this.descriptorPool.close();
         this.framebuffers.close();
+        this.depthBuffer.close();
 
         this.pointPipeline.close();
         this.linePipeline.close();
