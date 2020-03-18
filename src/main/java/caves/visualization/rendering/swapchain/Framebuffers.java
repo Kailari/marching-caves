@@ -1,5 +1,6 @@
 package caves.visualization.rendering.swapchain;
 
+import caves.visualization.rendering.renderpass.RenderPass;
 import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkFramebufferCreateInfo;
 
@@ -9,7 +10,7 @@ import static org.lwjgl.vulkan.VK10.*;
 
 public final class Framebuffers implements RecreatedWithSwapChain {
     private final VkDevice device;
-    private final GraphicsPipeline graphicsPipeline;
+    private final RenderPass renderPass;
     private final SwapChain swapChain;
 
     private long[] swapChainFramebuffers;
@@ -19,17 +20,17 @@ public final class Framebuffers implements RecreatedWithSwapChain {
      * Creates framebuffers for the swapchain. Each swapchain image gets its own attached
      * framebuffer.
      *
-     * @param device           logical device the swapchain is created on
-     * @param graphicsPipeline graphics pipeline to use
-     * @param swapChain        the swapchain to use
+     * @param device     logical device the swapchain is created on
+     * @param renderPass which render pass these framebuffers are used with
+     * @param swapChain  the swapchain to use
      */
     public Framebuffers(
             final VkDevice device,
-            final GraphicsPipeline graphicsPipeline,
+            final RenderPass renderPass,
             final SwapChain swapChain
     ) {
         this.device = device;
-        this.graphicsPipeline = graphicsPipeline;
+        this.renderPass = renderPass;
         this.swapChain = swapChain;
         this.cleanedUp = true;
 
@@ -45,21 +46,19 @@ public final class Framebuffers implements RecreatedWithSwapChain {
      * @return handle for the framebuffer with the given image index
      */
     public long get(final int imageIndex) {
-        if (this.cleanedUp) {
-            throw new IllegalStateException("Tried to fetch framebuffers before re-creating!");
-        }
-
+        assert !this.cleanedUp : "Tried to fetch framebuffers before re-creating!";
         return this.swapChainFramebuffers[imageIndex];
     }
 
     /**
      * Re-creates the framebuffers for all swapchain image views.
+     * <p>
+     * Re-creation is necessary because the framebuffers are directly dependent on swapchain image
+     * views, which in turn are always invalidated on re-create.
      */
     @Override
     public void recreate() {
-        if (!this.cleanedUp) {
-            throw new IllegalStateException("Tried to re-create framebuffers without cleaning up!");
-        }
+        assert this.cleanedUp : "Tried to re-create framebuffers without cleaning up!";
 
         final var swapChainImageViews = this.swapChain.getImageViews();
         final var imageCount = swapChainImageViews.length;
@@ -74,7 +73,7 @@ public final class Framebuffers implements RecreatedWithSwapChain {
                 final var createInfo = VkFramebufferCreateInfo
                         .callocStack(stack)
                         .sType(VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO)
-                        .renderPass(this.graphicsPipeline.getRenderPass())
+                        .renderPass(this.renderPass.getHandle())
                         .pAttachments(pAttachments)
                         .width(extent.width())
                         .height(extent.height())
@@ -97,9 +96,7 @@ public final class Framebuffers implements RecreatedWithSwapChain {
      */
     @Override
     public void cleanup() {
-        if (this.cleanedUp) {
-            throw new IllegalStateException("Tried to cleanup already cleared framebuffers!");
-        }
+        assert !this.cleanedUp : "Tried to cleanup already cleared framebuffers!";
 
         for (final var framebuffer : this.swapChainFramebuffers) {
             vkDestroyFramebuffer(this.device, framebuffer, null);

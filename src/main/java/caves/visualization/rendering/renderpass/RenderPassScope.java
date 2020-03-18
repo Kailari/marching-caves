@@ -1,6 +1,5 @@
 package caves.visualization.rendering.renderpass;
 
-import caves.visualization.rendering.swapchain.GraphicsPipeline;
 import org.lwjgl.vulkan.VkClearValue;
 import org.lwjgl.vulkan.VkCommandBuffer;
 import org.lwjgl.vulkan.VkRect2D;
@@ -18,15 +17,15 @@ public final class RenderPassScope implements AutoCloseable {
      * <p>
      * Intended use is with <i>try-with-resources</i>.
      *
-     * @param commandBuffer    command buffer for executing the pass
-     * @param graphicsPipeline pipeline to use
-     * @param framebuffer      framebuffer to use
-     * @param renderArea       render area to use
-     * @param clearValues      clear values for the attachments
+     * @param commandBuffer command buffer for executing the pass
+     * @param renderPass    render pass to scope
+     * @param framebuffer   framebuffer to use
+     * @param renderArea    render area to use
+     * @param clearValues   clear values for the attachments
      */
-    public RenderPassScope(
+    RenderPassScope(
             final VkCommandBuffer commandBuffer,
-            final GraphicsPipeline graphicsPipeline,
+            final RenderPass renderPass,
             final long framebuffer,
             final VkRect2D renderArea,
             final VkClearValue.Buffer clearValues
@@ -37,7 +36,7 @@ public final class RenderPassScope implements AutoCloseable {
             final var renderPassInfo = VkRenderPassBeginInfo
                     .callocStack(stack)
                     .sType(VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO)
-                    .renderPass(graphicsPipeline.getRenderPass())
+                    .renderPass(renderPass.getHandle())
                     .framebuffer(framebuffer)
                     .pClearValues(clearValues)
                     .renderArea(renderArea);

@@ -1,6 +1,7 @@
 package caves.visualization.rendering.swapchain;
 
 import caves.visualization.Vertex;
+import caves.visualization.rendering.renderpass.RenderPass;
 import caves.visualization.rendering.uniform.UniformBufferObject;
 import caves.visualization.window.VKUtil;
 import org.lwjgl.vulkan.*;
@@ -9,42 +10,20 @@ import java.io.IOException;
 
 import static caves.visualization.window.VKUtil.translateVulkanResult;
 import static org.lwjgl.system.MemoryStack.stackPush;
-import static org.lwjgl.vulkan.KHRSwapchain.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 import static org.lwjgl.vulkan.VK10.*;
 
 public final class GraphicsPipeline implements RecreatedWithSwapChain {
-    /**
-     * Index of the color attachment. This must match the value of the fragment shader color output
-     * layout definition.
-     * <p>
-     * e.g. as the value is zero, the shader must define
-     * <pre><code>
-     *     layout(location = 0) out vec4 outColor;
-     * </code></pre>
-     */
-    private static final int COLOR_ATTACHMENT_INDEX = 0;
-
     private final VkDevice device;
     private final SwapChain swapChain;
     private final UniformBufferObject uniformBufferObject;
+    private final RenderPass renderPass;
+
+    private final int topology;
+
     private long pipelineLayout;
     private long pipeline;
-    private long renderPass;
 
     private boolean cleanedUp;
-
-    /**
-     * Gets the render pass.
-     *
-     * @return the render pass
-     */
-    public long getRenderPass() {
-        if (this.cleanedUp) {
-            throw new IllegalStateException("Tried to fetch render pass from cleaned up pipeline!");
-        }
-
-        return this.renderPass;
-    }
 
     /**
      * Gets the pipeline handle.
@@ -77,16 +56,23 @@ public final class GraphicsPipeline implements RecreatedWithSwapChain {
      *
      * @param device              logical device to use
      * @param swapChain           the swapchain used for rendering
+     * @param renderPass          the render pass this pipeline belongs to
      * @param uniformBufferObject the uniform buffer object to use for uniforms
+     * @param topology            the input assembly topology to use
      */
     public GraphicsPipeline(
             final VkDevice device,
             final SwapChain swapChain,
-            final UniformBufferObject uniformBufferObject
+            final RenderPass renderPass,
+            final UniformBufferObject uniformBufferObject,
+            final int topology
     ) {
         this.device = device;
         this.swapChain = swapChain;
+        this.renderPass = renderPass;
         this.uniformBufferObject = uniformBufferObject;
+        this.topology = topology;
+
         this.cleanedUp = true;
 
         recreate();
@@ -187,11 +173,11 @@ public final class GraphicsPipeline implements RecreatedWithSwapChain {
         return viewports;
     }
 
-    private static VkPipelineInputAssemblyStateCreateInfo createInputAssembly() {
+    private static VkPipelineInputAssemblyStateCreateInfo createInputAssembly(final int topology) {
         return VkPipelineInputAssemblyStateCreateInfo
                 .callocStack()
                 .sType(VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO)
-                .topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
+                .topology(topology)
                 .primitiveRestartEnable(false);
     }
 
@@ -210,60 +196,22 @@ public final class GraphicsPipeline implements RecreatedWithSwapChain {
                 .pVertexBindingDescriptions(pVertexBindingDescriptions);
     }
 
-    private long createRenderPass(final int swapChainImageFormat) {
-        final var attachments = VkAttachmentDescription.callocStack(1);
-        attachments.get(COLOR_ATTACHMENT_INDEX)
-                   .format(swapChainImageFormat)
-                   .samples(VK_SAMPLE_COUNT_1_BIT)
-                   .loadOp(VK_ATTACHMENT_LOAD_OP_CLEAR)             // Begin by clearing the image
-                   .storeOp(VK_ATTACHMENT_STORE_OP_STORE)           // Store the result
-                   .stencilLoadOp(VK_ATTACHMENT_LOAD_OP_DONT_CARE)  // The stencil will be ignored
-                   .stencilStoreOp(VK_ATTACHMENT_STORE_OP_DONT_CARE)
-                   .initialLayout(VK_IMAGE_LAYOUT_UNDEFINED)        // We are going to clear the image anyway
-                   .finalLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);   // We promise to produce a presentable image
-
-        final var colorAttachmentRefs = VkAttachmentReference.callocStack(1);
-        colorAttachmentRefs.get(0)
-                           .attachment(COLOR_ATTACHMENT_INDEX)
-                           .layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-
-        final var subpasses = VkSubpassDescription.callocStack(1);
-        subpasses.get(0)
-                 .pipelineBindPoint(VK_PIPELINE_BIND_POINT_GRAPHICS)
-                 .colorAttachmentCount(1)
-                 .pColorAttachments(colorAttachmentRefs);
-
-        final var dependencies = VkSubpassDependency.callocStack(1);
-        dependencies.get(0)
-                    .srcSubpass(VK_SUBPASS_EXTERNAL)
-                    .dstSubpass(0)
-                    .srcStageMask(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT)
-                    .srcAccessMask(0)
-                    .dstStageMask(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT)
-                    .dstAccessMask(VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-
-        final var renderPassInfo = VkRenderPassCreateInfo
-                .callocStack()
-                .sType(VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO)
-                .pAttachments(attachments)
-                .pSubpasses(subpasses)
-                .pDependencies(dependencies);
-
-        try (var stack = stackPush()) {
-            final var pRenderPass = stack.mallocLong(1);
-            final var error = vkCreateRenderPass(this.device, renderPassInfo, null, pRenderPass);
-            if (error != VK_SUCCESS) {
-                throw new IllegalStateException("Creating render pass failed: "
-                                                        + translateVulkanResult(error));
-            }
-
-            return pRenderPass.get(0);
-        }
-    }
-
     /**
      * Re-creates the whole pipeline from scratch. {@link #cleanup()} must be called first to clean
-     * up existing pipeline before re-creating.
+     * up existing pipeline before recreating.
+     * <p>
+     * Re-creation may be necessary for two reasons:
+     * <ol>
+     *     <li>The render pass has been invalidated due to swapchain image format changing
+     *     <i>(requires the render pass to be recreated, happens very rarely)</i></li>
+     *     <li>The swapchain extent has changed, requiring resizing the viewport
+     *     <i>(the most common reason for swapchain recreation)</i></li>
+     * </ol>
+     * <p>
+     * Current implementation always recreates the render pass, requiring the pipeline to be
+     * recreated every time, too. However, if viewport extent was moved to dynamic state, we could
+     * skip the second condition and add a check for the first, allowing completely skipping
+     * the pipeline recreation in most cases!
      */
     @Override
     public void recreate() {
@@ -272,50 +220,42 @@ public final class GraphicsPipeline implements RecreatedWithSwapChain {
         }
 
         try (var stack = stackPush()) {
-            final var vertexShaderStage = VKUtil.loadShader(device,
+            final var vertexShaderStage = VKUtil.loadShader(this.device,
                                                             "shaders/shader.vert",
                                                             VK_SHADER_STAGE_VERTEX_BIT);
-            final var fragmentShaderStage = VKUtil.loadShader(device,
+            final var fragmentShaderStage = VKUtil.loadShader(this.device,
                                                               "shaders/shader.frag",
                                                               VK_SHADER_STAGE_FRAGMENT_BIT);
-            final var vertexShaderModule = vertexShaderStage.module();
-            final var fragmentShaderModule = fragmentShaderStage.module();
 
-            final var shaderStages = VkPipelineShaderStageCreateInfo.mallocStack(2);
-            shaderStages.put(0, vertexShaderStage);
-            shaderStages.put(1, fragmentShaderStage);
+            final var shaderStages = VkPipelineShaderStageCreateInfo.mallocStack(2)
+                                                                    .put(vertexShaderStage)
+                                                                    .put(fragmentShaderStage)
+                                                                    .flip();
 
             final var vertexInputInfo = createVertexInputInfo();
-            final var inputAssembly = createInputAssembly();
+            final var inputAssembly = createInputAssembly(this.topology);
             final var viewportState = createViewportState(this.swapChain);
             final var rasterizer = createRasterizationState();
             final var multisampling = createMultisampleState();
             final var colorBlend = createColorBlendInfo();
 
             this.pipelineLayout = createPipelineLayout(this.device, this.uniformBufferObject);
-            this.renderPass = createRenderPass(this.swapChain.getImageFormat());
 
             final var pipelineInfos = VkGraphicsPipelineCreateInfo.callocStack(1);
             pipelineInfos.get(0)
                          .sType(VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO)
-                         // Shader stages
                          .pStages(shaderStages)
-                         // Fixed function state
                          .pVertexInputState(vertexInputInfo)
                          .pInputAssemblyState(inputAssembly)
                          .pViewportState(viewportState)
                          .pRasterizationState(rasterizer)
                          .pMultisampleState(multisampling)
-                         //.pDepthStencilState(XXX);
                          .pColorBlendState(colorBlend)
+                         //.pDepthStencilState(XXX);
                          //.pDynamicState(dynamicState)
-                         // Layout, render pass, etc.
                          .layout(this.pipelineLayout)
-                         .renderPass(this.renderPass)
-                         .subpass(0)
-                         // Base pipeline (if derived)
-                         .basePipelineHandle(VK_NULL_HANDLE)
-                         .basePipelineIndex(-1);
+                         .renderPass(this.renderPass.getHandle())
+                         .subpass(0);
 
             final var pPipeline = stack.mallocLong(1);
             final var error = vkCreateGraphicsPipelines(this.device,
@@ -329,8 +269,8 @@ public final class GraphicsPipeline implements RecreatedWithSwapChain {
             }
             this.pipeline = pPipeline.get(0);
 
-            vkDestroyShaderModule(this.device, vertexShaderModule, null);
-            vkDestroyShaderModule(this.device, fragmentShaderModule, null);
+            vkDestroyShaderModule(this.device, vertexShaderStage.module(), null);
+            vkDestroyShaderModule(this.device, fragmentShaderStage.module(), null);
         } catch (final IOException e) {
             throw new IllegalStateException("Loading shader failed: " + e.getMessage());
         }
@@ -349,7 +289,6 @@ public final class GraphicsPipeline implements RecreatedWithSwapChain {
 
         vkDestroyPipeline(this.device, this.pipeline, null);
         vkDestroyPipelineLayout(this.device, this.pipelineLayout, null);
-        vkDestroyRenderPass(this.device, this.renderPass, null);
         this.cleanedUp = true;
     }
 }

@@ -32,6 +32,10 @@ jacocoTestReport {
 
 application.mainClassName 'caves.Main'
 
+run {
+    enableAssertions = true
+}
+
 switch (OperatingSystem.current()) {
     case OperatingSystem.LINUX:
         project.ext.lwjglNatives = "natives-linux"

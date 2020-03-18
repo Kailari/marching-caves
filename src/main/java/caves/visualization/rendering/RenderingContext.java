@@ -1,38 +1,38 @@
 package caves.visualization.rendering;
 
 import caves.visualization.Vertex;
-import caves.visualization.window.DeviceContext;
+import caves.visualization.rendering.mesh.Mesh;
+import caves.visualization.rendering.renderpass.RenderPass;
 import caves.visualization.rendering.swapchain.Framebuffers;
 import caves.visualization.rendering.swapchain.GraphicsPipeline;
 import caves.visualization.rendering.swapchain.SwapChain;
 import caves.visualization.rendering.uniform.DescriptorPool;
 import caves.visualization.rendering.uniform.UniformBufferObject;
+import caves.visualization.window.DeviceContext;
 import org.lwjgl.vulkan.VkCommandBuffer;
-
-import java.nio.ByteBuffer;
-import java.util.Arrays;
 
 import static org.lwjgl.glfw.GLFW.glfwGetFramebufferSize;
 import static org.lwjgl.glfw.GLFW.glfwWaitEvents;
 import static org.lwjgl.system.MemoryStack.stackPush;
-import static org.lwjgl.vulkan.VK10.*;
+import static org.lwjgl.vulkan.VK10.VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+import static org.lwjgl.vulkan.VK10.vkDeviceWaitIdle;
 
 public final class RenderingContext implements AutoCloseable {
     private final DeviceContext deviceContext;
     private final long windowHandle;
 
     private final SwapChain swapChain;
+    private final RenderPass renderPass;
     private final GraphicsPipeline graphicsPipeline;
     private final Framebuffers framebuffers;
     private final CommandPool commandPool;
 
-    private final SequentialGPUBuffer<Vertex> vertexBuffer;
-    private final SequentialGPUBuffer<Integer> indexBuffer;
     private final RenderCommandBuffers renderCommandBuffers;
     private final UniformBufferObject uniformBufferObject;
     private final DescriptorPool descriptorPool;
+    private final Mesh mesh;
 
-    private boolean mustRecreateSwapChain = false;
+    private boolean mustRecreateSwapChain;
 
     /**
      * Gets the count of swapchain images.
@@ -50,7 +50,7 @@ public final class RenderingContext implements AutoCloseable {
      * @return the swapchain state
      */
     public SwapChain getSwapChain() {
-        return swapChain;
+        return this.swapChain;
     }
 
     /**
@@ -73,82 +73,28 @@ public final class RenderingContext implements AutoCloseable {
         this.windowHandle = windowHandle;
 
         this.swapChain = new SwapChain(deviceContext, surface, windowHandle);
+        this.renderPass = new RenderPass(this.deviceContext, this.swapChain);
         this.descriptorPool = new DescriptorPool(this.deviceContext, this.swapChain);
         this.uniformBufferObject = new UniformBufferObject(this.deviceContext, this.swapChain, this.descriptorPool);
         this.graphicsPipeline = new GraphicsPipeline(deviceContext.getDevice(),
                                                      this.swapChain,
-                                                     this.uniformBufferObject);
-        this.framebuffers = new Framebuffers(deviceContext.getDevice(), this.graphicsPipeline, this.swapChain);
+                                                     this.renderPass,
+                                                     this.uniformBufferObject,
+                                                     VK_PRIMITIVE_TOPOLOGY_POINT_LIST);
+        this.framebuffers = new Framebuffers(deviceContext.getDevice(), this.renderPass, this.swapChain);
         this.commandPool = new CommandPool(deviceContext, this.swapChain);
 
-        this.vertexBuffer = createVertexBuffer(deviceContext, this.commandPool, vertices);
-        this.indexBuffer = createIndexBuffer(deviceContext, this.commandPool, indices);
+        this.mesh = new Mesh(deviceContext, this.commandPool, vertices, indices);
 
         this.renderCommandBuffers = new RenderCommandBuffers(deviceContext,
                                                              this.commandPool,
                                                              this.swapChain,
                                                              this.framebuffers,
                                                              this.graphicsPipeline,
-                                                             this.vertexBuffer,
-                                                             this.indexBuffer,
+                                                             this.renderPass,
+                                                             this.mesh,
                                                              this.uniformBufferObject);
 
-    }
-
-    private static SequentialGPUBuffer<Vertex> createVertexBuffer(
-            final DeviceContext deviceContext,
-            final CommandPool commandPool,
-            final Vertex[] vertices
-    ) {
-        final var stagingBuffer = new SequentialGPUBuffer<Vertex>(
-                deviceContext,
-                vertices.length,
-                Vertex.SIZE_IN_BYTES,
-                VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                Vertex::write);
-        final var vertexBuffer = new SequentialGPUBuffer<Vertex>(
-                deviceContext,
-                vertices.length,
-                Vertex.SIZE_IN_BYTES,
-                VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                null);
-        stagingBuffer.pushElements(Arrays.asList(vertices));
-        stagingBuffer.copyToAndWait(commandPool.getHandle(),
-                                    deviceContext.getGraphicsQueue(),
-                                    vertexBuffer);
-        stagingBuffer.close();
-
-        return vertexBuffer;
-    }
-
-    private static SequentialGPUBuffer<Integer> createIndexBuffer(
-            final DeviceContext deviceContext,
-            final CommandPool commandPool,
-            final Integer[] indices
-    ) {
-        final var stagingBuffer = new SequentialGPUBuffer<Integer>(
-                deviceContext,
-                indices.length,
-                Integer.BYTES,
-                VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                ByteBuffer::putInt);
-        final var buffer = new SequentialGPUBuffer<Integer>(
-                deviceContext,
-                indices.length,
-                Integer.BYTES,
-                VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                null);
-        stagingBuffer.pushElements(indices);
-        stagingBuffer.copyToAndWait(commandPool.getHandle(),
-                                    deviceContext.getGraphicsQueue(),
-                                    buffer);
-        stagingBuffer.close();
-
-        return buffer;
     }
 
     /**
@@ -185,9 +131,11 @@ public final class RenderingContext implements AutoCloseable {
         this.graphicsPipeline.cleanup();
         this.uniformBufferObject.cleanup();
         this.descriptorPool.cleanup();
+        this.renderPass.cleanup();
         this.swapChain.cleanup();
 
         this.swapChain.recreate();
+        this.renderPass.recreate();
         this.descriptorPool.recreate();
         this.uniformBufferObject.recreate();
         this.graphicsPipeline.recreate();
@@ -215,11 +163,12 @@ public final class RenderingContext implements AutoCloseable {
         this.descriptorPool.close();
         this.framebuffers.close();
         this.graphicsPipeline.close();
+
+        this.renderPass.close();
         this.swapChain.close();
         this.uniformBufferObject.close();
 
-        this.vertexBuffer.close();
-        this.indexBuffer.close();
+        this.mesh.close();
     }
 
     /**

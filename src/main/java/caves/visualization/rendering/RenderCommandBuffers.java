@@ -1,7 +1,7 @@
 package caves.visualization.rendering;
 
-import caves.visualization.Vertex;
-import caves.visualization.rendering.renderpass.RenderPassScope;
+import caves.visualization.rendering.mesh.Mesh;
+import caves.visualization.rendering.renderpass.RenderPass;
 import caves.visualization.rendering.swapchain.Framebuffers;
 import caves.visualization.rendering.swapchain.GraphicsPipeline;
 import caves.visualization.rendering.swapchain.RecreatedWithSwapChain;
@@ -25,9 +25,9 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
     private final SwapChain swapChain;
     private final Framebuffers framebuffers;
     private final GraphicsPipeline graphicsPipeline;
-    private final SequentialGPUBuffer<Vertex> vertexBuffer;
-    private final SequentialGPUBuffer<Integer> indexBuffer;
+    private final RenderPass renderPass;
     private final UniformBufferObject ubo;
+    private final Mesh mesh;
 
     private VkCommandBuffer[] commandBuffers;
     private boolean cleanedUp;
@@ -50,8 +50,8 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
      * @param swapChain        active swapchain
      * @param framebuffers     framebuffers to create the buffers for
      * @param graphicsPipeline the graphics pipeline to use
-     * @param vertexBuffer     vertices to use for rendering
-     * @param indexBuffer      indices to use for rendering
+     * @param renderPass       the render pass to record commands for
+     * @param mesh             mesh to render
      * @param ubo              the uniform buffer object to use for shader uniforms
      */
     public RenderCommandBuffers(
@@ -60,8 +60,8 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
             final SwapChain swapChain,
             final Framebuffers framebuffers,
             final GraphicsPipeline graphicsPipeline,
-            final SequentialGPUBuffer<Vertex> vertexBuffer,
-            final SequentialGPUBuffer<Integer> indexBuffer,
+            final RenderPass renderPass,
+            final Mesh mesh,
             final UniformBufferObject ubo
     ) {
         this.device = deviceContext.getDevice();
@@ -69,8 +69,8 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
         this.swapChain = swapChain;
         this.framebuffers = framebuffers;
         this.graphicsPipeline = graphicsPipeline;
-        this.vertexBuffer = vertexBuffer;
-        this.indexBuffer = indexBuffer;
+        this.renderPass = renderPass;
+        this.mesh = mesh;
         this.ubo = ubo;
 
         this.cleanedUp = true;
@@ -148,40 +148,25 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
             renderArea.extent().set(this.swapChain.getExtent());
 
             final var clearValues = VkClearValue.callocStack(1, stack);
-            clearValues.put(0, RenderCommandBuffers.getClearColor());
-            // XXX: The index "0" is actually the color attachment index?
+            clearValues.put(RenderPass.COLOR_ATTACHMENT_INDEX, getClearColor());
 
-            try (var ignored = new RenderPassScope(this.commandBuffers[imageIndex],
-                                                   this.graphicsPipeline,
-                                                   this.framebuffers.get(imageIndex),
-                                                   renderArea,
-                                                   clearValues)
+            try (var ignored = this.renderPass.begin(this.commandBuffers[imageIndex],
+                                                     this.framebuffers.get(imageIndex),
+                                                     renderArea,
+                                                     clearValues)
             ) {
                 vkCmdBindPipeline(this.commandBuffers[imageIndex],
                                   VK_PIPELINE_BIND_POINT_GRAPHICS,
                                   this.graphicsPipeline.getHandle());
 
-                vkCmdBindVertexBuffers(this.commandBuffers[imageIndex],
-                                       0,
-                                       stack.longs(this.vertexBuffer.getBufferHandle()),
-                                       stack.longs(0L));
-                vkCmdBindIndexBuffer(this.commandBuffers[imageIndex],
-                                     this.indexBuffer.getBufferHandle(),
-                                     0,
-                                     VK_INDEX_TYPE_UINT32);
-
                 vkCmdBindDescriptorSets(this.commandBuffers[imageIndex],
                                         VK_PIPELINE_BIND_POINT_GRAPHICS,
                                         this.graphicsPipeline.getPipelineLayout(),
                                         0,
-                                        stack.longs(this.ubo.getDescriptorSets()[imageIndex]),
+                                        stack.longs(this.ubo.getDescriptorSet(imageIndex)),
                                         null);
-                vkCmdDrawIndexed(this.commandBuffers[imageIndex],
-                                 this.indexBuffer.getElementCount(),
-                                 1,
-                                 0,
-                                 0,
-                                 0);
+
+                this.mesh.draw(this.commandBuffers[imageIndex]);
             }
         }
 

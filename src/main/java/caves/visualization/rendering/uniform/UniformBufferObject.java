@@ -30,15 +30,6 @@ public final class UniformBufferObject implements RecreatedWithSwapChain {
     private boolean cleanedUp;
 
     /**
-     * Gets the descriptor sets for this UBO.
-     *
-     * @return the descriptor sets
-     */
-    public long[] getDescriptorSets() {
-        return this.descriptorSets;
-    }
-
-    /**
      * Gets a handle for the descriptor set layout.
      *
      * @return the descriptor set layout
@@ -122,6 +113,17 @@ public final class UniformBufferObject implements RecreatedWithSwapChain {
 
             return descriptorSets;
         }
+    }
+
+    /**
+     * Gets the descriptor set for given image index from this UBO.
+     *
+     * @param imageIndex swapchain image index to fetch the descriptor set for
+     *
+     * @return the descriptor set handle for the given swapchain image index
+     */
+    public long getDescriptorSet(final int imageIndex) {
+        return this.descriptorSets[imageIndex];
     }
 
     /**
