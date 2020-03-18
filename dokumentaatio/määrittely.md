@@ -119,6 +119,7 @@ Fractal noise ei sinällään siis ole kohinafunktio itsessään, vaan tapa tuot
 - [A survey of the marching cubes algorithm, Timothy S. Newman, Hong Yi, 2006](https://cg.informatik.uni-freiburg.de/intern/seminar/surfaceReconstruction_survey%20of%20marching%20cubes.pdf)
 - [An Implementation of the Marching Cubes algorithm, Ben Andersson](http://www.cs.carleton.edu/cs_comps/0405/shape/marching_cubes.html)
 - [Polygonising a scalar field, Paul Bourke, 1994](http://paulbourke.net/geometry/polygonise/)
+- [Marching Cubes: A High Resolution 3D Surface Construction Algorithm, William E. Lorensen, Harvey. E. Cline, 1987](http://academy.cba.mit.edu/classes/scanning_printing/MarchingCubes.pdf)
 - [Kisakoodarin Käsikirja, Antti Laaksonen, 2018](https://www.cs.helsinki.fi/u/ahslaaks/kkkk.pdf)
 - [Cell Noise and Processing, Carl-Johan Rosén, 2006](http://www.carljohanrosen.com/share/CellNoiseAndProcessing.pdf)
 - [Simplex Noise Demystified, Stefan Gustavsonm 2005](http://staffwww.itn.liu.se/~stegu/simplexnoise/simplexnoise.pdf)
