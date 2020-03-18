@@ -89,7 +89,7 @@ public final class CaveSampleSpace {
         for (int x = 0; x < this.sampleCountX; ++x) {
             for (int y = 0; y < this.sampleCountY; ++y) {
                 for (int z = 0; z < this.sampleCountZ; ++z) {
-                    final var sampleIndex = x + (z * this.sampleCountX) + (y * this.sampleCountX * this.sampleCountZ);
+                    final int sampleIndex = getSampleIndex(x, y, z);
                     final var pos = new Vector3((this.min.getX() + x * this.resolution) - this.margin,
                                                 (this.min.getY() + y * this.resolution) - this.margin,
                                                 (this.min.getZ() + z * this.resolution) - this.margin);
@@ -100,6 +100,10 @@ public final class CaveSampleSpace {
                 }
             }
         }
+    }
+
+    public int getSampleIndex(final int x, final int y, final int z) {
+        return x + (z * this.sampleCountX) + (y * this.sampleCountX * this.sampleCountZ);
     }
 
     public float getDensity(final int sampleIndex) {

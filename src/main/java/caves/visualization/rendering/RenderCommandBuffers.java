@@ -10,6 +10,8 @@ import caves.visualization.rendering.uniform.UniformBufferObject;
 import caves.visualization.window.DeviceContext;
 import org.lwjgl.vulkan.*;
 
+import java.nio.LongBuffer;
+
 import static caves.visualization.window.VKUtil.translateVulkanResult;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.vulkan.VK10.*;
@@ -26,8 +28,10 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
     private final Framebuffers framebuffers;
     private final GraphicsPipeline pointPipeline;
     private final GraphicsPipeline linePipeline;
+    private final GraphicsPipeline polygonPipeline;
     private final RenderPass renderPass;
     private final Mesh lineMesh;
+    private final Mesh polygonMesh;
     private final UniformBufferObject ubo;
     private final Mesh pointMesh;
 
@@ -47,16 +51,18 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
     /**
      * Creates new render command buffers for rendering the given fixed vertex buffer.
      *
-     * @param deviceContext the device context to use
-     * @param commandPool   command pool to allocate on
-     * @param swapChain     active swapchain
-     * @param framebuffers  framebuffers to create the buffers for
-     * @param pointPipeline the graphics pipeline for rendering meshes as points
-     * @param linePipeline  the graphics pipeline for rendering meshes as line strips
-     * @param renderPass    the render pass to record commands for
-     * @param pointMesh     mesh to render as points
-     * @param lineMesh      mesh to render as lines
-     * @param ubo           the uniform buffer object to use for shader uniforms
+     * @param deviceContext   the device context to use
+     * @param commandPool     command pool to allocate on
+     * @param swapChain       active swapchain
+     * @param framebuffers    framebuffers to create the buffers for
+     * @param pointPipeline   the graphics pipeline for rendering meshes as points
+     * @param linePipeline    the graphics pipeline for rendering meshes as line strips
+     * @param polygonPipeline the graphics pipeline for rendering meshes as triangles
+     * @param renderPass      the render pass to record commands for
+     * @param pointMesh       mesh to render as points
+     * @param lineMesh        mesh to render as lines
+     * @param polygonMesh     mesh to render as polygons
+     * @param ubo             the uniform buffer object to use for shader uniforms
      */
     public RenderCommandBuffers(
             final DeviceContext deviceContext,
@@ -65,9 +71,11 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
             final Framebuffers framebuffers,
             final GraphicsPipeline pointPipeline,
             final GraphicsPipeline linePipeline,
+            final GraphicsPipeline polygonPipeline,
             final RenderPass renderPass,
             final Mesh pointMesh,
             final Mesh lineMesh,
+            final Mesh polygonMesh,
             final UniformBufferObject ubo
     ) {
         this.device = deviceContext.getDeviceHandle();
@@ -76,9 +84,11 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
         this.framebuffers = framebuffers;
         this.pointPipeline = pointPipeline;
         this.linePipeline = linePipeline;
+        this.polygonPipeline = polygonPipeline;
         this.renderPass = renderPass;
         this.pointMesh = pointMesh;
         this.lineMesh = lineMesh;
+        this.polygonMesh = polygonMesh;
         this.ubo = ubo;
 
         this.cleanedUp = true;
@@ -163,32 +173,35 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
                                                      renderArea,
                                                      clearValues)
             ) {
-                vkCmdBindPipeline(this.commandBuffers[imageIndex],
-                                  VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                  this.pointPipeline.getHandle());
-                vkCmdBindDescriptorSets(this.commandBuffers[imageIndex],
-                                        VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                        this.pointPipeline.getPipelineLayout(),
-                                        0,
-                                        stack.longs(this.ubo.getDescriptorSet(imageIndex)),
-                                        null);
+                bindPipeline(imageIndex, this.polygonPipeline, stack.longs(this.ubo.getDescriptorSet(imageIndex)));
+                this.polygonMesh.draw(this.commandBuffers[imageIndex]);
+
+                bindPipeline(imageIndex, this.pointPipeline, stack.longs(this.ubo.getDescriptorSet(imageIndex)));
 
                 this.pointMesh.draw(this.commandBuffers[imageIndex]);
 
-                vkCmdBindPipeline(this.commandBuffers[imageIndex],
-                                  VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                  this.linePipeline.getHandle());
-                vkCmdBindDescriptorSets(this.commandBuffers[imageIndex],
-                                        VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                        this.linePipeline.getPipelineLayout(),
-                                        0,
-                                        stack.longs(this.ubo.getDescriptorSet(imageIndex)),
-                                        null);
+                bindPipeline(imageIndex, this.linePipeline, stack.longs(this.ubo.getDescriptorSet(imageIndex)));
                 this.lineMesh.draw(this.commandBuffers[imageIndex]);
             }
         }
 
         endBuffer(this.commandBuffers[imageIndex]);
+    }
+
+    private void bindPipeline(
+            final int imageIndex,
+            final GraphicsPipeline polygonPipeline,
+            final LongBuffer longs
+    ) {
+        vkCmdBindPipeline(this.commandBuffers[imageIndex],
+                          VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          polygonPipeline.getHandle());
+        vkCmdBindDescriptorSets(this.commandBuffers[imageIndex],
+                                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                polygonPipeline.getPipelineLayout(),
+                                0,
+                                longs,
+                                null);
     }
 
     private void endBuffer(final VkCommandBuffer commandBuffer) {

@@ -1,8 +1,8 @@
 package caves.visualization;
 
-import caves.generator.CavePath;
 import caves.generator.CaveSampleSpace;
 import caves.generator.PathGenerator;
+import caves.generator.mesh.MeshGenerator;
 import caves.generator.util.Vector3;
 import caves.visualization.window.ApplicationContext;
 import caves.visualization.window.DeviceContext;
@@ -51,23 +51,27 @@ public final class Application implements AutoCloseable {
      */
     public Application(final boolean validation) {
         final var caveLength = 40;
-        final var spacing = 2f;
+        final var spacing = 3f;
         final var cave = new PathGenerator().generate(new Vector3(0.0f, 0.0f, 0.0f),
                                                       caveLength,
                                                       spacing,
-                                                      42);
+                                                      420);
+        final float densityModifier = 1.0f;
+        final var maxDensity = 1.0f;
+        final var surfaceLevel = 1.0f;
+        final var resolution = 0.5f;
+        final var margin = 5.0f;
         final var sampleSpace = new CaveSampleSpace(cave,
-                                                    1.0f,
-                                                    0.25f,
-                                                    CavePath::distanceTo);
+                                                    margin,
+                                                    resolution,
+                                                    (path, pos) -> Math.min(maxDensity, path.distanceTo(pos) / densityModifier));
 
         final var pointVertices = new ArrayList<Vertex>(sampleSpace.getSize());
         for (var sampleIndex = 0; sampleIndex < sampleSpace.getSize(); ++sampleIndex) {
             final var density = sampleSpace.getDensity(sampleIndex);
             final var pos = sampleSpace.getPos(sampleIndex);
 
-            final var threshold = 0.75f;
-            if (density > threshold) {
+            if (density >= surfaceLevel) {
                 continue;
             }
 
@@ -88,13 +92,29 @@ public final class Application implements AutoCloseable {
                                          .boxed()
                                          .toArray(Integer[]::new);
 
+        final var meshGenerator = new MeshGenerator(sampleSpace);
+        final var polygonVertices = new ArrayList<Vector3>();
+        final var polygonIndices = new ArrayList<Integer>();
+        meshGenerator.generateMeshForRegion(polygonVertices,
+                                            polygonIndices,
+                                            surfaceLevel,
+                                            0, 0, 0,
+                                            sampleSpace.getCountX(),
+                                            sampleSpace.getCountY(),
+                                            sampleSpace.getCountZ());
+
         this.appContext = new ApplicationContext(DEFAULT_WINDOW_WIDTH,
                                                  DEFAULT_WINDOW_HEIGHT,
                                                  validation,
                                                  pointVertices.toArray(Vertex[]::new),
                                                  pointIndices,
                                                  lineVertices,
-                                                 lineIndices);
+                                                 lineIndices,
+                                                 polygonVertices.stream()
+                                                                .map(pos -> new Vertex(new Vector3f(pos.getX(), pos.getY(), pos.getZ()),
+                                                                                       new Vector3f(0.5f, 0.5f, 0.5f)))
+                                                                .toArray(Vertex[]::new),
+                                                 polygonIndices.toArray(Integer[]::new));
         this.appContext.getWindow().onResize((windowHandle, width, height) -> this.framebufferResized = true);
 
         final var deviceContext = this.appContext.getDeviceContext();
@@ -104,7 +124,7 @@ public final class Application implements AutoCloseable {
         this.renderFinishedSemaphores = createSemaphores(MAX_FRAMES_IN_FLIGHT, deviceContext);
         this.inFlightFences = createFences(MAX_FRAMES_IN_FLIGHT, deviceContext);
         this.imagesInFlight = new long[renderContext.getSwapChainImageCount()];
-        Arrays.fill(imagesInFlight, VK_NULL_HANDLE);
+        Arrays.fill(this.imagesInFlight, VK_NULL_HANDLE);
     }
 
     private static long[] createFences(final int count, final DeviceContext deviceContext) {

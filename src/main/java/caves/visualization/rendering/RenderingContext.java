@@ -23,6 +23,7 @@ public final class RenderingContext implements AutoCloseable {
     private final RenderPass renderPass;
     private final GraphicsPipeline pointPipeline;
     private final GraphicsPipeline linePipeline;
+    private final GraphicsPipeline polygonPipeline;
     private final Framebuffers framebuffers;
     private final CommandPool commandPool;
 
@@ -56,6 +57,7 @@ public final class RenderingContext implements AutoCloseable {
      *
      * @param pointMesh     mesh to be rendered as points
      * @param lineMesh      mesh to be rendered as lines
+     * @param polygonMesh      mesh to be rendered as polygons
      * @param deviceContext device context information to use for creating the swapchain
      * @param surface       surface to create the chain for
      * @param windowHandle  handle to the window
@@ -63,6 +65,7 @@ public final class RenderingContext implements AutoCloseable {
     public RenderingContext(
             final Mesh pointMesh,
             final Mesh lineMesh,
+            final Mesh polygonMesh,
             final DeviceContext deviceContext,
             final long surface,
             final long windowHandle
@@ -85,6 +88,11 @@ public final class RenderingContext implements AutoCloseable {
                                                  this.renderPass,
                                                  this.uniformBufferObject,
                                                  VK_PRIMITIVE_TOPOLOGY_LINE_STRIP);
+        this.polygonPipeline = new GraphicsPipeline(deviceContext.getDeviceHandle(),
+                                                 this.swapChain,
+                                                 this.renderPass,
+                                                 this.uniformBufferObject,
+                                                 VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
         this.framebuffers = new Framebuffers(deviceContext.getDeviceHandle(), this.renderPass, this.swapChain);
         this.commandPool = new CommandPool(deviceContext,
                                            deviceContext.getQueueFamilies().getGraphics());
@@ -95,9 +103,11 @@ public final class RenderingContext implements AutoCloseable {
                                                              this.framebuffers,
                                                              this.pointPipeline,
                                                              this.linePipeline,
+                                                             this.polygonPipeline,
                                                              this.renderPass,
                                                              pointMesh,
                                                              lineMesh,
+                                                             polygonMesh,
                                                              this.uniformBufferObject);
     }
 
@@ -135,6 +145,7 @@ public final class RenderingContext implements AutoCloseable {
 
         this.pointPipeline.cleanup();
         this.linePipeline.cleanup();
+        this.polygonPipeline.cleanup();
 
         this.uniformBufferObject.cleanup();
         this.descriptorPool.cleanup();
@@ -149,6 +160,7 @@ public final class RenderingContext implements AutoCloseable {
 
         this.pointPipeline.recreate();
         this.linePipeline.recreate();
+        this.polygonPipeline.recreate();
 
         this.framebuffers.recreate();
         this.renderCommandBuffers.recreate();
@@ -176,6 +188,7 @@ public final class RenderingContext implements AutoCloseable {
 
         this.pointPipeline.close();
         this.linePipeline.close();
+        this.polygonPipeline.close();
 
         this.renderPass.close();
         this.swapChain.close();

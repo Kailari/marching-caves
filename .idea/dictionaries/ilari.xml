@@ -2,10 +2,14 @@
   <dictionary name="ilari">
     <words>
       <w>automagically</w>
+      <w>bitmask</w>
+      <w>bitmasks</w>
       <w>calloc</w>
       <w>glfw</w>
       <w>glsl</w>
       <w>imgv</w>
+      <w>isosurface</w>
+      <w>lerp</w>
       <w>lwjgl</w>
       <w>multisampling</w>
       <w>ndebug</w>

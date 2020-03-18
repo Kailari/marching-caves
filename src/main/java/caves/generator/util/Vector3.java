@@ -65,6 +65,27 @@ public final class Vector3 {
     }
 
     /**
+     * Performs linear interpolation between the points A and B.
+     *
+     * @param a      point A
+     * @param b      point B
+     * @param alpha  alpha value
+     * @param result vector to hold the result
+     *
+     * @return vector holding the result
+     */
+    public static Vector3 lerp(
+            final Vector3 a,
+            final Vector3 b,
+            final float alpha,
+            final Vector3 result
+    ) {
+        return result.set(Math.fma(b.x - a.x, alpha, a.x),
+                          Math.fma(b.y - a.y, alpha, a.y),
+                          Math.fma(b.z - a.z, alpha, a.z));
+    }
+
+    /**
      * Sets the component values of this vector.
      *
      * @param x new value for the x-component

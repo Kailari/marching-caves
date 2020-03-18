@@ -25,6 +25,7 @@ public final class ApplicationContext implements AutoCloseable {
 
     private final Mesh pointMesh;
     private final Mesh lineMesh;
+    private final Mesh polygonMesh;
 
     /**
      * Gets the application window.
@@ -71,6 +72,8 @@ public final class ApplicationContext implements AutoCloseable {
      * @param pointIndices     indices to the point vertex array for rendering
      * @param lineVertices     vertices that should be rendered as lines
      * @param lineIndices      indices to the line vertex array for rendering
+     * @param polygonVertices     vertices that should be rendered as polygons
+     * @param polygonIndices      indices to the polygon vertex array for rendering
      */
     public ApplicationContext(
             final int width,
@@ -79,7 +82,9 @@ public final class ApplicationContext implements AutoCloseable {
             final Vertex[] pointVertices,
             final Integer[] pointIndices,
             final Vertex[] lineVertices,
-            final Integer[] lineIndices
+            final Integer[] lineIndices,
+            final Vertex[] polygonVertices,
+            final Integer[] polygonIndices
     ) {
         if (!glfwInit()) {
             throw new IllegalStateException("Initializing GLFW failed.");
@@ -102,9 +107,11 @@ public final class ApplicationContext implements AutoCloseable {
             ) {
                 this.pointMesh = new Mesh(this.deviceContext, commandPool, pointVertices, pointIndices);
                 this.lineMesh = new Mesh(this.deviceContext, commandPool, lineVertices, lineIndices);
+                this.polygonMesh = new Mesh(this.deviceContext, commandPool, polygonVertices, polygonIndices);
 
                 this.renderContext = new RenderingContext(this.pointMesh,
                                                           this.lineMesh,
+                                                          this.polygonMesh,
                                                           this.deviceContext,
                                                           this.window.getSurfaceHandle(),
                                                           this.window.getHandle());
@@ -117,6 +124,7 @@ public final class ApplicationContext implements AutoCloseable {
         // Release content resources
         this.pointMesh.close();
         this.lineMesh.close();
+        this.polygonMesh.close();
 
         // Release rendering resources
         this.renderContext.close();
