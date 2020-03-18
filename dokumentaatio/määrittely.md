@@ -48,7 +48,7 @@ Eli, TL;DR:
 ### Isosurfacen generointi
 Kun tiheysfunktio on määritelty, voidaan avaruudesta valita mielivaltainen piste ja laskea sen tiheys. Tätä voidaan käyttää nk. isosurfacen laskemiseen. Kuten edellisessä osiossa mainittiin, määrittämällä kynnysarvo `K`, voidaan tiheydet rajata kiinteään aineeseen ja tyhjään tilaan. Ongelmana on löytää avaruudesta kiinteän aineen ja tyhjän tilan rajakohdat.
 
-Tätä prosessia jossa rajakohdat etsitään kutsutaan isosurfacen generoinniksi, ja tarkoituksena on käyttää *Marching Tetrahedra* -algoritmia ongelman ratkaisuun. Kyseessä on *Marching Cubes* -algoritmista johdettu muunnelma joka ratkaisee joitain alkuperäisen algoritmin tuottaman mallin topologian monikäsitteisyysongelmia.
+Tätä prosessia jossa rajakohdat etsitään kutsutaan isosurfacen generoinniksi, ja tarkoituksena on käyttää *Marching Cubes* -algoritmia ongelman ratkaisuun. Kyseessä on *Marching Cubes* -algoritmista johdettu muunnelma joka ratkaisee joitain alkuperäisen algoritmin tuottaman mallin topologian monikäsitteisyysongelmia.
 
 Algoritmin ideana on siis lukea avaruutta kolmiuloitteisena ruudukkona ja valita pisteitä kahdeksan pisteen kuution muotoinen rypäs kerrallaan ja tutkia kulmien tiheyksiä. Kun vaihtoehdot ovat että kukin kulma on joko kiinteää ainetta tai tyhjää, on tällaisella kuutiolla `2^8 = 256` mahdollista *konfiguraatiota*.
 
@@ -58,8 +58,8 @@ Konfiguraatiota vastaavat polygonit voidaan täten suoraan rakentaa hakutaulun t
 Algoritmien aikavaativuus ja tietorakenteet
 -------------------------------------------
 
-### Marching Tetrahedra
-*Marching Tetrahedra* on itsessään `O(n)` -aikainen, avaruudesta valittavan pistejoukon koon `n` suhteen. Joukon koko `n` puolestaan riippuu näytteenoton *resoluutiosta* `r` eli siitä montako näytteenottopistettä yhteen tilayksikköön mahtuu. Tässä huomattavaa on että kuution muotoisessa avaruudessa, jossa tahkon leveys on `x`, saadaan `n` laskettua kaavalla
+### Marching Cubes
+*Marching Cubes* on itsessään `O(n)` -aikainen, avaruudesta valittavan pistejoukon koon `n` suhteen. Joukon koko `n` puolestaan riippuu näytteenoton *resoluutiosta* `r` eli siitä montako näytteenottopistettä yhteen tilayksikköön mahtuu. Tässä huomattavaa on että kuution muotoisessa avaruudessa, jossa tahkon leveys on `x`, saadaan `n` laskettua kaavalla
 ```
 n = (xr)^3
 ```
@@ -99,7 +99,7 @@ Fractal noise ei sinällään siis ole kohinafunktio itsessään, vaan tapa tuot
 ### TL;DR:
 #### Algot:
 - Random Walk
-- Marching Tetrahedra
+- Marching Cubes
 - Simplex Noise
 - *(sovellettu)* Worley Noise
 - Jokin pseudo-satunnaislukugeneraattori, esim. jokin *xorshift* variaatio
@@ -112,12 +112,13 @@ Fractal noise ei sinällään siis ole kohinafunktio itsessään, vaan tapa tuot
 #### Tavoitteet
 - Random Walk generoimaan puu josta voi hakea mielivaltaiselle pisteelle `n`:nnen lähimmän pisteen tehokkaasti. *( = Parempi kuin `O(N)`, jossa `N` on puun solmujen määrä)*
 - Simplex noise joka toimii ajassa `O(D^2)`, jossa `D` on ulottuvuus
-- Marching Tetrahedra joka iteroidaan alle `O(W * H * D)` ajassa, jossa `W`, `H` ja `D` ovat avaruuden *leveys*, *korkeus* ja *syvyys*. *(Eli koko avaruutta ei turhaan iteroida läpi. Tunnetut tyhjät alueet jätetään iteroimatta)* 
+- Marching Cubes joka iteroidaan alle `O(W * H * D)` ajassa, jossa `W`, `H` ja `D` ovat avaruuden *leveys*, *korkeus* ja *syvyys*. *(Eli koko avaruutta ei turhaan iteroida läpi. Tunnetut tyhjät alueet jätetään iteroimatta)* 
 
 #### Lähteet:
 
 - [A survey of the marching cubes algorithm, Timothy S. Newman, Hong Yi, 2006](https://cg.informatik.uni-freiburg.de/intern/seminar/surfaceReconstruction_survey%20of%20marching%20cubes.pdf)
 - [An Implementation of the Marching Cubes algorithm, Ben Andersson](http://www.cs.carleton.edu/cs_comps/0405/shape/marching_cubes.html)
+- [Polygonising a scalar field, Paul Bourke, 1994](http://paulbourke.net/geometry/polygonise/)
 - [Kisakoodarin Käsikirja, Antti Laaksonen, 2018](https://www.cs.helsinki.fi/u/ahslaaks/kkkk.pdf)
 - [Cell Noise and Processing, Carl-Johan Rosén, 2006](http://www.carljohanrosen.com/share/CellNoiseAndProcessing.pdf)
 - [Simplex Noise Demystified, Stefan Gustavsonm 2005](http://staffwww.itn.liu.se/~stegu/simplexnoise/simplexnoise.pdf)
