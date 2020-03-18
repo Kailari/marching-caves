@@ -1,5 +1,6 @@
 package caves.visualization;
 
+import caves.generator.CavePath;
 import caves.generator.CaveSampleSpace;
 import caves.generator.PathGenerator;
 import caves.generator.util.Vector3;
@@ -55,7 +56,10 @@ public final class Application implements AutoCloseable {
                                                       caveLength,
                                                       spacing,
                                                       42);
-        final var sampleSpace = new CaveSampleSpace(cave, 1.0f, 0.25f);
+        final var sampleSpace = new CaveSampleSpace(cave,
+                                                    1.0f,
+                                                    0.25f,
+                                                    CavePath::distanceTo);
 
         final var vertices = new ArrayList<Vertex>(sampleSpace.getSize());
         for (var sampleIndex = 0; sampleIndex < sampleSpace.getSize(); ++sampleIndex) {

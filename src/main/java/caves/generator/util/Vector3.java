@@ -1,5 +1,7 @@
 package caves.generator.util;
 
+import java.util.Objects;
+
 @SuppressWarnings({"unused", "UnusedReturnValue"})
 public final class Vector3 {
     private float x;
@@ -113,7 +115,7 @@ public final class Vector3 {
      * @return vector holding the result
      */
     public Vector3 sub(final Vector3 other, final Vector3 result) {
-        return result.set(this.x - other.x, this.y - other.y, this.z - other.z);
+        return sub(other.x, other.y, other.z, result);
     }
 
     /**
@@ -127,7 +129,7 @@ public final class Vector3 {
      * @return vector holding the result
      */
     public Vector3 sub(final float x, final float y, final float z, final Vector3 result) {
-        return result.set(this.x + x, this.y + y, this.z + z);
+        return result.set(this.x - x, this.y - y, this.z - z);
     }
 
     /**
@@ -237,6 +239,10 @@ public final class Vector3 {
      */
     public Vector3 normalize() {
         final var length = this.length();
+        if (length < Float.MIN_VALUE) {
+            throw new ArithmeticException("Normalizing a zero-length vector results in division by zero!");
+        }
+
         this.x /= length;
         this.y /= length;
         this.z /= length;
@@ -246,9 +252,28 @@ public final class Vector3 {
     @Override
     public String toString() {
         return "Vector3{"
-                + "x=" + x
-                + ", y=" + y
-                + ", z=" + z
+                + "x=" + this.x
+                + ", y=" + this.y
+                + ", z=" + this.z
                 + '}';
+    }
+
+    @Override
+    public boolean equals(final Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (!(other instanceof Vector3)) {
+            return false;
+        }
+        final var otherVector = (Vector3) other;
+        return Float.compare(otherVector.getX(), getX()) == 0
+                && Float.compare(otherVector.getY(), getY()) == 0
+                && Float.compare(otherVector.getZ(), getZ()) == 0;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getX(), getY(), getZ());
     }
 }

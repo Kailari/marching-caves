@@ -8,7 +8,7 @@ import java.util.function.Consumer;
 
 // TODO: Store nodes in octree for faster distance queries
 
-public class CavePath {
+public final class CavePath {
     private final List<Vector3> nodes;
 
     /**
