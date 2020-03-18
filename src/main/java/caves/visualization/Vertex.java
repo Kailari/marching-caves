@@ -35,21 +35,20 @@ public class Vertex {
      * <p>
      * Note that the location values must match the values used in the shaders.
      */
-    public static final VkVertexInputAttributeDescription[] ATTRIBUTE_DESCRIPTIONS =
-            new VkVertexInputAttributeDescription[]{
-                    VkVertexInputAttributeDescription
-                            .calloc()
-                            .binding(0)
-                            .location(0)
-                            .format(VK_FORMAT_R32G32B32_SFLOAT)
-                            .offset(0),
-                    VkVertexInputAttributeDescription
-                            .calloc()
-                            .binding(0)
-                            .location(1)
-                            .format(VK_FORMAT_R32G32B32_SFLOAT)
-                            .offset(3 * Float.BYTES),
-            };
+    public static final VkVertexInputAttributeDescription[] ATTRIBUTE_DESCRIPTIONS = {
+            VkVertexInputAttributeDescription
+                    .calloc()
+                    .binding(0)
+                    .location(0)
+                    .format(VK_FORMAT_R32G32B32_SFLOAT)
+                    .offset(0),
+            VkVertexInputAttributeDescription
+                    .calloc()
+                    .binding(0)
+                    .location(1)
+                    .format(VK_FORMAT_R32G32B32_SFLOAT)
+                    .offset(3 * Float.BYTES),
+    };
 
     private final Vector3f pos;
     private final Vector3f color;
@@ -90,6 +89,8 @@ public class Vertex {
      * @param vertex vertex to write
      */
     public static void write(final ByteBuffer buffer, final Vertex vertex) {
+        //noinspection ConstantConditions
+        assert vertex != null : "Received a null vertex!";
         buffer.putFloat(vertex.getPos().x());
         buffer.putFloat(vertex.getPos().y());
         buffer.putFloat(vertex.getPos().z());

@@ -1,5 +1,6 @@
 package caves.visualization;
 
+import caves.generator.CavePath;
 import caves.generator.CaveSampleSpace;
 import caves.generator.PathGenerator;
 import caves.generator.mesh.MeshGenerator;
@@ -16,6 +17,7 @@ import org.lwjgl.vulkan.VkSubmitInfo;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.function.BiFunction;
 import java.util.stream.IntStream;
 
 import static caves.visualization.window.VKUtil.translateVulkanResult;
@@ -25,6 +27,7 @@ import static org.lwjgl.system.MemoryUtil.memAllocLong;
 import static org.lwjgl.vulkan.KHRSwapchain.*;
 import static org.lwjgl.vulkan.VK10.*;
 
+@SuppressWarnings("SameParameterValue")
 public final class Application implements AutoCloseable {
     private static final int DEFAULT_WINDOW_WIDTH = 800;
     private static final int DEFAULT_WINDOW_HEIGHT = 600;
@@ -56,15 +59,14 @@ public final class Application implements AutoCloseable {
                                                       caveLength,
                                                       spacing,
                                                       420);
-        final float densityModifier = 1.0f;
-        final var maxDensity = 1.0f;
         final var surfaceLevel = 1.0f;
         final var resolution = 0.5f;
         final var margin = 5.0f;
+        final var densityFunction = createDensityFunction(1.0f, 1.0f);
         final var sampleSpace = new CaveSampleSpace(cave,
                                                     margin,
                                                     resolution,
-                                                    (path, pos) -> Math.min(maxDensity, path.distanceTo(pos) / densityModifier));
+                                                    densityFunction);
 
         final var pointVertices = new ArrayList<Vertex>(sampleSpace.getSize());
         for (var sampleIndex = 0; sampleIndex < sampleSpace.getSize(); ++sampleIndex) {
@@ -95,7 +97,9 @@ public final class Application implements AutoCloseable {
         final var meshGenerator = new MeshGenerator(sampleSpace);
         final var polygonVertices = new ArrayList<Vector3>();
         final var polygonIndices = new ArrayList<Integer>();
+        final var polygonNormals = new ArrayList<Vector3>();
         meshGenerator.generateMeshForRegion(polygonVertices,
+                                            polygonNormals,
                                             polygonIndices,
                                             surfaceLevel,
                                             0, 0, 0,
@@ -103,18 +107,24 @@ public final class Application implements AutoCloseable {
                                             sampleSpace.getCountY(),
                                             sampleSpace.getCountZ());
 
-        this.appContext = new ApplicationContext(DEFAULT_WINDOW_WIDTH,
-                                                 DEFAULT_WINDOW_HEIGHT,
-                                                 validation,
-                                                 pointVertices.toArray(Vertex[]::new),
-                                                 pointIndices,
-                                                 lineVertices,
-                                                 lineIndices,
-                                                 polygonVertices.stream()
-                                                                .map(pos -> new Vertex(new Vector3f(pos.getX(), pos.getY(), pos.getZ()),
-                                                                                       new Vector3f(0.5f, 0.5f, 0.5f)))
-                                                                .toArray(Vertex[]::new),
-                                                 polygonIndices.toArray(Integer[]::new));
+        final var caveVertices = new Vertex[polygonVertices.size()];
+        for (var i = 0; i < caveVertices.length; ++i) {
+            final var pos = polygonVertices.get(i);
+            final var normal = polygonNormals.get(i);
+            caveVertices[i] = new Vertex(new Vector3f(pos.getX(), pos.getY(), pos.getZ()),
+                                         new Vector3f(normal.getX(), normal.getY(), normal.getZ()));
+        }
+
+        this.appContext = new ApplicationContext(
+                DEFAULT_WINDOW_WIDTH,
+                DEFAULT_WINDOW_HEIGHT,
+                validation,
+                pointVertices.toArray(Vertex[]::new),
+                pointIndices,
+                lineVertices,
+                lineIndices,
+                caveVertices,
+                polygonIndices.toArray(Integer[]::new));
         this.appContext.getWindow().onResize((windowHandle, width, height) -> this.framebufferResized = true);
 
         final var deviceContext = this.appContext.getDeviceContext();
@@ -175,6 +185,13 @@ public final class Application implements AutoCloseable {
                                                     + translateVulkanResult(error));
         }
         return pSemaphore.get(0);
+    }
+
+    private BiFunction<CavePath, Vector3, Float> createDensityFunction(
+            final float densityModifier,
+            final float maxDensity
+    ) {
+        return (path, pos) -> Math.min(maxDensity, path.distanceTo(pos) / densityModifier);
     }
 
     /**

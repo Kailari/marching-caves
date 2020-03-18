@@ -55,6 +55,10 @@ public final class CaveSampleSpace {
         return this.sampleCountX * this.sampleCountY * this.sampleCountZ;
     }
 
+    public float getResolution() {
+        return this.resolution;
+    }
+
     public CaveSampleSpace(
             final CavePath cave,
             final float margin,
@@ -108,6 +112,10 @@ public final class CaveSampleSpace {
 
     public float getDensity(final int sampleIndex) {
         return this.samples[sampleIndex];
+    }
+
+    public float getDensity(final int x, final int y, final int z) {
+        return getDensity(getSampleIndex(x, y, z));
     }
 
     public Vector3 getPos(final int sampleIndex) {
