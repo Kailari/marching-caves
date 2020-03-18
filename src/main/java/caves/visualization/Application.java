@@ -122,7 +122,7 @@ public final class Application implements AutoCloseable {
                 .flags(VK_FENCE_CREATE_SIGNALED_BIT); // Create as signaled to prevent issues during first frames
 
         final var pFence = memAllocLong(1);
-        final var result = vkCreateFence(deviceContext.getDevice(), fenceInfo, null, pFence);
+        final var result = vkCreateFence(deviceContext.getDeviceHandle(), fenceInfo, null, pFence);
         if (result != VK_SUCCESS) {
             throw new IllegalStateException("Creating fence failed: "
                                                     + translateVulkanResult(result));
@@ -146,7 +146,7 @@ public final class Application implements AutoCloseable {
                                                        .sType(VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO);
 
         final var pSemaphore = memAllocLong(1);
-        final var error = vkCreateSemaphore(deviceContext.getDevice(),
+        final var error = vkCreateSemaphore(deviceContext.getDeviceHandle(),
                                             semaphoreInfo,
                                             null,
                                             pSemaphore);
@@ -197,7 +197,7 @@ public final class Application implements AutoCloseable {
         final var inFlightFence = this.inFlightFences[frameIndex];
         final var imgAvailableSemaphore = this.imageAvailableSemaphores[frameIndex];
 
-        final var device = this.appContext.getDeviceContext().getDevice();
+        final var device = this.appContext.getDeviceContext().getDeviceHandle();
         vkWaitForFences(device, inFlightFence, true, UINT64_MAX);
 
         final int imageIndex;
@@ -245,7 +245,7 @@ public final class Application implements AutoCloseable {
                                                                    .getCommandBufferForImage(imageIndex)));
 
             final var inFlightFence = this.inFlightFences[frameIndex];
-            final var device = this.appContext.getDeviceContext().getDevice();
+            final var device = this.appContext.getDeviceContext().getDeviceHandle();
             vkResetFences(device, inFlightFence);
 
             final var queue = this.appContext.getDeviceContext().getGraphicsQueue();
@@ -286,7 +286,7 @@ public final class Application implements AutoCloseable {
         vkQueueWaitIdle(deviceContext.getGraphicsQueue());
         vkQueueWaitIdle(deviceContext.getPresentQueue());
 
-        final var device = deviceContext.getDevice();
+        final var device = deviceContext.getDeviceHandle();
         for (var i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
             vkDestroySemaphore(device, this.imageAvailableSemaphores[i], null);
             vkDestroySemaphore(device, this.renderFinishedSemaphores[i], null);

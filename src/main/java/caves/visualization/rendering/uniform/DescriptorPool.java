@@ -40,7 +40,7 @@ public final class DescriptorPool implements RecreatedWithSwapChain {
             final DeviceContext deviceContext,
             final SwapChain swapChain
     ) {
-        this.device = deviceContext.getDevice();
+        this.device = deviceContext.getDeviceHandle();
         this.swapChain = swapChain;
 
         this.cleanedUp = true;

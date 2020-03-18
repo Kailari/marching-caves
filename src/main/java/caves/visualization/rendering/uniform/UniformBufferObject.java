@@ -54,7 +54,7 @@ public final class UniformBufferObject implements RecreatedWithSwapChain {
         this.deviceContext = deviceContext;
         this.swapChain = swapChain;
         this.descriptorPool = descriptorPool;
-        this.descriptorSetLayout = createDescriptorSetLayout(this.deviceContext.getDevice());
+        this.descriptorSetLayout = createDescriptorSetLayout(this.deviceContext.getDeviceHandle());
         this.uniformBuffers = new GPUBuffer[swapChain.getImageCount()];
 
         this.cleanedUp = true;
@@ -172,7 +172,7 @@ public final class UniformBufferObject implements RecreatedWithSwapChain {
                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
         }
 
-        this.descriptorSets = allocateDescriptorSets(this.deviceContext.getDevice(),
+        this.descriptorSets = allocateDescriptorSets(this.deviceContext.getDeviceHandle(),
                                                      this.swapChain,
                                                      this.descriptorSetLayout,
                                                      this.descriptorPool.getHandle());
@@ -195,7 +195,7 @@ public final class UniformBufferObject implements RecreatedWithSwapChain {
                         .descriptorCount(1)
                         .pBufferInfo(bufferInfos);
 
-                vkUpdateDescriptorSets(this.deviceContext.getDevice(), descriptorWrites, null);
+                vkUpdateDescriptorSets(this.deviceContext.getDeviceHandle(), descriptorWrites, null);
             }
         }
 
@@ -218,6 +218,6 @@ public final class UniformBufferObject implements RecreatedWithSwapChain {
     @Override
     public void close() {
         RecreatedWithSwapChain.super.close();
-        vkDestroyDescriptorSetLayout(this.deviceContext.getDevice(), this.descriptorSetLayout, null);
+        vkDestroyDescriptorSetLayout(this.deviceContext.getDeviceHandle(), this.descriptorSetLayout, null);
     }
 }

@@ -75,18 +75,19 @@ public final class RenderingContext implements AutoCloseable {
         this.descriptorPool = new DescriptorPool(this.deviceContext, this.swapChain);
         this.uniformBufferObject = new UniformBufferObject(this.deviceContext, this.swapChain, this.descriptorPool);
 
-        this.pointPipeline = new GraphicsPipeline(deviceContext.getDevice(),
+        this.pointPipeline = new GraphicsPipeline(deviceContext.getDeviceHandle(),
                                                   this.swapChain,
                                                   this.renderPass,
                                                   this.uniformBufferObject,
                                                   VK_PRIMITIVE_TOPOLOGY_POINT_LIST);
-        this.linePipeline = new GraphicsPipeline(deviceContext.getDevice(),
+        this.linePipeline = new GraphicsPipeline(deviceContext.getDeviceHandle(),
                                                  this.swapChain,
                                                  this.renderPass,
                                                  this.uniformBufferObject,
                                                  VK_PRIMITIVE_TOPOLOGY_LINE_STRIP);
-        this.framebuffers = new Framebuffers(deviceContext.getDevice(), this.renderPass, this.swapChain);
-        this.commandPool = new CommandPool(deviceContext);
+        this.framebuffers = new Framebuffers(deviceContext.getDeviceHandle(), this.renderPass, this.swapChain);
+        this.commandPool = new CommandPool(deviceContext,
+                                           deviceContext.getQueueFamilies().getGraphics());
 
         this.renderCommandBuffers = new RenderCommandBuffers(deviceContext,
                                                              this.commandPool,
@@ -126,7 +127,7 @@ public final class RenderingContext implements AutoCloseable {
             }
         }
 
-        vkDeviceWaitIdle(this.deviceContext.getDevice());
+        vkDeviceWaitIdle(this.deviceContext.getDeviceHandle());
         System.out.println("Re-creating the swapchain!");
 
         this.renderCommandBuffers.cleanup();

@@ -68,7 +68,7 @@ public final class Mesh implements AutoCloseable {
 
         stagingBuffer.pushElements(Arrays.asList(vertices));
         stagingBuffer.copyToAndWait(commandPool.getHandle(),
-                                    deviceContext.getGraphicsQueue(),
+                                    deviceContext.getTransferQueue(),
                                     vertexBuffer);
         stagingBuffer.close();
     }
@@ -88,7 +88,7 @@ public final class Mesh implements AutoCloseable {
                 ByteBuffer::putInt);
         stagingBuffer.pushElements(indices);
         stagingBuffer.copyToAndWait(commandPool.getHandle(),
-                                    deviceContext.getGraphicsQueue(),
+                                    deviceContext.getTransferQueue(),
                                     indexBuffer);
         stagingBuffer.close();
     }

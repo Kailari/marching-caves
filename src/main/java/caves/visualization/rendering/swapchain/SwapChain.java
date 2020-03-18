@@ -133,8 +133,8 @@ public final class SwapChain implements RecreatedWithSwapChain {
                 .clipped(true)
                 .oldSwapchain(VK_NULL_HANDLE);
 
-        final var graphicsFamily = deviceContext.getGraphicsQueueFamilyIndex();
-        final var presentationFamily = deviceContext.getPresentationQueueFamilyIndex();
+        final var graphicsFamily = deviceContext.getQueueFamilies().getGraphics();
+        final var presentationFamily = deviceContext.getQueueFamilies().getPresent();
         if (graphicsFamily != presentationFamily) {
             final var queueFamilyIndices = stack.mallocInt(2);
             queueFamilyIndices.put(graphicsFamily);
@@ -227,7 +227,7 @@ public final class SwapChain implements RecreatedWithSwapChain {
                                                              this.windowHandle);
 
             final var pSwapChain = stack.mallocLong(1);
-            final var error = vkCreateSwapchainKHR(this.deviceContext.getDevice(), createInfo, null, pSwapChain);
+            final var error = vkCreateSwapchainKHR(this.deviceContext.getDeviceHandle(), createInfo, null, pSwapChain);
             if (error != VK_SUCCESS) {
                 throw new IllegalStateException("Creating swapchain failed: "
                                                         + translateVulkanResult(error));
@@ -240,7 +240,7 @@ public final class SwapChain implements RecreatedWithSwapChain {
 
         try (var stack = stackPush()) {
             final var imageCount = stack.mallocInt(1);
-            var error = vkGetSwapchainImagesKHR(this.deviceContext.getDevice(),
+            var error = vkGetSwapchainImagesKHR(this.deviceContext.getDeviceHandle(),
                                                 this.swapchain,
                                                 imageCount,
                                                 null);
@@ -250,7 +250,7 @@ public final class SwapChain implements RecreatedWithSwapChain {
             }
 
             final var pSwapchainImages = stack.mallocLong(imageCount.get(0));
-            error = vkGetSwapchainImagesKHR(this.deviceContext.getDevice(),
+            error = vkGetSwapchainImagesKHR(this.deviceContext.getDeviceHandle(),
                                             this.swapchain,
                                             imageCount,
                                             pSwapchainImages);
@@ -283,7 +283,7 @@ public final class SwapChain implements RecreatedWithSwapChain {
                               .layerCount(1);
 
                 final var pImageView = stack.mallocLong(1);
-                error = vkCreateImageView(this.deviceContext.getDevice(),
+                error = vkCreateImageView(this.deviceContext.getDeviceHandle(),
                                           imgvCreateInfo,
                                           null,
                                           pImageView);
@@ -308,10 +308,10 @@ public final class SwapChain implements RecreatedWithSwapChain {
 
         if (this.swapchain != VK_NULL_HANDLE) {
             for (final var imageView : this.imageViews) {
-                vkDestroyImageView(this.deviceContext.getDevice(), imageView, null);
+                vkDestroyImageView(this.deviceContext.getDeviceHandle(), imageView, null);
             }
 
-            vkDestroySwapchainKHR(this.deviceContext.getDevice(), this.swapchain, null);
+            vkDestroySwapchainKHR(this.deviceContext.getDeviceHandle(), this.swapchain, null);
         }
         this.cleanedUp = true;
     }

@@ -46,7 +46,7 @@ public final class RenderPass implements RecreatedWithSwapChain {
      * @param swapChain     swapchain to render to
      */
     public RenderPass(final DeviceContext deviceContext, final SwapChain swapChain) {
-        this.device = deviceContext.getDevice();
+        this.device = deviceContext.getDeviceHandle();
         this.swapChain = swapChain;
         this.cleanedUp = true;
 

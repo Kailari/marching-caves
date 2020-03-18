@@ -1,7 +1,7 @@
 package caves.visualization.window;
 
-import caves.visualization.util.io.BufferUtil;
 import caves.visualization.rendering.swapchain.SwapChainSupportDetails;
+import caves.visualization.util.io.BufferUtil;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
@@ -17,9 +17,10 @@ public final class DeviceContext implements AutoCloseable {
     private final VkPhysicalDevice physicalDevice;
     private final VkPhysicalDeviceMemoryProperties memoryProperties;
 
-    private final DeviceAndQueueFamilies deviceAndQueueFamilies;
+    private final LogicalDevice logicalDevice;
     private final VkQueue graphicsQueue;
     private final VkQueue presentQueue;
+    private final VkQueue transferQueue;
 
     /**
      * Gets the chosen physical device.
@@ -35,35 +36,17 @@ public final class DeviceContext implements AutoCloseable {
      *
      * @return the logical device
      */
-    public VkDevice getDevice() {
-        return this.deviceAndQueueFamilies.getDevice();
+    public VkDevice getDeviceHandle() {
+        return this.logicalDevice.getHandle();
     }
 
     /**
-     * Gets the graphics queue family index.
+     * Gets the queue families on the active logical device.
      *
-     * @return the stored graphics queue family index
+     * @return the queue families in use
      */
-    public int getGraphicsQueueFamilyIndex() {
-        return this.deviceAndQueueFamilies.getGraphicsFamily();
-    }
-
-    /**
-     * Gets the presentation queue family index.
-     *
-     * @return the stored presentation queue family index
-     */
-    public int getPresentationQueueFamilyIndex() {
-        return this.deviceAndQueueFamilies.getPresentFamily();
-    }
-
-    /**
-     * Gets the memory properties of the associated physical device.
-     *
-     * @return the memory properties
-     */
-    public VkPhysicalDeviceMemoryProperties getMemoryProperties() {
-        return this.memoryProperties;
+    public QueueFamilies getQueueFamilies() {
+        return this.logicalDevice.getQueueFamilies();
     }
 
     /**
@@ -85,6 +68,15 @@ public final class DeviceContext implements AutoCloseable {
     }
 
     /**
+     * Gets the transfer queue for submitting transfer command buffers.
+     *
+     * @return the transfer queue
+     */
+    public VkQueue getTransferQueue() {
+        return this.transferQueue;
+    }
+
+    /**
      * Selects a new physical device and creates context for it using the given Vulkan instance.
      *
      * @param instance           instance to select the device for
@@ -101,11 +93,11 @@ public final class DeviceContext implements AutoCloseable {
             // Just naively select the first suitable device
             // TODO: Sort by device suitability and select most suitable
             VkPhysicalDevice selected = null;
-            QueueIndices indices = null;
+            QueueFamilies indices = null;
             while (pPhysicalDevices.hasRemaining()) {
                 final var device = new VkPhysicalDevice(pPhysicalDevices.get(), instance.getInstance());
 
-                indices = new QueueIndices(surface, device);
+                indices = new QueueFamilies(surface, device);
                 if (isSuitableDevice(device, indices, requiredExtensions, surface)) {
                     selected = device;
                     break;
@@ -117,14 +109,18 @@ public final class DeviceContext implements AutoCloseable {
             }
 
             this.physicalDevice = selected;
-            this.deviceAndQueueFamilies = new DeviceAndQueueFamilies(selected, indices, requiredExtensions);
+            this.logicalDevice = new LogicalDevice(selected, indices, requiredExtensions);
         }
 
         this.memoryProperties = VkPhysicalDeviceMemoryProperties.malloc();
         vkGetPhysicalDeviceMemoryProperties(this.physicalDevice, this.memoryProperties);
 
-        this.graphicsQueue = getQueue(this.getDevice(), this.deviceAndQueueFamilies.getGraphicsFamily());
-        this.presentQueue = getQueue(this.getDevice(), this.deviceAndQueueFamilies.getPresentFamily());
+        this.graphicsQueue = getQueue(this.getDeviceHandle(),
+                                      this.logicalDevice.getQueueFamilies().getGraphics());
+        this.transferQueue = getQueue(this.getDeviceHandle(),
+                                      this.logicalDevice.getQueueFamilies().getTransfer());
+        this.presentQueue = getQueue(this.getDeviceHandle(),
+                                     this.logicalDevice.getQueueFamilies().getPresent());
     }
 
     private static PointerBuffer getPhysicalDevices(
@@ -152,7 +148,7 @@ public final class DeviceContext implements AutoCloseable {
     // TODO: Return "suitability value" instead of a boolean
     private static boolean isSuitableDevice(
             final VkPhysicalDevice device,
-            final QueueIndices indices,
+            final QueueFamilies indices,
             final PointerBuffer requiredExtensions,
             final long surface
     ) {
@@ -218,7 +214,7 @@ public final class DeviceContext implements AutoCloseable {
     public void close() {
         // NOTE: Physical device is automatically destroyed with the instance so do not destroy it here
         this.memoryProperties.free();
-        this.deviceAndQueueFamilies.close();
+        this.logicalDevice.close();
     }
 
     /**

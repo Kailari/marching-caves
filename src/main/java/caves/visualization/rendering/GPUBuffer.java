@@ -63,17 +63,17 @@ public class GPUBuffer implements AutoCloseable {
             final int usageFlags,
             final int propertyFlags
     ) {
-        this.device = deviceContext.getDevice();
+        this.device = deviceContext.getDeviceHandle();
 
         this.deviceLocal = (propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) != 0;
         this.bufferSize = bufferSize;
 
-        this.bufferHandle = createBuffer(this.device, bufferSize, usageFlags);
+        this.bufferHandle = createBuffer(deviceContext, bufferSize, usageFlags);
         this.bufferMemory = allocateBufferMemory(this.bufferHandle, deviceContext, propertyFlags);
     }
 
     private static long createBuffer(
-            final VkDevice device,
+            final DeviceContext deviceContext,
             final long bufferSize,
             final int usageFlags
     ) {
@@ -83,10 +83,15 @@ public class GPUBuffer implements AutoCloseable {
                     .sType(VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO)
                     .size(bufferSize)
                     .usage(usageFlags)
-                    .sharingMode(VK_SHARING_MODE_EXCLUSIVE);
+                    .sharingMode(VK_SHARING_MODE_CONCURRENT)
+                    .pQueueFamilyIndices(stack.ints(deviceContext.getQueueFamilies().getGraphics(),
+                                                    deviceContext.getQueueFamilies().getTransfer()));
 
             final var pBuffer = stack.mallocLong(1);
-            final var error = vkCreateBuffer(device, bufferInfo, null, pBuffer);
+            final var error = vkCreateBuffer(deviceContext.getDeviceHandle(),
+                                             bufferInfo,
+                                             null,
+                                             pBuffer);
             if (error != VK_SUCCESS) {
                 throw new IllegalStateException("Creating GPU buffer failed!");
             }
@@ -99,7 +104,7 @@ public class GPUBuffer implements AutoCloseable {
             final DeviceContext deviceContext,
             final int propertyFlags
     ) {
-        final var device = deviceContext.getDevice();
+        final var device = deviceContext.getDeviceHandle();
         try (var stack = stackPush()) {
             final var memoryRequirements = VkMemoryRequirements.callocStack(stack);
             vkGetBufferMemoryRequirements(device, bufferHandle, memoryRequirements);

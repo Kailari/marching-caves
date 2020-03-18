@@ -12,52 +12,41 @@ import static caves.visualization.window.VKUtil.translateVulkanResult;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.vulkan.VK10.*;
 
-public final class DeviceAndQueueFamilies implements AutoCloseable {
+public final class LogicalDevice implements AutoCloseable {
     private final VkDevice device;
-
-    private final int graphicsFamily;
-    private final int presentationFamily;
+    private final QueueFamilies queueFamilies;
 
     /**
      * Gets the active logical device.
      *
      * @return the logical device
      */
-    public VkDevice getDevice() {
+    public VkDevice getHandle() {
         return this.device;
     }
 
     /**
-     * Gets the stored graphics queue family index.
+     * Gets the queue families on this device.
      *
-     * @return the stored graphics queue family index
+     * @return the queue families
      */
-    public int getGraphicsFamily() {
-        return graphicsFamily;
-    }
-
-    /**
-     * Gets the stored presentation queue family index.
-     *
-     * @return the stored presentation queue family index
-     */
-    public int getPresentFamily() {
-        return presentationFamily;
+    public QueueFamilies getQueueFamilies() {
+        return this.queueFamilies;
     }
 
     /**
      * Selects a suitable device and graphics queue family from the physical device.
      *
      * @param physicalDevice     the physical device to use
-     * @param indices            queue indices to use
+     * @param queueFamilies      the queue families to use
      * @param requiredExtensions required device extensions
      */
-    public DeviceAndQueueFamilies(
+    public LogicalDevice(
             final VkPhysicalDevice physicalDevice,
-            final QueueIndices indices,
+            final QueueFamilies queueFamilies,
             final PointerBuffer requiredExtensions
     ) {
-        if (!indices.isComplete()) {
+        if (!queueFamilies.isComplete()) {
             throw new IllegalArgumentException("Tried to create a logical device with incomplete queue indices!");
         }
 
@@ -65,7 +54,7 @@ public final class DeviceAndQueueFamilies implements AutoCloseable {
             BufferUtil.forEachAsStringUTF8(requiredExtensions,
                                            name -> System.out.printf("Enabled device extension: %s\n", name));
 
-            final VkDeviceCreateInfo deviceCreateInfo = createDeviceCreateInfo(indices,
+            final VkDeviceCreateInfo deviceCreateInfo = createDeviceCreateInfo(queueFamilies,
                                                                                requiredExtensions,
                                                                                stack);
             final var pDevice = stack.mallocPointer(1);
@@ -80,13 +69,12 @@ public final class DeviceAndQueueFamilies implements AutoCloseable {
             final var device = pDevice.get(0);
 
             this.device = new VkDevice(device, physicalDevice, deviceCreateInfo);
-            this.graphicsFamily = indices.getGraphicsFamily();
-            this.presentationFamily = indices.getPresentationFamily();
+            this.queueFamilies = queueFamilies;
         }
     }
 
     private static VkDeviceCreateInfo createDeviceCreateInfo(
-            final QueueIndices indices,
+            final QueueFamilies indices,
             final PointerBuffer deviceExtensions,
             final MemoryStack stack
     ) {
@@ -107,10 +95,11 @@ public final class DeviceAndQueueFamilies implements AutoCloseable {
 
     private static VkDeviceQueueCreateInfo.Buffer createQueueCreateInfos(
             final MemoryStack stack,
-            final QueueIndices indices
+            final QueueFamilies indices
     ) {
-        final var uniqueIndices = new TreeSet<>(List.of(indices.getGraphicsFamily(),
-                                                        indices.getPresentationFamily()));
+        final var uniqueIndices = new TreeSet<Integer>(List.of(indices.getGraphics(),
+                                                               indices.getPresent(),
+                                                               indices.getTransfer()));
 
         final var pQueuePriorities = stack.mallocFloat(1);
         pQueuePriorities.put(1.0f);

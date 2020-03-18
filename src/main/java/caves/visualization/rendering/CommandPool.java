@@ -10,7 +10,7 @@ import static org.lwjgl.vulkan.VK10.*;
 
 public final class CommandPool implements AutoCloseable {
     private final VkDevice device;
-    private final long commandPool;
+    private final long handle;
 
     /**
      * Gets a handle to the command pool.
@@ -18,41 +18,37 @@ public final class CommandPool implements AutoCloseable {
      * @return the command pool
      */
     public long getHandle() {
-        return this.commandPool;
+        return this.handle;
     }
 
     /**
      * Creates new command pool.
      *
      * @param deviceContext active device context
+     * @param queueFamily   the queue family to use
      */
-    public CommandPool(final DeviceContext deviceContext) {
-        this.device = deviceContext.getDevice();
-        this.commandPool = createCommandPool(deviceContext);
-    }
-
-    private static long createCommandPool(final DeviceContext deviceContext) {
+    public CommandPool(final DeviceContext deviceContext, final int queueFamily) {
+        this.device = deviceContext.getDeviceHandle();
         try (var stack = stackPush()) {
             final var poolInfo = VkCommandPoolCreateInfo
                     .callocStack(stack)
                     .sType(VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO)
-                    .queueFamilyIndex(deviceContext.getGraphicsQueueFamilyIndex())
+                    .queueFamilyIndex(queueFamily)
                     .flags(0); // No flags
 
             final var pCommandPool = stack.mallocLong(1);
-            final var error = vkCreateCommandPool(deviceContext.getDevice(), poolInfo, null, pCommandPool);
+            final var error = vkCreateCommandPool(this.device, poolInfo, null, pCommandPool);
             if (error != VK_SUCCESS) {
                 throw new IllegalStateException("Failed to create command pool: "
                                                         + translateVulkanResult(error));
             }
 
-            return pCommandPool.get(0);
+            this.handle = pCommandPool.get(0);
         }
     }
 
-
     @Override
     public void close() {
-        vkDestroyCommandPool(this.device, this.commandPool, null);
+        vkDestroyCommandPool(this.device, this.handle, null);
     }
 }

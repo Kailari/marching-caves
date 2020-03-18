@@ -70,7 +70,7 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
             final Mesh lineMesh,
             final UniformBufferObject ubo
     ) {
-        this.device = deviceContext.getDevice();
+        this.device = deviceContext.getDeviceHandle();
         this.commandPool = commandPool;
         this.swapChain = swapChain;
         this.framebuffers = framebuffers;

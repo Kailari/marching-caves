@@ -97,7 +97,9 @@ public final class ApplicationContext implements AutoCloseable {
             this.deviceContext = new DeviceContext(this.instance,
                                                    this.window.getSurfaceHandle(),
                                                    stack.pointers(stack.UTF8(VK_KHR_SWAPCHAIN_EXTENSION_NAME)));
-            try (var commandPool = new CommandPool(this.deviceContext)) {
+            try (var commandPool = new CommandPool(this.deviceContext,
+                                                   this.deviceContext.getQueueFamilies().getTransfer())
+            ) {
                 this.pointMesh = new Mesh(this.deviceContext, commandPool, pointVertices, pointIndices);
                 this.lineMesh = new Mesh(this.deviceContext, commandPool, lineVertices, lineIndices);
 
