@@ -24,10 +24,12 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
     private final CommandPool commandPool;
     private final SwapChain swapChain;
     private final Framebuffers framebuffers;
-    private final GraphicsPipeline graphicsPipeline;
+    private final GraphicsPipeline pointPipeline;
+    private final GraphicsPipeline linePipeline;
     private final RenderPass renderPass;
+    private final Mesh lineMesh;
     private final UniformBufferObject ubo;
-    private final Mesh mesh;
+    private final Mesh pointMesh;
 
     private VkCommandBuffer[] commandBuffers;
     private boolean cleanedUp;
@@ -45,32 +47,38 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
     /**
      * Creates new render command buffers for rendering the given fixed vertex buffer.
      *
-     * @param deviceContext    the device context to use
-     * @param commandPool      command pool to allocate on
-     * @param swapChain        active swapchain
-     * @param framebuffers     framebuffers to create the buffers for
-     * @param graphicsPipeline the graphics pipeline to use
-     * @param renderPass       the render pass to record commands for
-     * @param mesh             mesh to render
-     * @param ubo              the uniform buffer object to use for shader uniforms
+     * @param deviceContext the device context to use
+     * @param commandPool   command pool to allocate on
+     * @param swapChain     active swapchain
+     * @param framebuffers  framebuffers to create the buffers for
+     * @param pointPipeline the graphics pipeline for rendering meshes as points
+     * @param linePipeline  the graphics pipeline for rendering meshes as line strips
+     * @param renderPass    the render pass to record commands for
+     * @param pointMesh     mesh to render as points
+     * @param lineMesh      mesh to render as lines
+     * @param ubo           the uniform buffer object to use for shader uniforms
      */
     public RenderCommandBuffers(
             final DeviceContext deviceContext,
             final CommandPool commandPool,
             final SwapChain swapChain,
             final Framebuffers framebuffers,
-            final GraphicsPipeline graphicsPipeline,
+            final GraphicsPipeline pointPipeline,
+            final GraphicsPipeline linePipeline,
             final RenderPass renderPass,
-            final Mesh mesh,
+            final Mesh pointMesh,
+            final Mesh lineMesh,
             final UniformBufferObject ubo
     ) {
         this.device = deviceContext.getDevice();
         this.commandPool = commandPool;
         this.swapChain = swapChain;
         this.framebuffers = framebuffers;
-        this.graphicsPipeline = graphicsPipeline;
+        this.pointPipeline = pointPipeline;
+        this.linePipeline = linePipeline;
         this.renderPass = renderPass;
-        this.mesh = mesh;
+        this.pointMesh = pointMesh;
+        this.lineMesh = lineMesh;
         this.ubo = ubo;
 
         this.cleanedUp = true;
@@ -157,16 +165,26 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
             ) {
                 vkCmdBindPipeline(this.commandBuffers[imageIndex],
                                   VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                  this.graphicsPipeline.getHandle());
-
+                                  this.pointPipeline.getHandle());
                 vkCmdBindDescriptorSets(this.commandBuffers[imageIndex],
                                         VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                        this.graphicsPipeline.getPipelineLayout(),
+                                        this.pointPipeline.getPipelineLayout(),
                                         0,
                                         stack.longs(this.ubo.getDescriptorSet(imageIndex)),
                                         null);
 
-                this.mesh.draw(this.commandBuffers[imageIndex]);
+                this.pointMesh.draw(this.commandBuffers[imageIndex]);
+
+                vkCmdBindPipeline(this.commandBuffers[imageIndex],
+                                  VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                  this.linePipeline.getHandle());
+                vkCmdBindDescriptorSets(this.commandBuffers[imageIndex],
+                                        VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                        this.linePipeline.getPipelineLayout(),
+                                        0,
+                                        stack.longs(this.ubo.getDescriptorSet(imageIndex)),
+                                        null);
+                this.lineMesh.draw(this.commandBuffers[imageIndex]);
             }
         }
 

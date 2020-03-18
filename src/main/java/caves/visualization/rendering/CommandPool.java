@@ -1,7 +1,6 @@
 package caves.visualization.rendering;
 
 import caves.visualization.window.DeviceContext;
-import caves.visualization.rendering.swapchain.SwapChain;
 import org.lwjgl.vulkan.VkCommandPoolCreateInfo;
 import org.lwjgl.vulkan.VkDevice;
 
@@ -26,12 +25,8 @@ public final class CommandPool implements AutoCloseable {
      * Creates new command pool.
      *
      * @param deviceContext active device context
-     * @param swapChain     the swapchain which images will be used
      */
-    public CommandPool(
-            final DeviceContext deviceContext,
-            final SwapChain swapChain
-    ) {
+    public CommandPool(final DeviceContext deviceContext) {
         this.device = deviceContext.getDevice();
         this.commandPool = createCommandPool(deviceContext);
     }

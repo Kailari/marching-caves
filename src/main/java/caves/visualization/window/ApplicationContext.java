@@ -1,7 +1,9 @@
 package caves.visualization.window;
 
 import caves.visualization.Vertex;
+import caves.visualization.rendering.CommandPool;
 import caves.visualization.rendering.RenderingContext;
+import caves.visualization.rendering.mesh.Mesh;
 import org.lwjgl.PointerBuffer;
 
 import static org.lwjgl.glfw.GLFW.glfwInit;
@@ -20,6 +22,9 @@ public final class ApplicationContext implements AutoCloseable {
     private final RenderingContext renderContext;
 
     private final GLFWVulkanWindow window;
+
+    private final Mesh pointMesh;
+    private final Mesh lineMesh;
 
     /**
      * Gets the application window.
@@ -62,15 +67,19 @@ public final class ApplicationContext implements AutoCloseable {
      * @param width            initial width of the window
      * @param height           initial height of the window
      * @param enableValidation should the validation/debug features be enabled
-     * @param vertices         vertices that should be rendered
-     * @param indices          indices to the vertex array for rendering
+     * @param pointVertices    vertices that should be rendered as points
+     * @param pointIndices     indices to the point vertex array for rendering
+     * @param lineVertices     vertices that should be rendered as lines
+     * @param lineIndices      indices to the line vertex array for rendering
      */
     public ApplicationContext(
             final int width,
             final int height,
             final boolean enableValidation,
-            final Vertex[] vertices,
-            final Integer[] indices
+            final Vertex[] pointVertices,
+            final Integer[] pointIndices,
+            final Vertex[] lineVertices,
+            final Integer[] lineIndices
     ) {
         if (!glfwInit()) {
             throw new IllegalStateException("Initializing GLFW failed.");
@@ -88,17 +97,26 @@ public final class ApplicationContext implements AutoCloseable {
             this.deviceContext = new DeviceContext(this.instance,
                                                    this.window.getSurfaceHandle(),
                                                    stack.pointers(stack.UTF8(VK_KHR_SWAPCHAIN_EXTENSION_NAME)));
-            this.renderContext = new RenderingContext(vertices,
-                                                      indices,
-                                                      this.deviceContext,
-                                                      this.window.getSurfaceHandle(),
-                                                      this.window.getHandle());
+            try (var commandPool = new CommandPool(this.deviceContext)) {
+                this.pointMesh = new Mesh(this.deviceContext, commandPool, pointVertices, pointIndices);
+                this.lineMesh = new Mesh(this.deviceContext, commandPool, lineVertices, lineIndices);
+
+                this.renderContext = new RenderingContext(this.pointMesh,
+                                                          this.lineMesh,
+                                                          this.deviceContext,
+                                                          this.window.getSurfaceHandle(),
+                                                          this.window.getHandle());
+            }
         }
     }
 
     @Override
     public void close() {
-        // Release resources
+        // Release content resources
+        this.pointMesh.close();
+        this.lineMesh.close();
+
+        // Release rendering resources
         this.renderContext.close();
         this.deviceContext.close();
         this.window.destroySurface(this.instance);

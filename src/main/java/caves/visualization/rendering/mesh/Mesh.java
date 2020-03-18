@@ -16,6 +16,17 @@ public final class Mesh implements AutoCloseable {
     private final SequentialGPUBuffer<Vertex> vertexBuffer;
     private final SequentialGPUBuffer<Integer> indexBuffer;
 
+    /**
+     * Creates a new mesh from given vertices and indices. Mesh creation involves allocating buffers
+     * for vertices and indices. Additionally, temporary staging buffers for both are allocated and
+     * destroyed during the process; this is to allow allocating the actual buffers as device-local,
+     * potentially benefiting the performance.
+     *
+     * @param deviceContext device the mesh will be allocated on
+     * @param commandPool   command pool to use for allocating temporary transfer command buffers
+     * @param vertices      mesh vertices
+     * @param indices       mesh element indices
+     */
     public Mesh(
             final DeviceContext deviceContext,
             final CommandPool commandPool,

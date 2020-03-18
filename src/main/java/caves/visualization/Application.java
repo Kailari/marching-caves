@@ -61,7 +61,7 @@ public final class Application implements AutoCloseable {
                                                     0.25f,
                                                     CavePath::distanceTo);
 
-        final var vertices = new ArrayList<Vertex>(sampleSpace.getSize());
+        final var pointVertices = new ArrayList<Vertex>(sampleSpace.getSize());
         for (var sampleIndex = 0; sampleIndex < sampleSpace.getSize(); ++sampleIndex) {
             final var density = sampleSpace.getDensity(sampleIndex);
             final var pos = sampleSpace.getPos(sampleIndex);
@@ -72,19 +72,29 @@ public final class Application implements AutoCloseable {
             }
 
             final var color = 1.0f;
-            vertices.add(new Vertex(new Vector3f(pos.getX(), pos.getY(), pos.getZ()),
-                                    new Vector3f(color, color, color)));
+            pointVertices.add(new Vertex(new Vector3f(pos.getX(), pos.getY(), pos.getZ()),
+                                         new Vector3f(color, color, color)));
         }
 
-        final var indices = IntStream.range(0, vertices.size())
-                                     .boxed()
-                                     .toArray(Integer[]::new);
+        final var pointIndices = IntStream.range(0, pointVertices.size())
+                                          .boxed()
+                                          .toArray(Integer[]::new);
+
+        final var lineVertices = Arrays.stream(cave.getNodesOrdered())
+                                       .map(pos -> new Vertex(new Vector3f(pos.getX(), pos.getY(), pos.getZ()),
+                                                              new Vector3f(1.0f, 1.0f, 0.0f)))
+                                       .toArray(Vertex[]::new);
+        final var lineIndices = IntStream.range(0, lineVertices.length)
+                                         .boxed()
+                                         .toArray(Integer[]::new);
 
         this.appContext = new ApplicationContext(DEFAULT_WINDOW_WIDTH,
                                                  DEFAULT_WINDOW_HEIGHT,
                                                  validation,
-                                                 vertices.toArray(Vertex[]::new),
-                                                 indices);
+                                                 pointVertices.toArray(Vertex[]::new),
+                                                 pointIndices,
+                                                 lineVertices,
+                                                 lineIndices);
         this.appContext.getWindow().onResize((windowHandle, width, height) -> this.framebufferResized = true);
 
         final var deviceContext = this.appContext.getDeviceContext();
