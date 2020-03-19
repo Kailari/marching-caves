@@ -1,6 +1,5 @@
 package caves.visualization.rendering.renderpass;
 
-import caves.visualization.rendering.DepthBuffer;
 import caves.visualization.rendering.swapchain.RecreatedWithSwapChain;
 import caves.visualization.rendering.swapchain.SwapChain;
 import caves.visualization.window.DeviceContext;
@@ -30,11 +29,11 @@ public final class RenderPass implements RecreatedWithSwapChain {
      */
     public static final int DEPTH_ATTACHMENT_INDEX = 1;
 
-    private final VkDevice device;
+    private final DeviceContext deviceContext;
     private final SwapChain swapChain;
-    private final DepthBuffer depthBuffer;
 
     private long handle;
+    private Framebuffers framebuffers;
 
     private boolean cleanedUp;
 
@@ -53,16 +52,14 @@ public final class RenderPass implements RecreatedWithSwapChain {
      *
      * @param deviceContext device to render on
      * @param swapChain     swapchain to render to
-     * @param depthBuffer   the depth buffer to render depth info to
      */
     public RenderPass(
             final DeviceContext deviceContext,
-            final SwapChain swapChain,
-            final DepthBuffer depthBuffer
+            final SwapChain swapChain
     ) {
-        this.device = deviceContext.getDeviceHandle();
+        this.deviceContext = deviceContext;
         this.swapChain = swapChain;
-        this.depthBuffer = depthBuffer;
+
         this.cleanedUp = true;
 
         recreate();
@@ -80,6 +77,8 @@ public final class RenderPass implements RecreatedWithSwapChain {
     public void recreate() {
         assert this.cleanedUp : "Cannot re-create render pass before it is cleaned up!";
 
+        final var depthBufferImageFormat = DepthBuffer.findDepthFormat(this.deviceContext);
+
         try (var stack = stackPush()) {
             final var attachments = VkAttachmentDescription.callocStack(2);
             attachments.get(COLOR_ATTACHMENT_INDEX)
@@ -92,7 +91,7 @@ public final class RenderPass implements RecreatedWithSwapChain {
                        .initialLayout(VK_IMAGE_LAYOUT_UNDEFINED)        // We are going to clear the image anyway
                        .finalLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);   // We promise to produce a presentable image
             attachments.get(DEPTH_ATTACHMENT_INDEX)
-                       .format(this.depthBuffer.getImageFormat())
+                       .format(depthBufferImageFormat)
                        .samples(VK_SAMPLE_COUNT_1_BIT)
                        .loadOp(VK_ATTACHMENT_LOAD_OP_CLEAR)
                        .storeOp(VK_ATTACHMENT_STORE_OP_DONT_CARE)
@@ -136,7 +135,10 @@ public final class RenderPass implements RecreatedWithSwapChain {
                     .pDependencies(dependencies);
 
             final var pRenderPass = stack.mallocLong(1);
-            final var error = vkCreateRenderPass(this.device, renderPassInfo, null, pRenderPass);
+            final var error = vkCreateRenderPass(this.deviceContext.getDeviceHandle(),
+                                                 renderPassInfo,
+                                                 null,
+                                                 pRenderPass);
             if (error != VK_SUCCESS) {
                 throw new IllegalStateException("Creating render pass failed: "
                                                         + translateVulkanResult(error));
@@ -144,6 +146,11 @@ public final class RenderPass implements RecreatedWithSwapChain {
 
             this.handle = pRenderPass.get(0);
         }
+
+        this.framebuffers = new Framebuffers(this.deviceContext,
+                                             this.handle,
+                                             this.swapChain,
+                                             depthBufferImageFormat);
 
         this.cleanedUp = false;
     }
@@ -155,7 +162,7 @@ public final class RenderPass implements RecreatedWithSwapChain {
      * Intended use is with try-with-resources.
      *
      * @param commandBuffer command buffer to use
-     * @param framebuffer   framebuffer to use
+     * @param imageIndex    index of the swapchain image in use
      * @param renderArea    area to render to
      * @param clearValues   attachment clear values
      *
@@ -163,17 +170,22 @@ public final class RenderPass implements RecreatedWithSwapChain {
      */
     public RenderPassScope begin(
             final VkCommandBuffer commandBuffer,
-            final long framebuffer,
+            final int imageIndex,
             final VkRect2D renderArea,
             final VkClearValue.Buffer clearValues
     ) {
-        return new RenderPassScope(commandBuffer, this, framebuffer, renderArea, clearValues);
+        return new RenderPassScope(commandBuffer,
+                                   this,
+                                   this.framebuffers.get(imageIndex),
+                                   renderArea,
+                                   clearValues);
     }
 
     @Override
     public void cleanup() {
         assert !this.cleanedUp : "Cannot clean up an already cleared render pass!";
-        vkDestroyRenderPass(this.device, this.handle, null);
+        this.framebuffers.close();
+        vkDestroyRenderPass(this.deviceContext.getDeviceHandle(), this.handle, null);
 
         this.cleanedUp = true;
     }

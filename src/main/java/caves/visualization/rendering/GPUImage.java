@@ -12,6 +12,7 @@ public final class GPUImage implements AutoCloseable {
 
     private final long image;
     private final long imageMemory;
+    private final int format;
 
     /**
      * Gets a handle to the underlying GPU image.
@@ -44,6 +45,7 @@ public final class GPUImage implements AutoCloseable {
     ) {
         this.deviceContext = deviceContext;
 
+        this.format = format;
         this.image = createImage(deviceContext.getDeviceHandle(), width, height, format, tiling, usage);
         this.imageMemory = allocateImageMemory(deviceContext, this.image, memoryProperties);
     }
@@ -122,9 +124,15 @@ public final class GPUImage implements AutoCloseable {
         return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
     }
 
+    /**
+     * Transitions the image layout. In order to access images, they must be in correct layout.
+     *
+     * @param commandPool command pool to be used for transition commands
+     * @param oldLayout   the old layout we are transitioning <strong>from</strong>
+     * @param newLayout   the new layout we are transitioning <strong>to</strong>
+     */
     public void transitionLayout(
             final CommandPool commandPool,
-            final int format,
             final int oldLayout,
             final int newLayout
     ) {
@@ -167,7 +175,7 @@ public final class GPUImage implements AutoCloseable {
                 barriers.get(0)
                         .subresourceRange()
                         .aspectMask(VK_IMAGE_ASPECT_DEPTH_BIT);
-                if (hasStencilComponent(format)) {
+                if (hasStencilComponent(this.format)) {
                     final var aspectMask = barriers.get(0).subresourceRange()
                                                    .aspectMask();
                     barriers.get(0)
@@ -239,5 +247,72 @@ public final class GPUImage implements AutoCloseable {
     public void close() {
         vkDestroyImage(this.deviceContext.getDeviceHandle(), this.image, null);
         vkFreeMemory(this.deviceContext.getDeviceHandle(), this.imageMemory, null);
+    }
+
+    public static final class View implements AutoCloseable {
+        private final VkDevice device;
+        private final long handle;
+
+        /**
+         * Gets the wrapped image view handle.
+         *
+         * @return the image view handle
+         */
+        public long getHandle() {
+            return this.handle;
+        }
+
+        /**
+         * Creates a new GPU image view. An image view is as the name suggests, a view to the image.
+         * An image view describes *how* the image should be accessed, e.g. how the raw data should
+         * be interpret.
+         *
+         * @param device      device the image is on
+         * @param image       handle to the image
+         * @param format      image format
+         * @param aspectFlags aspect flags (<code>VK_IMAGE_ASPECT_XXX_BIT</code>)
+         */
+        public View(
+                final VkDevice device,
+                final long image,
+                final int format,
+                final int aspectFlags
+        ) {
+            this.device = device;
+
+            try (var stack = stackPush()) {
+                final var viewInfo = VkImageViewCreateInfo
+                        .callocStack()
+                        .sType(VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO)
+                        .image(image)
+                        .viewType(VK_IMAGE_VIEW_TYPE_2D)
+                        .format(format);
+                viewInfo.components()
+                        .r(VK_COMPONENT_SWIZZLE_IDENTITY)
+                        .g(VK_COMPONENT_SWIZZLE_IDENTITY)
+                        .b(VK_COMPONENT_SWIZZLE_IDENTITY)
+                        .a(VK_COMPONENT_SWIZZLE_IDENTITY);
+                viewInfo.subresourceRange()
+                        .aspectMask(aspectFlags)
+                        .baseMipLevel(0)
+                        .levelCount(1)
+                        .baseArrayLayer(0)
+                        .layerCount(1);
+
+                final var pImageView = stack.mallocLong(1);
+                final var result = vkCreateImageView(device, viewInfo, null, pImageView);
+                if (result != VK_SUCCESS) {
+                    throw new IllegalStateException("Failed to create texture image view: "
+                                                            + translateVulkanResult(result));
+                }
+
+                this.handle = pImageView.get(0);
+            }
+        }
+
+        @Override
+        public void close() {
+            vkDestroyImageView(this.device, this.handle, null);
+        }
     }
 }

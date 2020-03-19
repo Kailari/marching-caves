@@ -1,9 +1,14 @@
 package caves.visualization.rendering.swapchain;
 
+import caves.visualization.rendering.GPUImage;
 import caves.visualization.window.DeviceContext;
 import org.lwjgl.system.MemoryStack;
-import org.lwjgl.vulkan.*;
+import org.lwjgl.vulkan.VkExtent2D;
+import org.lwjgl.vulkan.VkSurfaceCapabilitiesKHR;
+import org.lwjgl.vulkan.VkSurfaceFormatKHR;
+import org.lwjgl.vulkan.VkSwapchainCreateInfoKHR;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static caves.visualization.window.VKUtil.translateVulkanResult;
@@ -20,7 +25,7 @@ public final class SwapChain implements RecreatedWithSwapChain {
     private final long windowHandle;
 
     private long swapchain;
-    private long[] imageViews = new long[0];
+    private GPUImage.View[] imageViews;
     private int imageFormat;
     private boolean cleanedUp;
 
@@ -65,11 +70,13 @@ public final class SwapChain implements RecreatedWithSwapChain {
      *
      * @return the swapchain image views
      */
-    public long[] getImageViews() {
+    public Long[] getImageViews() {
         if (this.cleanedUp) {
             throw new IllegalStateException("Tried fetch image views from cleaned up swapchain!");
         }
-        return this.imageViews;
+        return Arrays.stream(this.imageViews)
+                     .map(GPUImage.View::getHandle)
+                     .toArray(Long[]::new);
     }
 
     /**
@@ -162,7 +169,7 @@ public final class SwapChain implements RecreatedWithSwapChain {
         return availableFormats.get(0);
     }
 
-    private static int choosePresentMode(final List<Integer> availablePresentModes) {
+    private static int choosePresentMode(final Iterable<Integer> availablePresentModes) {
         // Use "triple buffering", if available
         for (final var presentMode : availablePresentModes) {
             if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
@@ -240,58 +247,34 @@ public final class SwapChain implements RecreatedWithSwapChain {
 
         try (var stack = stackPush()) {
             final var imageCount = stack.mallocInt(1);
-            var error = vkGetSwapchainImagesKHR(this.deviceContext.getDeviceHandle(),
-                                                this.swapchain,
-                                                imageCount,
-                                                null);
-            if (error != VK_SUCCESS) {
+            final var countError = vkGetSwapchainImagesKHR(this.deviceContext.getDeviceHandle(),
+                                                           this.swapchain,
+                                                           imageCount,
+                                                           null);
+            if (countError != VK_SUCCESS) {
                 throw new IllegalStateException("Could not get swapchain image count: "
-                                                        + translateVulkanResult(error));
+                                                        + translateVulkanResult(countError));
             }
 
             final var pSwapchainImages = stack.mallocLong(imageCount.get(0));
-            error = vkGetSwapchainImagesKHR(this.deviceContext.getDeviceHandle(),
-                                            this.swapchain,
-                                            imageCount,
-                                            pSwapchainImages);
-            if (error != VK_SUCCESS) {
-                throw new IllegalStateException("Could not get swapchain images: "
-                                                        + translateVulkanResult(error));
+            final var fetchError = vkGetSwapchainImagesKHR(this.deviceContext.getDeviceHandle(),
+                                                           this.swapchain,
+                                                           imageCount,
+                                                           pSwapchainImages);
+            if (fetchError != VK_SUCCESS) {
+                throw new IllegalStateException("Could not fetch swapchain images: "
+                                                        + translateVulkanResult(fetchError));
             }
 
             final long[] images = new long[imageCount.get(0)];
-            this.imageViews = new long[imageCount.get(0)];
+            this.imageViews = new GPUImage.View[imageCount.get(0)];
             pSwapchainImages.get(images);
 
             for (var i = 0; i < imageCount.get(0); ++i) {
-                final var imgvCreateInfo = VkImageViewCreateInfo
-                        .callocStack(stack)
-                        .sType(VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO)
-                        .image(images[i])
-                        .viewType(VK_IMAGE_VIEW_TYPE_2D)
-                        .format(this.imageFormat);
-                imgvCreateInfo.components()
-                              .r(VK_COMPONENT_SWIZZLE_IDENTITY)
-                              .g(VK_COMPONENT_SWIZZLE_IDENTITY)
-                              .b(VK_COMPONENT_SWIZZLE_IDENTITY)
-                              .a(VK_COMPONENT_SWIZZLE_IDENTITY);
-                imgvCreateInfo.subresourceRange()
-                              .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
-                              .baseMipLevel(0)
-                              .levelCount(1)
-                              .baseArrayLayer(0)
-                              .layerCount(1);
-
-                final var pImageView = stack.mallocLong(1);
-                error = vkCreateImageView(this.deviceContext.getDeviceHandle(),
-                                          imgvCreateInfo,
-                                          null,
-                                          pImageView);
-                if (error != VK_SUCCESS) {
-                    throw new IllegalStateException("Creating image view failed: "
-                                                            + translateVulkanResult(error));
-                }
-                this.imageViews[i] = pImageView.get(0);
+                this.imageViews[i] = new GPUImage.View(this.deviceContext.getDeviceHandle(),
+                                                       images[i],
+                                                       this.imageFormat,
+                                                       VK_IMAGE_ASPECT_COLOR_BIT);
             }
         }
         this.cleanedUp = false;
@@ -308,7 +291,7 @@ public final class SwapChain implements RecreatedWithSwapChain {
 
         if (this.swapchain != VK_NULL_HANDLE) {
             for (final var imageView : this.imageViews) {
-                vkDestroyImageView(this.deviceContext.getDeviceHandle(), imageView, null);
+                imageView.close();
             }
 
             vkDestroySwapchainKHR(this.deviceContext.getDeviceHandle(), this.swapchain, null);

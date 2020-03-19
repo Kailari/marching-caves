@@ -2,7 +2,6 @@ package caves.visualization.rendering;
 
 import caves.visualization.rendering.mesh.Mesh;
 import caves.visualization.rendering.renderpass.RenderPass;
-import caves.visualization.rendering.swapchain.Framebuffers;
 import caves.visualization.rendering.swapchain.GraphicsPipeline;
 import caves.visualization.rendering.swapchain.RecreatedWithSwapChain;
 import caves.visualization.rendering.swapchain.SwapChain;
@@ -25,7 +24,6 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
     private final VkDevice device;
     private final CommandPool commandPool;
     private final SwapChain swapChain;
-    private final Framebuffers framebuffers;
     private final GraphicsPipeline pointPipeline;
     private final GraphicsPipeline linePipeline;
     private final GraphicsPipeline polygonPipeline;
@@ -60,7 +58,6 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
      * @param deviceContext   the device context to use
      * @param commandPool     command pool to allocate on
      * @param swapChain       active swapchain
-     * @param framebuffers    framebuffers to create the buffers for
      * @param pointPipeline   the graphics pipeline for rendering meshes as points
      * @param linePipeline    the graphics pipeline for rendering meshes as line strips
      * @param polygonPipeline the graphics pipeline for rendering meshes as triangles
@@ -74,7 +71,6 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
             final DeviceContext deviceContext,
             final CommandPool commandPool,
             final SwapChain swapChain,
-            final Framebuffers framebuffers,
             final GraphicsPipeline pointPipeline,
             final GraphicsPipeline linePipeline,
             final GraphicsPipeline polygonPipeline,
@@ -87,7 +83,6 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
         this.device = deviceContext.getDeviceHandle();
         this.commandPool = commandPool;
         this.swapChain = swapChain;
-        this.framebuffers = framebuffers;
         this.pointPipeline = pointPipeline;
         this.linePipeline = linePipeline;
         this.polygonPipeline = polygonPipeline;
@@ -157,13 +152,13 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
                                                      this.commandPool.getHandle());
 
         for (var imageIndex = 0; imageIndex < imageCount; ++imageIndex) {
-            createCommandBufferForImage(imageIndex);
+            recordCommandsForImage(imageIndex);
         }
 
         this.cleanedUp = false;
     }
 
-    private void createCommandBufferForImage(final int imageIndex) {
+    private void recordCommandsForImage(final int imageIndex) {
         beginBuffer(this.commandBuffers[imageIndex]);
 
         try (var stack = stackPush()) {
@@ -176,7 +171,7 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
             clearValues.put(RenderPass.DEPTH_ATTACHMENT_INDEX, getDepthClearValue());
 
             try (var ignored = this.renderPass.begin(this.commandBuffers[imageIndex],
-                                                     this.framebuffers.get(imageIndex),
+                                                     imageIndex,
                                                      renderArea,
                                                      clearValues)
             ) {
@@ -184,7 +179,6 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
                 this.polygonMesh.draw(this.commandBuffers[imageIndex]);
 
                 bindPipeline(imageIndex, this.pointPipeline, stack.longs(this.ubo.getDescriptorSet(imageIndex)));
-
                 this.pointMesh.draw(this.commandBuffers[imageIndex]);
 
                 bindPipeline(imageIndex, this.linePipeline, stack.longs(this.ubo.getDescriptorSet(imageIndex)));
@@ -197,17 +191,17 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
 
     private void bindPipeline(
             final int imageIndex,
-            final GraphicsPipeline polygonPipeline,
-            final LongBuffer longs
+            final GraphicsPipeline pipeline,
+            final LongBuffer descriptorSets
     ) {
         vkCmdBindPipeline(this.commandBuffers[imageIndex],
                           VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          polygonPipeline.getHandle());
+                          pipeline.getHandle());
         vkCmdBindDescriptorSets(this.commandBuffers[imageIndex],
                                 VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                polygonPipeline.getPipelineLayout(),
+                                pipeline.getPipelineLayout(),
                                 0,
-                                longs,
+                                descriptorSets,
                                 null);
     }
 

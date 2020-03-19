@@ -2,7 +2,6 @@ package caves.visualization.rendering;
 
 import caves.visualization.rendering.mesh.Mesh;
 import caves.visualization.rendering.renderpass.RenderPass;
-import caves.visualization.rendering.swapchain.Framebuffers;
 import caves.visualization.rendering.swapchain.GraphicsPipeline;
 import caves.visualization.rendering.swapchain.SwapChain;
 import caves.visualization.rendering.uniform.DescriptorPool;
@@ -24,8 +23,6 @@ public final class RenderingContext implements AutoCloseable {
     private final GraphicsPipeline pointPipeline;
     private final GraphicsPipeline linePipeline;
     private final GraphicsPipeline polygonPipeline;
-    private final Framebuffers framebuffers;
-    private final DepthBuffer depthBuffer;
     private final CommandPool commandPool;
 
     private final RenderCommandBuffers renderCommandBuffers;
@@ -81,12 +78,7 @@ public final class RenderingContext implements AutoCloseable {
         this.descriptorPool = new DescriptorPool(this.deviceContext, this.swapChain);
         this.uniformBufferObject = new UniformBufferObject(this.deviceContext, this.swapChain, this.descriptorPool);
 
-        this.depthBuffer = new DepthBuffer(deviceContext, this.swapChain, this.commandPool);
-        this.renderPass = new RenderPass(this.deviceContext, this.swapChain, this.depthBuffer);
-        this.framebuffers = new Framebuffers(deviceContext.getDeviceHandle(),
-                                             this.renderPass,
-                                             this.swapChain,
-                                             this.depthBuffer);
+        this.renderPass = new RenderPass(this.deviceContext, this.swapChain);
 
         this.pointPipeline = new GraphicsPipeline(deviceContext.getDeviceHandle(),
                                                   this.swapChain,
@@ -107,7 +99,6 @@ public final class RenderingContext implements AutoCloseable {
         this.renderCommandBuffers = new RenderCommandBuffers(deviceContext,
                                                              this.commandPool,
                                                              this.swapChain,
-                                                             this.framebuffers,
                                                              this.pointPipeline,
                                                              this.linePipeline,
                                                              this.polygonPipeline,
@@ -148,8 +139,6 @@ public final class RenderingContext implements AutoCloseable {
         System.out.println("Re-creating the swapchain!");
 
         this.renderCommandBuffers.cleanup();
-        this.framebuffers.cleanup();
-        this.depthBuffer.cleanup();
 
         this.pointPipeline.cleanup();
         this.linePipeline.cleanup();
@@ -165,9 +154,7 @@ public final class RenderingContext implements AutoCloseable {
         this.descriptorPool.recreate();
         this.uniformBufferObject.recreate();
 
-        this.depthBuffer.recreate();
         this.renderPass.recreate();
-        this.framebuffers.recreate();
 
         this.pointPipeline.recreate();
         this.linePipeline.recreate();
@@ -194,8 +181,6 @@ public final class RenderingContext implements AutoCloseable {
         this.renderCommandBuffers.close();
         this.commandPool.close();
         this.descriptorPool.close();
-        this.framebuffers.close();
-        this.depthBuffer.close();
 
         this.pointPipeline.close();
         this.linePipeline.close();
