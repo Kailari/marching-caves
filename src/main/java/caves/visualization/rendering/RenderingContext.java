@@ -1,5 +1,6 @@
 package caves.visualization.rendering;
 
+import caves.visualization.rendering.command.CommandPool;
 import caves.visualization.rendering.mesh.Mesh;
 import caves.visualization.rendering.renderpass.RenderPass;
 import caves.visualization.rendering.swapchain.GraphicsPipeline;
@@ -105,8 +106,8 @@ public final class RenderingContext implements AutoCloseable {
                                                              this.renderPass,
                                                              pointMesh,
                                                              lineMesh,
-                                                             polygonMesh,
-                                                             this.uniformBufferObject);
+                                                             polygonMesh
+        );
     }
 
     /**

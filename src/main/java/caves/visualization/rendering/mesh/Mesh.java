@@ -1,7 +1,7 @@
 package caves.visualization.rendering.mesh;
 
 import caves.visualization.Vertex;
-import caves.visualization.rendering.CommandPool;
+import caves.visualization.rendering.command.CommandPool;
 import caves.visualization.rendering.SequentialGPUBuffer;
 import caves.visualization.window.DeviceContext;
 import org.lwjgl.vulkan.VkCommandBuffer;

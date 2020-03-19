@@ -1,4 +1,4 @@
-package caves.visualization.rendering;
+package caves.visualization.rendering.command;
 
 import caves.visualization.window.DeviceContext;
 import org.lwjgl.vulkan.VkCommandPoolCreateInfo;

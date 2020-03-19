@@ -1,26 +1,17 @@
 package caves.visualization.rendering;
 
+import caves.visualization.rendering.command.CommandBuffer;
+import caves.visualization.rendering.command.CommandPool;
 import caves.visualization.rendering.mesh.Mesh;
 import caves.visualization.rendering.renderpass.RenderPass;
 import caves.visualization.rendering.swapchain.GraphicsPipeline;
 import caves.visualization.rendering.swapchain.RecreatedWithSwapChain;
 import caves.visualization.rendering.swapchain.SwapChain;
-import caves.visualization.rendering.uniform.UniformBufferObject;
 import caves.visualization.window.DeviceContext;
-import org.lwjgl.vulkan.*;
-
-import java.nio.LongBuffer;
-
-import static caves.visualization.window.VKUtil.translateVulkanResult;
-import static org.lwjgl.system.MemoryStack.stackPush;
-import static org.lwjgl.vulkan.VK10.*;
+import org.lwjgl.vulkan.VkCommandBuffer;
+import org.lwjgl.vulkan.VkDevice;
 
 public final class RenderCommandBuffers implements RecreatedWithSwapChain {
-    private static final int A = 3;
-    private static final int B = 2;
-    private static final int G = 1;
-    private static final int R = 0;
-
     private final VkDevice device;
     private final CommandPool commandPool;
     private final SwapChain swapChain;
@@ -30,27 +21,10 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
     private final RenderPass renderPass;
     private final Mesh lineMesh;
     private final Mesh polygonMesh;
-    private final UniformBufferObject ubo;
     private final Mesh pointMesh;
 
-    private VkCommandBuffer[] commandBuffers;
+    private CommandBuffer[] commandBuffers;
     private boolean cleanedUp;
-
-    private static VkClearValue getClearColor() {
-        final var clearColor = VkClearValue.callocStack();
-        clearColor.color()
-                  .float32(R, 0.0f)
-                  .float32(G, 0.0f)
-                  .float32(B, 0.0f)
-                  .float32(A, 1.0f);
-        return clearColor;
-    }
-
-    private static VkClearValue getDepthClearValue() {
-        final var depthValue = VkClearValue.callocStack();
-        depthValue.depthStencil().set(1.0f, 0);
-        return depthValue;
-    }
 
     /**
      * Creates new render command buffers for rendering the given fixed vertex buffer.
@@ -65,7 +39,6 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
      * @param pointMesh       mesh to render as points
      * @param lineMesh        mesh to render as lines
      * @param polygonMesh     mesh to render as polygons
-     * @param ubo             the uniform buffer object to use for shader uniforms
      */
     public RenderCommandBuffers(
             final DeviceContext deviceContext,
@@ -77,8 +50,7 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
             final RenderPass renderPass,
             final Mesh pointMesh,
             final Mesh lineMesh,
-            final Mesh polygonMesh,
-            final UniformBufferObject ubo
+            final Mesh polygonMesh
     ) {
         this.device = deviceContext.getDeviceHandle();
         this.commandPool = commandPool;
@@ -90,38 +62,10 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
         this.pointMesh = pointMesh;
         this.lineMesh = lineMesh;
         this.polygonMesh = polygonMesh;
-        this.ubo = ubo;
 
         this.cleanedUp = true;
 
         recreate();
-    }
-
-    private static VkCommandBuffer[] allocateCommandBuffers(
-            final VkDevice device,
-            final int bufferCount,
-            final long commandPool
-    ) {
-        try (var stack = stackPush()) {
-            final var allocInfo = VkCommandBufferAllocateInfo
-                    .callocStack(stack)
-                    .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO)
-                    .commandPool(commandPool)
-                    .level(VK_COMMAND_BUFFER_LEVEL_PRIMARY)
-                    .commandBufferCount(bufferCount);
-
-            final var pBuffers = stack.mallocPointer(bufferCount);
-            final var error = vkAllocateCommandBuffers(device, allocInfo, pBuffers);
-            if (error != VK_SUCCESS) {
-                throw new IllegalStateException("Allocating command buffers failed: "
-                                                        + translateVulkanResult(error));
-            }
-            final var buffers = new VkCommandBuffer[bufferCount];
-            for (var i = 0; i < bufferCount; ++i) {
-                buffers[i] = new VkCommandBuffer(pBuffers.get(i), device);
-            }
-            return buffers;
-        }
     }
 
     /**
@@ -132,99 +76,41 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
      * @return the command buffer
      */
     public VkCommandBuffer getBufferForImage(final int imageIndex) {
-        if (this.cleanedUp) {
-            throw new IllegalStateException("Tried to fetch buffer from cleaned up command buffers!");
-        }
-        return this.commandBuffers[imageIndex];
+        assert !this.cleanedUp : "Tried to fetch buffer from cleaned up command buffers!";
+        return this.commandBuffers[imageIndex].getHandle();
     }
 
     /**
      * Re-creates the command buffers.
      */
     public void recreate() {
-        if (!this.cleanedUp) {
-            throw new IllegalStateException("Tried to recreate render command buffers not cleared!");
-        }
+        assert this.cleanedUp : "Tried to recreate render command buffers not cleared!";
 
         final var imageCount = this.swapChain.getImageCount();
-        this.commandBuffers = allocateCommandBuffers(this.device,
+        this.commandBuffers = CommandBuffer.allocate(this.device,
                                                      imageCount,
                                                      this.commandPool.getHandle());
 
         for (var imageIndex = 0; imageIndex < imageCount; ++imageIndex) {
-            recordCommandsForImage(imageIndex);
+            recordCommands(imageIndex);
         }
 
         this.cleanedUp = false;
     }
 
-    private void recordCommandsForImage(final int imageIndex) {
-        beginBuffer(this.commandBuffers[imageIndex]);
+    private void recordCommands(final int imageIndex) {
+        this.commandBuffers[imageIndex].begin(() -> {
+            try (var ignored = this.renderPass.begin(this.commandBuffers[imageIndex].getHandle(), imageIndex)) {
+                this.polygonPipeline.bind(this.commandBuffers[imageIndex], imageIndex);
+                this.polygonMesh.draw(this.commandBuffers[imageIndex].getHandle());
 
-        try (var stack = stackPush()) {
-            final var renderArea = VkRect2D.callocStack();
-            renderArea.offset().set(0, 0);
-            renderArea.extent().set(this.swapChain.getExtent());
+                this.pointPipeline.bind(this.commandBuffers[imageIndex], imageIndex);
+                this.pointMesh.draw(this.commandBuffers[imageIndex].getHandle());
 
-            final var clearValues = VkClearValue.callocStack(2, stack);
-            clearValues.put(RenderPass.COLOR_ATTACHMENT_INDEX, getClearColor());
-            clearValues.put(RenderPass.DEPTH_ATTACHMENT_INDEX, getDepthClearValue());
-
-            try (var ignored = this.renderPass.begin(this.commandBuffers[imageIndex],
-                                                     imageIndex,
-                                                     renderArea,
-                                                     clearValues)
-            ) {
-                bindPipeline(imageIndex, this.polygonPipeline, stack.longs(this.ubo.getDescriptorSet(imageIndex)));
-                this.polygonMesh.draw(this.commandBuffers[imageIndex]);
-
-                bindPipeline(imageIndex, this.pointPipeline, stack.longs(this.ubo.getDescriptorSet(imageIndex)));
-                this.pointMesh.draw(this.commandBuffers[imageIndex]);
-
-                bindPipeline(imageIndex, this.linePipeline, stack.longs(this.ubo.getDescriptorSet(imageIndex)));
-                this.lineMesh.draw(this.commandBuffers[imageIndex]);
+                this.linePipeline.bind(this.commandBuffers[imageIndex], imageIndex);
+                this.lineMesh.draw(this.commandBuffers[imageIndex].getHandle());
             }
-        }
-
-        endBuffer(this.commandBuffers[imageIndex]);
-    }
-
-    private void bindPipeline(
-            final int imageIndex,
-            final GraphicsPipeline pipeline,
-            final LongBuffer descriptorSets
-    ) {
-        vkCmdBindPipeline(this.commandBuffers[imageIndex],
-                          VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          pipeline.getHandle());
-        vkCmdBindDescriptorSets(this.commandBuffers[imageIndex],
-                                VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                pipeline.getPipelineLayout(),
-                                0,
-                                descriptorSets,
-                                null);
-    }
-
-    private void endBuffer(final VkCommandBuffer commandBuffer) {
-        final var error = vkEndCommandBuffer(commandBuffer);
-        if (error != VK_SUCCESS) {
-            throw new IllegalStateException("Failed to finalize recording a command buffer: "
-                                                    + translateVulkanResult(error));
-        }
-    }
-
-    private void beginBuffer(final VkCommandBuffer commandBuffer) {
-        try (var stack = stackPush()) {
-            final var beginInfo = VkCommandBufferBeginInfo
-                    .callocStack(stack)
-                    .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO);
-
-            final var error = vkBeginCommandBuffer(commandBuffer, beginInfo);
-            if (error != VK_SUCCESS) {
-                throw new IllegalStateException("Failed to begin recording a command buffer: "
-                                                        + translateVulkanResult(error));
-            }
-        }
+        });
     }
 
     /**
@@ -237,10 +123,9 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
         }
 
         for (final var commandBuffer : this.commandBuffers) {
-            vkFreeCommandBuffers(this.device, this.commandPool.getHandle(), commandBuffer);
+            commandBuffer.close();
         }
 
         this.cleanedUp = true;
     }
-
 }

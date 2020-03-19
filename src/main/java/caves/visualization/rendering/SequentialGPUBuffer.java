@@ -1,7 +1,10 @@
 package caves.visualization.rendering;
 
+import caves.visualization.rendering.command.CommandBuffer;
 import caves.visualization.window.DeviceContext;
-import org.lwjgl.vulkan.*;
+import org.lwjgl.vulkan.VkBufferCopy;
+import org.lwjgl.vulkan.VkQueue;
+import org.lwjgl.vulkan.VkSubmitInfo;
 
 import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
@@ -103,54 +106,32 @@ public final class SequentialGPUBuffer<T> extends GPUBuffer {
         }
 
         try (var stack = stackPush()) {
-            final var allocInfo = VkCommandBufferAllocateInfo
-                    .callocStack(stack)
-                    .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO)
-                    .level(VK_COMMAND_BUFFER_LEVEL_PRIMARY)
-                    .commandPool(commandPool)
-                    .commandBufferCount(1);
-
-            final var pCmdBuffer = stack.mallocPointer(1);
-            vkAllocateCommandBuffers(getDevice(), allocInfo, pCmdBuffer);
-
-            final var copyCommandBuffer = new VkCommandBuffer(pCmdBuffer.get(0), getDevice());
-
-            final var beginInfo = VkCommandBufferBeginInfo
-                    .callocStack(stack)
-                    .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO)
-                    .flags(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-            var error = vkBeginCommandBuffer(copyCommandBuffer, beginInfo);
-            if (error != VK_SUCCESS) {
-                throw new IllegalStateException("Beginning a copy command buffer failed: "
-                                                        + translateVulkanResult(error));
-            }
-
-            // Execute the copy
-            final var copyRegions = VkBufferCopy.callocStack(1, stack);
-            copyRegions.get(0)
-                       .srcOffset(0)
-                       .dstOffset(0)
-                       .size(getSize());
-            vkCmdCopyBuffer(copyCommandBuffer, this.getBufferHandle(), other.getBufferHandle(), copyRegions);
-
-            error = vkEndCommandBuffer(copyCommandBuffer);
-            if (error != VK_SUCCESS) {
-                throw new IllegalStateException("Finalizing a copy command buffer failed: "
-                                                        + translateVulkanResult(error));
-            }
+            final var copyCommandBuffer = CommandBuffer.allocate(getDevice(), commandPool);
+            copyCommandBuffer.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, () -> {
+                // Execute the copy
+                final var copyRegions = VkBufferCopy.callocStack(1, stack);
+                copyRegions.get(0)
+                           .srcOffset(0)
+                           .dstOffset(0)
+                           .size(getSize());
+                vkCmdCopyBuffer(copyCommandBuffer.getHandle(),
+                                this.getBufferHandle(),
+                                other.getBufferHandle(),
+                                copyRegions);
+            });
 
             final var submitInfo = VkSubmitInfo
-                    .callocStack(stack)
+                    .callocStack()
                     .sType(VK_STRUCTURE_TYPE_SUBMIT_INFO)
-                    .pCommandBuffers(pCmdBuffer);
-            error = vkQueueSubmit(queue, submitInfo, VK_NULL_HANDLE);
-            if (error != VK_SUCCESS) {
+                    .pCommandBuffers(stack.pointers(copyCommandBuffer.getHandle()));
+            final var submitResult = vkQueueSubmit(queue, submitInfo, VK_NULL_HANDLE);
+            if (submitResult != VK_SUCCESS) {
                 throw new IllegalStateException("Submitting a copy command buffer failed: "
-                                                        + translateVulkanResult(error));
+                                                        + translateVulkanResult(submitResult));
             }
 
             vkQueueWaitIdle(queue);
-            vkFreeCommandBuffers(getDevice(), commandPool, copyCommandBuffer);
+            copyCommandBuffer.close();
         }
     }
 }

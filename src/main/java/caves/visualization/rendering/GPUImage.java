@@ -1,5 +1,7 @@
 package caves.visualization.rendering;
 
+import caves.visualization.rendering.command.CommandBuffer;
+import caves.visualization.rendering.command.CommandPool;
 import caves.visualization.window.DeviceContext;
 import org.lwjgl.vulkan.*;
 
@@ -137,109 +139,89 @@ public final class GPUImage implements AutoCloseable {
             final int newLayout
     ) {
         try (var stack = stackPush()) {
-            final var allocInfo = VkCommandBufferAllocateInfo
-                    .callocStack()
-                    .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO)
-                    .level(VK_COMMAND_BUFFER_LEVEL_PRIMARY)
-                    .commandPool(commandPool.getHandle())
-                    .commandBufferCount(1);
-
-            final var pCommandBuffers = stack.mallocPointer(1);
-            vkAllocateCommandBuffers(this.deviceContext.getDeviceHandle(),
-                                     allocInfo,
-                                     pCommandBuffers);
-
-            final var beginInfo = VkCommandBufferBeginInfo
-                    .callocStack()
-                    .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO)
-                    .flags(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-            final var commandBuffer = new VkCommandBuffer(pCommandBuffers.get(0),
-                                                          this.deviceContext.getDeviceHandle());
-            vkBeginCommandBuffer(commandBuffer, beginInfo);
-
-            final var barriers = VkImageMemoryBarrier.callocStack(1);
-            barriers.get(0)
-                    .sType(VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
-                    .oldLayout(oldLayout)
-                    .newLayout(newLayout)
-                    .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
-                    .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
-                    .image(this.image);
-            barriers.get(0).subresourceRange()
-                    .baseMipLevel(0)
-                    .levelCount(1)
-                    .baseArrayLayer(0)
-                    .layerCount(1);
-
-            if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+            final var commandBuffer = CommandBuffer.allocate(this.deviceContext.getDeviceHandle(),
+                                                             commandPool.getHandle());
+            commandBuffer.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, () -> {
+                final var barriers = VkImageMemoryBarrier.callocStack(1);
                 barriers.get(0)
-                        .subresourceRange()
-                        .aspectMask(VK_IMAGE_ASPECT_DEPTH_BIT);
-                if (hasStencilComponent(this.format)) {
-                    final var aspectMask = barriers.get(0).subresourceRange()
-                                                   .aspectMask();
+                        .sType(VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                        .oldLayout(oldLayout)
+                        .newLayout(newLayout)
+                        .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                        .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                        .image(this.image);
+                barriers.get(0).subresourceRange()
+                        .baseMipLevel(0)
+                        .levelCount(1)
+                        .baseArrayLayer(0)
+                        .layerCount(1);
+
+                if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
                     barriers.get(0)
                             .subresourceRange()
-                            .aspectMask(aspectMask | VK_IMAGE_ASPECT_STENCIL_BIT);
+                            .aspectMask(VK_IMAGE_ASPECT_DEPTH_BIT);
+                    if (hasStencilComponent(this.format)) {
+                        final var aspectMask = barriers.get(0).subresourceRange()
+                                                       .aspectMask();
+                        barriers.get(0)
+                                .subresourceRange()
+                                .aspectMask(aspectMask | VK_IMAGE_ASPECT_STENCIL_BIT);
+                    }
+                } else {
+                    barriers.get(0)
+                            .subresourceRange()
+                            .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT);
                 }
-            } else {
-                barriers.get(0)
-                        .subresourceRange()
-                        .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT);
-            }
 
-            final int srcStage;
-            final int dstStage;
-            if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
-                barriers.get(0)
-                        .srcAccessMask(0)
-                        .dstAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT);
+                final int srcStage;
+                final int dstStage;
+                if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+                    barriers.get(0)
+                            .srcAccessMask(0)
+                            .dstAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT);
 
-                srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-                dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-            } else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
-                    && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
-                barriers.get(0)
-                        .srcAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT)
-                        .dstAccessMask(VK_ACCESS_SHADER_READ_BIT);
+                    srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+                    dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+                } else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+                        && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+                    barriers.get(0)
+                            .srcAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT)
+                            .dstAccessMask(VK_ACCESS_SHADER_READ_BIT);
 
-                srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-                dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-            } else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED
-                    && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
-                barriers.get(0)
-                        .srcAccessMask(0)
-                        .dstAccessMask(VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT
-                                               | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
+                    srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+                    dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+                } else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED
+                        && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+                    barriers.get(0)
+                            .srcAccessMask(0)
+                            .dstAccessMask(VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT
+                                                   | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
 
-                srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-                dstStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-            } else {
-                throw new UnsupportedOperationException("Unsupported layout transition!");
-            }
+                    srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+                    dstStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+                } else {
+                    throw new UnsupportedOperationException("Unsupported layout transition!");
+                }
 
-            vkCmdPipelineBarrier(commandBuffer,
-                                 srcStage,
-                                 dstStage,
-                                 0,
-                                 null,
-                                 null,
-                                 barriers);
-
-            vkEndCommandBuffer(commandBuffer);
+                vkCmdPipelineBarrier(commandBuffer.getHandle(),
+                                     srcStage,
+                                     dstStage,
+                                     0,
+                                     null,
+                                     null,
+                                     barriers);
+            });
 
             final var submitInfos = VkSubmitInfo.callocStack(1);
             submitInfos.get(0)
                        .sType(VK_STRUCTURE_TYPE_SUBMIT_INFO)
-                       .pCommandBuffers(pCommandBuffers);
+                       .pCommandBuffers(stack.pointers(commandBuffer.getHandle()));
             vkQueueSubmit(this.deviceContext.getGraphicsQueue(),
                           submitInfos,
                           VK_NULL_HANDLE);
             vkQueueWaitIdle(this.deviceContext.getTransferQueue());
 
-            vkFreeCommandBuffers(this.deviceContext.getDeviceHandle(),
-                                 commandPool.getHandle(),
-                                 commandBuffer);
+            commandBuffer.close();
         }
     }
 

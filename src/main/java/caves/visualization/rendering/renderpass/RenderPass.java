@@ -11,6 +11,7 @@ import static org.lwjgl.vulkan.KHRSwapchain.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 import static org.lwjgl.vulkan.VK10.*;
 
 public final class RenderPass implements RecreatedWithSwapChain {
+
     /**
      * Index of the color attachment. This must match the value of the fragment shader color output
      * layout definition.
@@ -21,7 +22,6 @@ public final class RenderPass implements RecreatedWithSwapChain {
      * </code></pre>
      */
     public static final int COLOR_ATTACHMENT_INDEX = 0;
-
     /**
      * Index of the depth attachment.
      *
@@ -29,8 +29,16 @@ public final class RenderPass implements RecreatedWithSwapChain {
      */
     public static final int DEPTH_ATTACHMENT_INDEX = 1;
 
+    private static final int A = 3;
+    private static final int B = 2;
+    private static final int G = 1;
+    private static final int R = 0;
+
     private final DeviceContext deviceContext;
     private final SwapChain swapChain;
+
+    private final VkRect2D renderArea;
+    private final VkClearValue.Buffer clearValues;
 
     private long handle;
     private Framebuffers framebuffers;
@@ -47,6 +55,22 @@ public final class RenderPass implements RecreatedWithSwapChain {
         return this.handle;
     }
 
+    private static VkClearValue getClearColor() {
+        final var clearColor = VkClearValue.callocStack();
+        clearColor.color()
+                  .float32(R, 0.0f)
+                  .float32(G, 0.0f)
+                  .float32(B, 0.0f)
+                  .float32(A, 1.0f);
+        return clearColor;
+    }
+
+    private static VkClearValue getDepthClearValue() {
+        final var depthValue = VkClearValue.callocStack();
+        depthValue.depthStencil().set(1.0f, 0);
+        return depthValue;
+    }
+
     /**
      * Creates a new render pass.
      *
@@ -59,6 +83,14 @@ public final class RenderPass implements RecreatedWithSwapChain {
     ) {
         this.deviceContext = deviceContext;
         this.swapChain = swapChain;
+
+        this.renderArea = VkRect2D.calloc();
+        this.renderArea.offset().set(0, 0);
+        this.renderArea.extent().set(this.swapChain.getExtent());
+
+        this.clearValues = VkClearValue.calloc(2);
+        this.clearValues.put(RenderPass.COLOR_ATTACHMENT_INDEX, getClearColor());
+        this.clearValues.put(RenderPass.DEPTH_ATTACHMENT_INDEX, getDepthClearValue());
 
         this.cleanedUp = true;
 
@@ -77,8 +109,9 @@ public final class RenderPass implements RecreatedWithSwapChain {
     public void recreate() {
         assert this.cleanedUp : "Cannot re-create render pass before it is cleaned up!";
 
-        final var depthBufferImageFormat = DepthBuffer.findDepthFormat(this.deviceContext);
+        this.renderArea.extent().set(this.swapChain.getExtent());
 
+        final var depthBufferImageFormat = DepthBuffer.findDepthFormat(this.deviceContext);
         try (var stack = stackPush()) {
             final var attachments = VkAttachmentDescription.callocStack(2);
             attachments.get(COLOR_ATTACHMENT_INDEX)
@@ -163,22 +196,18 @@ public final class RenderPass implements RecreatedWithSwapChain {
      *
      * @param commandBuffer command buffer to use
      * @param imageIndex    index of the swapchain image in use
-     * @param renderArea    area to render to
-     * @param clearValues   attachment clear values
      *
      * @return auto-closeable render pass scope to be used with try-with-resources
      */
     public RenderPassScope begin(
             final VkCommandBuffer commandBuffer,
-            final int imageIndex,
-            final VkRect2D renderArea,
-            final VkClearValue.Buffer clearValues
+            final int imageIndex
     ) {
         return new RenderPassScope(commandBuffer,
                                    this,
                                    this.framebuffers.get(imageIndex),
-                                   renderArea,
-                                   clearValues);
+                                   this.renderArea,
+                                   this.clearValues);
     }
 
     @Override

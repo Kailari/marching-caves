@@ -1,6 +1,7 @@
 package caves.visualization.rendering.swapchain;
 
 import caves.visualization.Vertex;
+import caves.visualization.rendering.command.CommandBuffer;
 import caves.visualization.rendering.renderpass.RenderPass;
 import caves.visualization.rendering.uniform.UniformBufferObject;
 import caves.visualization.window.VKUtil;
@@ -31,24 +32,8 @@ public final class GraphicsPipeline implements RecreatedWithSwapChain {
      * @return the pipeline handle
      */
     public long getHandle() {
-        if (this.cleanedUp) {
-            throw new IllegalStateException("Tried to fetch handle from cleaned up pipeline!");
-        }
-
+        assert !this.cleanedUp : "Tried to fetch handle from cleaned up pipeline!";
         return this.pipeline;
-    }
-
-    /**
-     * Gets handle to the graphics pipeline layout.
-     *
-     * @return the pipeline layout
-     */
-    public long getPipelineLayout() {
-        if (this.cleanedUp) {
-            throw new IllegalStateException("Tried to fetch pipeline layout from cleaned up pipeline!");
-        }
-
-        return this.pipelineLayout;
     }
 
     /**
@@ -208,6 +193,31 @@ public final class GraphicsPipeline implements RecreatedWithSwapChain {
     }
 
     /**
+     * Binds the graphics pipeline for use in rendering.
+     *
+     * @param commandBuffer command buffer to use
+     * @param imageIndex    swapchain image index of the current image
+     */
+    public void bind(
+            final CommandBuffer commandBuffer,
+            final int imageIndex
+    ) {
+        assert !this.cleanedUp : "Tried to bind cleaned up pipeline!";
+
+        try (var stack = stackPush()) {
+            vkCmdBindPipeline(commandBuffer.getHandle(),
+                              VK_PIPELINE_BIND_POINT_GRAPHICS,
+                              this.pipeline);
+            vkCmdBindDescriptorSets(commandBuffer.getHandle(),
+                                    VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                    this.pipelineLayout,
+                                    0,
+                                    stack.longs(this.uniformBufferObject.getDescriptorSet(imageIndex)),
+                                    null);
+        }
+    }
+
+    /**
      * Re-creates the whole pipeline from scratch. {@link #cleanup()} must be called first to clean
      * up existing pipeline before recreating.
      * <p>
@@ -226,9 +236,7 @@ public final class GraphicsPipeline implements RecreatedWithSwapChain {
      */
     @Override
     public void recreate() {
-        if (!this.cleanedUp) {
-            throw new IllegalStateException("Tried to re-create a graphics pipeline without cleaning up first!");
-        }
+        assert this.cleanedUp : "Tried to re-create a graphics pipeline without cleaning up first!";
 
         try (var stack = stackPush()) {
             final var vertexShaderStage = VKUtil.loadShader(this.device,

@@ -1,7 +1,7 @@
 package caves.visualization.window;
 
 import caves.visualization.Vertex;
-import caves.visualization.rendering.CommandPool;
+import caves.visualization.rendering.command.CommandPool;
 import caves.visualization.rendering.RenderingContext;
 import caves.visualization.rendering.mesh.Mesh;
 import org.lwjgl.PointerBuffer;
