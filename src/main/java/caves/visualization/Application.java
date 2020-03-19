@@ -34,7 +34,7 @@ public final class Application implements AutoCloseable {
     private static final long UINT64_MAX = 0xFFFFFFFFFFFFFFFFL; // or "-1L", but this looks nicer.
     private static final int MAX_FRAMES_IN_FLIGHT = 2;
 
-    private static final float DEGREES_PER_SECOND = 45.0f;
+    private static final float DEGREES_PER_SECOND = 360.0f / 10.0f;
 
     private final ApplicationContext appContext;
     private final long[] imageAvailableSemaphores;
@@ -59,10 +59,10 @@ public final class Application implements AutoCloseable {
                                                       caveLength,
                                                       spacing,
                                                       420);
-        final var surfaceLevel = 1.0f;
+        final var surfaceLevel = 1.9f;
         final var resolution = 0.5f;
         final var margin = 5.0f;
-        final var densityFunction = createDensityFunction(1.0f, 1.0f);
+        final var densityFunction = createDensityFunction(1.0f, 10f);
         final var sampleSpace = new CaveSampleSpace(cave,
                                                     margin,
                                                     resolution,
@@ -110,6 +110,7 @@ public final class Application implements AutoCloseable {
         final var caveVertices = new Vertex[polygonVertices.size()];
         for (var i = 0; i < caveVertices.length; ++i) {
             final var pos = polygonVertices.get(i);
+
             final var normal = polygonNormals.get(i);
             caveVertices[i] = new Vertex(new Vector3f(pos.getX(), pos.getY(), pos.getZ()),
                                          new Vector3f(normal.getX(), normal.getY(), normal.getZ()));

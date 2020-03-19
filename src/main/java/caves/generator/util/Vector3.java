@@ -154,6 +154,18 @@ public final class Vector3 {
     }
 
     /**
+     * Calculates the scalar multiplication of this vector with a scalar.
+     *
+     * @param scalar the multiplier
+     * @param result vector to hold the result
+     *
+     * @return vector holding the result
+     */
+    public Vector3 mul(final float scalar, final Vector3 result) {
+        return result.set(this.x * scalar, this.y * scalar, this.z * scalar);
+    }
+
+    /**
      * Calculates the component-wise minimum of this and the given other vector.
      *
      * @param other  the other vector

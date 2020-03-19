@@ -134,7 +134,7 @@ public final class GraphicsPipeline implements RecreatedWithSwapChain {
                 .polygonMode(VK_POLYGON_MODE_FILL)
                 .lineWidth(1.0f)
                 .cullMode(VK_CULL_MODE_BACK_BIT)
-                .frontFace(VK_FRONT_FACE_CLOCKWISE)
+                .frontFace(VK_FRONT_FACE_COUNTER_CLOCKWISE)
                 .depthBiasEnable(false)
                 .depthBiasConstantFactor(0.0f)
                 .depthBiasClamp(0.0f)
@@ -194,6 +194,17 @@ public final class GraphicsPipeline implements RecreatedWithSwapChain {
                 .sType(VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO)
                 .pVertexAttributeDescriptions(pVertexAttributeDescriptions)
                 .pVertexBindingDescriptions(pVertexBindingDescriptions);
+    }
+
+    private static VkPipelineDepthStencilStateCreateInfo createDepthStencilState() {
+        return VkPipelineDepthStencilStateCreateInfo
+                .callocStack()
+                .sType(VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO)
+                .depthTestEnable(true)
+                .depthWriteEnable(true)
+                .depthCompareOp(VK_COMPARE_OP_LESS)
+                .depthBoundsTestEnable(false)
+                .stencilTestEnable(false);
     }
 
     /**
@@ -277,17 +288,6 @@ public final class GraphicsPipeline implements RecreatedWithSwapChain {
         }
 
         this.cleanedUp = false;
-    }
-
-    private VkPipelineDepthStencilStateCreateInfo createDepthStencilState() {
-        return VkPipelineDepthStencilStateCreateInfo
-                .callocStack()
-                .sType(VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO)
-                .depthTestEnable(true)
-                .depthWriteEnable(true)
-                .depthCompareOp(VK_COMPARE_OP_LESS)
-                .depthBoundsTestEnable(false)
-                .stencilTestEnable(false);
     }
 
     /**

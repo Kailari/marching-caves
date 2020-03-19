@@ -131,6 +131,12 @@ public class TestVector3 {
     }
 
     @Test
+    void scalarMultiplicationGivesCorrectResults() {
+        final var a = new Vector3(12f, 6f, 7f);
+        assertEquals(new Vector3(120f, 60f, 70f), a.mul(10.0f, a));
+    }
+
+    @Test
     void minGivesCorrectResults() {
         final var a = new Vector3(12f, 6f, 7f);
         final var b = new Vector3(4f, 7f, 18f);

@@ -34,19 +34,19 @@ public final class MarchingCubes {
             final int z,
             final float surfaceLevel
     ) {
-        assert x > 0 && x < sampleSpace.getCountX() - 1 : "Sample x must be within [1, size(x) - 1 (=" + sampleSpace.getCountX() + ")], was " + x;
-        assert y > 0 && y < sampleSpace.getCountY() - 1 : "Sample y must be within [1, size(y) - 1 (=" + sampleSpace.getCountY() + ")], was " + y;
-        assert z > 0 && z < sampleSpace.getCountZ() - 1 : "Sample z must be within [1, size(z) - 1 (=" + sampleSpace.getCountZ() + ")], was " + z;
+        assert x > 1 && x < sampleSpace.getCountX() - 2 : "Sample x must be within [2, size(x) - 2 (=" + sampleSpace.getCountX() + ")], was " + x;
+        assert y > 1 && y < sampleSpace.getCountY() - 2 : "Sample y must be within [2, size(y) - 2 (=" + sampleSpace.getCountY() + ")], was " + y;
+        assert z > 1 && z < sampleSpace.getCountZ() - 2 : "Sample z must be within [2, size(z) - 2 (=" + sampleSpace.getCountZ() + ")], was " + z;
 
         final int[] index = {
-                sampleSpace.getSampleIndex(x, y, z),
-                sampleSpace.getSampleIndex(x + 1, y, z),
-                sampleSpace.getSampleIndex(x + 1, y, z + 1),
-                sampleSpace.getSampleIndex(x, y, z + 1),
                 sampleSpace.getSampleIndex(x, y + 1, z),
                 sampleSpace.getSampleIndex(x + 1, y + 1, z),
                 sampleSpace.getSampleIndex(x + 1, y + 1, z + 1),
                 sampleSpace.getSampleIndex(x, y + 1, z + 1),
+                sampleSpace.getSampleIndex(x, y, z),
+                sampleSpace.getSampleIndex(x + 1, y, z),
+                sampleSpace.getSampleIndex(x + 1, y, z + 1),
+                sampleSpace.getSampleIndex(x, y, z + 1),
         };
 
         final float[] density = new float[index.length];
@@ -65,16 +65,16 @@ public final class MarchingCubes {
         }
 
         // We have positions and densities for cube corners, calculate estimated surface gradient
-        // vectors for corners
+        // vectors for them
         final Vector3[] gradient = {
-                calculateGradientVector(sampleSpace, x, y, z),
-                calculateGradientVector(sampleSpace, x + 1, y, z),
-                calculateGradientVector(sampleSpace, x + 1, y, z + 1),
-                calculateGradientVector(sampleSpace, x, y, z + 1),
                 calculateGradientVector(sampleSpace, x, y + 1, z),
                 calculateGradientVector(sampleSpace, x + 1, y + 1, z),
                 calculateGradientVector(sampleSpace, x + 1, y + 1, z + 1),
                 calculateGradientVector(sampleSpace, x, y + 1, z + 1),
+                calculateGradientVector(sampleSpace, x, y, z),
+                calculateGradientVector(sampleSpace, x + 1, y, z),
+                calculateGradientVector(sampleSpace, x + 1, y, z + 1),
+                calculateGradientVector(sampleSpace, x, y, z + 1),
         };
 
         // Create edge vertices (vertex is not created if not needed)
@@ -97,8 +97,7 @@ public final class MarchingCubes {
         final var maxVerticesPerCube = 12;
         final var vertices = new Vector3[maxVerticesPerCube];
         final var normals = new Vector3[maxVerticesPerCube];
-        final var nCases = 4;
-        for (var i = 0; i < nCases; i++) {
+        for (var i = 0; i < 4; i++) {
             // Lower/Upper
             final var lowerOffset = 0;
             final var upperOffset = 4;
@@ -150,11 +149,15 @@ public final class MarchingCubes {
             final int z
     ) {
         // Estimate derivative of the density function using central differences
-        final var edgeLength = samples.getResolution();
-        final var gx = (samples.getDensity(x + 1, y, z) - samples.getDensity(x - 1, y, z)) / edgeLength;
-        final var gy = (samples.getDensity(x, y + 1, z) - samples.getDensity(x, y - 1, z)) / edgeLength;
-        final var gz = (samples.getDensity(x, y, z + 1) - samples.getDensity(x, y, z - 1)) / edgeLength;
-        return new Vector3(gx, gy, gz);
+        final var gx = (samples.getDensity(x + 1, y, z) - samples.getDensity(x - 1, y, z));
+        final var gy = (samples.getDensity(x, y + 1, z) - samples.getDensity(x, y - 1, z));
+        final var gz = (samples.getDensity(x, y, z + 1) - samples.getDensity(x, y, z - 1));
+        final var grad = new Vector3(gx, gy, gz);
+        if (grad.lengthSq() > 0.0f) {
+            grad.normalize();
+        }
+
+        return grad;
     }
 
     private static void handleLayerVertex(
@@ -169,10 +172,8 @@ public final class MarchingCubes {
             final int layerOffset
     ) {
         if ((edgeMask & (1 << (layerOffset + i))) != 0) {
-            final var nCases = 4;
-
             final var ia = layerOffset + i;
-            final var ib = layerOffset + ((i + 1) % nCases);
+            final var ib = layerOffset + ((i + 1) % 4);
             vertices[layerOffset + i] = interpolateToSurface(surfaceLevel, pos[ia], pos[ib], density[ia], density[ib]);
             normals[layerOffset + i] = interpolateToSurface(surfaceLevel,
                                                             gradient[ia], gradient[ib],
@@ -200,7 +201,7 @@ public final class MarchingCubes {
             return new Vector3(posB);
         }
 
-        final var alpha = (surfaceLevel - valueA) / (valueA - valueB);
+        final var alpha = Math.min(1.0f, Math.max(0.0f, (surfaceLevel - valueA) / (valueB - valueA)));
         return Vector3.lerp(posA, posB, alpha, new Vector3());
     }
 }

@@ -133,12 +133,13 @@ public final class UniformBufferObject implements RecreatedWithSwapChain {
      * @param angle      model matrix angle
      */
     public void update(final int imageIndex, final double angle) {
-        final var lookAtDistance = 15.0f;
+        final var lookAtDistance = 25.0f;
+        final var lookAtHeight = 0.0f;
 
-        this.tmpModel.identity().rotateLocalZ((float) Math.toRadians(angle));
-        this.tmpView.identity().lookAt(new Vector3f(lookAtDistance, lookAtDistance, lookAtDistance),
-                                       new Vector3f(0.0f, 0.0f, 0.0f),
-                                       new Vector3f(0.0f, 0.0f, 1.0f));
+        this.tmpModel.identity().rotateLocalY((float) Math.toRadians(angle));
+        this.tmpView.setLookAt(new Vector3f(0, lookAtHeight, -lookAtDistance),
+                               new Vector3f(0.0f, 0.0f, 0.0f),
+                               new Vector3f(0.0f, 1.0f, 0.0f));
 
         final var swapChainExtent = this.swapChain.getExtent();
         final var aspectRatio = swapChainExtent.width() / (float) swapChainExtent.height();
@@ -146,8 +147,8 @@ public final class UniformBufferObject implements RecreatedWithSwapChain {
         final var fovY = (float) Math.toRadians(45.0f);
         final float zNear = 0.1f;
         final float zFar = 1000.0f;
-        this.tmpProjection.identity().perspective(fovY, aspectRatio, zNear, zFar, true);
-        this.tmpProjection.m11(-1 * this.tmpProjection.m11()); // Flip Y-axis
+        this.tmpProjection.setPerspective(fovY, aspectRatio, zNear, zFar, true)
+                          .scale(1, -1, 1);
 
         try (var stack = stackPush()) {
             final var buffer = stack.malloc((int) SIZE_IN_BYTES);
