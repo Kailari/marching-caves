@@ -7,6 +7,10 @@ import java.util.ArrayDeque;
 import java.util.Collection;
 
 public class MeshGenerator {
+    private static final int X = 0;
+    private static final int Y = 1;
+    private static final int Z = 2;
+
     private final CaveSampleSpace sampleSpace;
 
     /**
@@ -27,49 +31,50 @@ public class MeshGenerator {
      * @param outNormals   vertex normals of the mesh
      * @param outIndices   indices of the mesh
      * @param surfaceLevel surface level, any sample density below this is considered empty space
+     * @param startX       the X-index where to begin the flood-fill
+     * @param startY       the Y-index where to begin the flood-fill
+     * @param startZ       the Z-index where to begin the flood-fill
      */
     public void generate(
             final Collection<Vector3> outVertices,
             final Collection<Vector3> outNormals,
             final Collection<Integer> outIndices,
-            final float surfaceLevel
+            final float surfaceLevel,
+            final int startX,
+            final int startY,
+            final int startZ
     ) {
-        int startX;
-        int startY = 0;
-        int startZ = 0;
-        boolean startFound = false;
-        int findStartIterations = 0;
-        for (startX = 2; !startFound && startX < this.sampleSpace.getCountX() - 3; ++startX) {
-            for (startY = 2; !startFound && startY < this.sampleSpace.getCountY() - 3; ++startY) {
-                for (startZ = 2; startZ < this.sampleSpace.getCountZ() - 3; ++startZ) {
-                    if (this.sampleSpace.getDensity(startX, startY, startZ) < surfaceLevel) {
-                        startFound = true;
-                        break;
-                    }
-                    ++findStartIterations;
-                }
+        System.out.printf("Marching through the sample space using flood fill. Using surface level of %.3f\n",
+                          surfaceLevel);
+
+        var allSolid = true;
+        for (final var offset : MarchingCubesTables.VERTEX_OFFSETS) {
+            if (this.sampleSpace.getDensity(startX + offset[X],
+                                            startY + offset[Y],
+                                            startZ + offset[Z]) < surfaceLevel) {
+                allSolid = false;
+                break;
             }
         }
-        if (!startFound) {
-            System.err.println("Could not find valid start point!");
+        if (allSolid) {
+            System.err.printf("\t-> ERROR: The starting cube at (%d, %d, %d) was fully solid!\n",
+                              startX,
+                              startY,
+                              startZ);
             return;
         }
 
-        System.out.printf("Found valid flood-fill starting point in %d steps.\n",
-                          findStartIterations);
-
-        System.out.printf("Starting point:\t(%d, %d, %d)\n", startX, startY, startZ);
-        System.out.printf("Bounds:\t\t(%d, %d, %d)\n",
-                          this.sampleSpace.getCountX(),
-                          this.sampleSpace.getCountY(),
-                          this.sampleSpace.getCountZ());
+        System.err.printf("\t-> Starting flood fill at (%d, %d, %d)\n",
+                          startX,
+                          startY,
+                          startZ);
 
         final var startFacings = MarchingCubes.appendToMesh(outVertices, outNormals, outIndices,
                                                             this.sampleSpace,
                                                             startX, startY, startZ,
                                                             surfaceLevel);
 
-        final var alreadyQueued = new boolean[this.sampleSpace.getSize()];
+        final var alreadyQueued = new boolean[this.sampleSpace.getTotalCount()];
         alreadyQueued[this.sampleSpace.getSampleIndex(startX, startY, startZ)] = true;
 
         final var fifoFacingQueue = new ArrayDeque<FloodFillEntry>();
@@ -111,7 +116,7 @@ public class MeshGenerator {
         final var bruteIterations = (this.sampleSpace.getCountX() - 4)
                 * (this.sampleSpace.getCountY() - 4)
                 * (this.sampleSpace.getCountZ() - 4);
-        System.out.printf("Flood-filling the cave finished in %d steps (Naive iteration requires %d steps)\n",
+        System.out.printf("\t-> Flood-filling the cave finished in %d steps (Naive iteration requires %d steps)\n",
                           iterations,
                           bruteIterations);
     }

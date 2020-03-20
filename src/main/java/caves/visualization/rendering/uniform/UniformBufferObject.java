@@ -129,15 +129,15 @@ public final class UniformBufferObject implements RecreatedWithSwapChain {
     /**
      * Updates buffers for the given image index.
      *
-     * @param imageIndex image index to update
-     * @param angle      model matrix angle
+     * @param imageIndex     image index to update
+     * @param angle          model matrix angle
+     * @param lookAtDistance how far from the origin the camera is placed
      */
-    public void update(final int imageIndex, final double angle) {
-        final var lookAtDistance = 25.0f;
-        final var lookAtHeight = 7.5f;
+    public void update(final int imageIndex, final double angle, final float lookAtDistance) {
+        final var lookAtHeight = lookAtDistance / 3.0f;
 
         this.tmpModel.identity().rotateLocalY((float) Math.toRadians(angle));
-        this.tmpView.setLookAt(new Vector3f(0, lookAtHeight, -lookAtDistance),
+        this.tmpView.setLookAt(new Vector3f(0, lookAtHeight, -lookAtDistance * 1.25f),
                                new Vector3f(0.0f, 0.0f, 0.0f),
                                new Vector3f(0.0f, 1.0f, 0.0f));
 
@@ -178,7 +178,7 @@ public final class UniformBufferObject implements RecreatedWithSwapChain {
                                                      this.descriptorSetLayout,
                                                      this.descriptorPool.getHandle());
 
-        for (var i = 0; i < swapChain.getImageCount(); ++i) {
+        for (var i = 0; i < this.swapChain.getImageCount(); ++i) {
             try (var stack = stackPush()) {
                 final var bufferInfos = VkDescriptorBufferInfo.callocStack(1, stack);
                 bufferInfos.get(0)

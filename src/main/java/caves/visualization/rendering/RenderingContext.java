@@ -204,10 +204,15 @@ public final class RenderingContext implements AutoCloseable {
     /**
      * Updates shader uniform buffer objects.
      *
-     * @param imageIndex index of the current swapchain image
-     * @param angle      angle for the model matrix
+     * @param imageIndex     index of the current swapchain image
+     * @param angle          angle for the model matrix
+     * @param lookAtDistance how far from the origin the camera is placed
      */
-    public void updateUniforms(final int imageIndex, final float angle) {
-        this.uniformBufferObject.update(imageIndex, angle);
+    public void updateUniforms(
+            final int imageIndex,
+            final float angle,
+            final float lookAtDistance
+    ) {
+        this.uniformBufferObject.update(imageIndex, angle, lookAtDistance);
     }
 }

@@ -67,10 +67,13 @@ public final class VulkanInstance implements AutoCloseable {
             final PointerBuffer enabledLayerNames,
             @Nullable final DebugMessenger debugMessenger
     ) {
+        System.out.print("Enabled instance extensions: ");
         BufferUtil.forEachAsStringUTF8(enabledExtensionNames,
-                                       name -> System.out.printf("Enabled instance extension: %s\n", name));
+                                       name -> System.out.printf("%s, ", name));
+        System.out.print("\nEnabled validation layers: ");
         BufferUtil.forEachAsStringUTF8(enabledLayerNames,
-                                       name -> System.out.printf("Enabled validation layer: %s\n", name));
+                                       name -> System.out.printf("%s, ", name));
+        System.out.println();
 
         final var debugMessengerInfo = debugMessenger != null ? debugMessenger.getCreateInfo() : null;
         final var appInfo = createAppInfo(stack);

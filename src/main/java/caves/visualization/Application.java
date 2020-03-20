@@ -3,6 +3,7 @@ package caves.visualization;
 import caves.generator.CavePath;
 import caves.generator.CaveSampleSpace;
 import caves.generator.PathGenerator;
+import caves.generator.mesh.MarchingCubesTables;
 import caves.generator.mesh.MeshGenerator;
 import caves.generator.util.Vector3;
 import caves.visualization.window.ApplicationContext;
@@ -14,6 +15,7 @@ import org.lwjgl.vulkan.VkPresentInfoKHR;
 import org.lwjgl.vulkan.VkSemaphoreCreateInfo;
 import org.lwjgl.vulkan.VkSubmitInfo;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Optional;
@@ -47,12 +49,15 @@ public final class Application implements AutoCloseable {
     /** Indicates that framebuffers have just resized and the swapchain should be re-created. */
     private boolean framebufferResized;
 
+    private final float lookAtDistance;
+
     /**
      * Configures a new visualization application. Call {@link #run()} to start the app.
      *
      * @param validation should validation/debug features be enabled.
      */
     public Application(final boolean validation) {
+        final var startTime = System.nanoTime();
         final var caveLength = 40;
         final var spacing = 3f;
         final var start = new Vector3(0.0f, 0.0f, 0.0f);
@@ -70,67 +75,78 @@ public final class Application implements AutoCloseable {
                                                     resolution,
                                                     densityFunction);
 
-        System.out.printf("The sample space has size of (%.3f, %.3f, %.3f)\n",
-                          sampleSpace.getSizeX(),
-                          sampleSpace.getSizeY(),
-                          sampleSpace.getSizeZ());
-        System.out.printf("and potential of %d samples (%d x %d x %d).\n",
-                          sampleSpace.getSize(),
-                          sampleSpace.getCountX(),
-                          sampleSpace.getCountY(),
-                          sampleSpace.getCountZ());
+        final var meshGenerator = new MeshGenerator(sampleSpace);
+        final var caveVertices = new ArrayList<Vector3>();
+        final var caveIndices = new ArrayList<Integer>();
+        final var caveNormals = new ArrayList<Vector3>();
+        final var startX = (int) Math.floor(Math.abs(start.getX() - sampleSpace.getMin().getX()) / resolution);
+        final var startY = (int) Math.floor(Math.abs(start.getY() - sampleSpace.getMin().getY()) / resolution);
+        final var startZ = (int) Math.floor(Math.abs(start.getZ() - sampleSpace.getMin().getZ()) / resolution);
+        meshGenerator.generate(caveVertices, caveNormals, caveIndices, surfaceLevel, startX, startY, startZ);
 
-        final var pointVertices = new ArrayList<Vertex>(sampleSpace.getSize());
-        for (var sampleIndex = 0; sampleIndex < sampleSpace.getSize(); ++sampleIndex) {
-            final var density = sampleSpace.getDensity(sampleIndex);
-            final var pos = sampleSpace.getPos(sampleIndex);
+        final var timeElapsed = (System.nanoTime() - startTime) / 1_000_000_000.0;
+        System.out.printf("Generation finished! (%.3fs)\n\n", timeElapsed);
 
-            if (density >= surfaceLevel) {
-                continue;
-            }
+        System.out.println("Constructing meshes:");
+        final var middle = Arrays.stream(cave.getNodesOrdered())
+                                 .reduce((a, b) -> a.add(b, new Vector3()))
+                                 .map(sum -> sum.mul(1.0f / caveLength, sum))
+                                 .orElseThrow();
 
-            final var color = 1.0f;
-            pointVertices.add(new Vertex(new Vector3f(pos.getX(), pos.getY(), pos.getZ()),
-                                         new Vector3f(color, color, color)));
-        }
-
-        final var pointIndices = IntStream.range(0, pointVertices.size())
+        System.out.print("\t-> Creating additional point-cloud visualization...");
+        final var startTimePoints = System.nanoTime();
+        final Vertex[] pointVertices = findPointMeshVertices(surfaceLevel,
+                                                             sampleSpace,
+                                                             startX,
+                                                             startY,
+                                                             startZ,
+                                                             middle);
+        final var pointIndices = IntStream.range(0, pointVertices.length)
                                           .boxed()
                                           .toArray(Integer[]::new);
+        final var timeElapsedPoints = (System.nanoTime() - startTimePoints) / 1_000_000_000.0;
+        System.out.printf(" Done! (%.3fs)\n", timeElapsedPoints);
 
+        System.out.print("\t-> Creating additional path-line visualization...");
+        final var startTimeLines = System.nanoTime();
         final var lineVertices = Arrays.stream(cave.getNodesOrdered())
-                                       .map(pos -> new Vertex(new Vector3f(pos.getX(), pos.getY(), pos.getZ()),
+                                       .map(pos -> new Vertex(new Vector3f(pos.getX() - middle.getX(),
+                                                                           pos.getY() - middle.getY(),
+                                                                           pos.getZ() - middle.getZ()),
                                                               new Vector3f(1.0f, 1.0f, 0.0f)))
                                        .toArray(Vertex[]::new);
         final var lineIndices = IntStream.range(0, lineVertices.length)
                                          .boxed()
                                          .toArray(Integer[]::new);
+        final var timeElapsedLines = (System.nanoTime() - startTimeLines) / 1_000_000_000.0;
+        System.out.printf(" Done! (%.3fs)\n", timeElapsedLines);
 
-        final var meshGenerator = new MeshGenerator(sampleSpace);
-        final var polygonVertices = new ArrayList<Vector3>();
-        final var polygonIndices = new ArrayList<Integer>();
-        final var polygonNormals = new ArrayList<Vector3>();
-        meshGenerator.generate(polygonVertices, polygonNormals, polygonIndices, surfaceLevel);
-
-        final var caveVertices = new Vertex[polygonVertices.size()];
-        for (var i = 0; i < caveVertices.length; ++i) {
-            final var pos = polygonVertices.get(i);
-
-            final var normal = polygonNormals.get(i);
-            caveVertices[i] = new Vertex(new Vector3f(pos.getX(), pos.getY(), pos.getZ()),
-                                         new Vector3f(normal.getX(), normal.getY(), normal.getZ()));
+        final var polygonVertices = new Vertex[caveVertices.size()];
+        for (var i = 0; i < polygonVertices.length; ++i) {
+            final var pos = caveVertices.get(i);
+            final var normal = caveNormals.get(i);
+            polygonVertices[i] = new Vertex(new Vector3f(pos.getX() - middle.getX(),
+                                                         pos.getY() - middle.getY(),
+                                                         pos.getZ() - middle.getZ()),
+                                            new Vector3f(normal.getX(), normal.getY(), normal.getZ()));
         }
 
+        System.out.printf("Everything done! (total %.3fs)\n\n", (System.nanoTime() - startTime) / 1_000_000_000.0);
+
+        this.lookAtDistance = Math.max(sampleSpace.getMin().length(),
+                                            sampleSpace.getMax().length()) + margin;
+
+        System.out.println("Starting the visualization");
         this.appContext = new ApplicationContext(
                 DEFAULT_WINDOW_WIDTH,
                 DEFAULT_WINDOW_HEIGHT,
                 validation,
-                pointVertices.toArray(Vertex[]::new),
+                pointVertices,
                 pointIndices,
                 lineVertices,
                 lineIndices,
-                caveVertices,
-                polygonIndices.toArray(Integer[]::new));
+                polygonVertices,
+                caveIndices.toArray(Integer[]::new));
         this.appContext.getWindow().onResize((windowHandle, width, height) -> this.framebufferResized = true);
 
         final var deviceContext = this.appContext.getDeviceContext();
@@ -141,6 +157,50 @@ public final class Application implements AutoCloseable {
         this.inFlightFences = createFences(MAX_FRAMES_IN_FLIGHT, deviceContext);
         this.imagesInFlight = new long[renderContext.getSwapChainImageCount()];
         Arrays.fill(this.imagesInFlight, VK_NULL_HANDLE);
+    }
+
+    private static Vertex[] findPointMeshVertices(
+            final float surfaceLevel,
+            final CaveSampleSpace sampleSpace,
+            final int startX,
+            final int startY,
+            final int startZ,
+            final Vector3 middle
+    ) {
+        final var pointVertices = new ArrayList<Vertex>();
+
+        final var pointQueue = new ArrayDeque<PointVertexEntry>();
+        final var alreadyQueued = new boolean[sampleSpace.getTotalCount()];
+        pointQueue.add(new PointVertexEntry(startX, startY, startZ));
+
+        while (!pointQueue.isEmpty()) {
+            final var entry = pointQueue.pop();
+            final var color = 1.0f;
+            final var pos = sampleSpace.getPos(entry.x, entry.y, entry.z);
+            pointVertices.add(new Vertex(new Vector3f(pos.getX() - middle.getX(),
+                                                      pos.getY() - middle.getY(),
+                                                      pos.getZ() - middle.getZ()),
+                                         new Vector3f(color, color, color)));
+
+            for (final var facing : MarchingCubesTables.Facing.values()) {
+                final var x = entry.x + facing.getX();
+                final var y = entry.y + facing.getY();
+                final var z = entry.z + facing.getZ();
+                final var index = sampleSpace.getSampleIndex(x, y, z);
+
+                final var xOOB = x < 2 || x >= sampleSpace.getCountX() - 2;
+                final var yOOB = y < 2 || y >= sampleSpace.getCountY() - 2;
+                final var zOOB = z < 2 || z >= sampleSpace.getCountZ() - 2;
+                final var isSolid = sampleSpace.getDensity(index, x, y, z) >= surfaceLevel;
+                if (isSolid || xOOB || yOOB || zOOB || alreadyQueued[index]) {
+                    continue;
+                }
+                pointQueue.add(new PointVertexEntry(x, y, z));
+                alreadyQueued[index] = true;
+            }
+        }
+
+        return pointVertices.toArray(Vertex[]::new);
     }
 
     private static long[] createFences(final int count, final DeviceContext deviceContext) {
@@ -227,7 +287,7 @@ public final class Application implements AutoCloseable {
 
             // Update uniforms
             angle += DEGREES_PER_SECOND * delta;
-            this.appContext.getRenderContext().updateUniforms(imageIndex, angle);
+            this.appContext.getRenderContext().updateUniforms(imageIndex, angle, this.lookAtDistance);
 
             // Submit and present
             submitCommandBuffer(imageIndex, frameIndex);
@@ -337,5 +397,17 @@ public final class Application implements AutoCloseable {
         }
 
         this.appContext.close();
+    }
+
+    private static final class PointVertexEntry {
+        private final int x;
+        private final int y;
+        private final int z;
+
+        private PointVertexEntry(final int x, final int y, final int z) {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+        }
     }
 }

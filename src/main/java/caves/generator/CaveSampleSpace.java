@@ -6,41 +6,46 @@ import java.util.Arrays;
 import java.util.function.BiFunction;
 
 public final class CaveSampleSpace {
-    private final float sampleSpaceSizeX;
-    private final float sampleSpaceSizeY;
-    private final float sampleSpaceSizeZ;
-    private final int sampleCountX;
-    private final int sampleCountY;
-    private final int sampleCountZ;
+    private final float sizeX;
+    private final float sizeY;
+    private final float sizeZ;
+    private final int countX;
+    private final int countY;
+    private final int countZ;
     private final float[] samples;
     private final float margin;
     private final float resolution;
     private final Vector3 min;
     private final Vector3 max;
-    private Vector3[] positions;
+    private final BiFunction<CavePath, Vector3, Float> densityFunction;
+    private final CavePath cavePath;
 
     public float getSizeX() {
-        return this.sampleSpaceSizeX;
+        return this.sizeX;
     }
 
     public float getSizeY() {
-        return this.sampleSpaceSizeY;
+        return this.sizeY;
     }
 
     public float getSizeZ() {
-        return this.sampleSpaceSizeZ;
+        return this.sizeZ;
     }
 
     public int getCountX() {
-        return this.sampleCountX;
+        return this.countX;
     }
 
     public int getCountY() {
-        return this.sampleCountY;
+        return this.countY;
     }
 
     public int getCountZ() {
-        return this.sampleCountZ;
+        return this.countZ;
+    }
+
+    public int getTotalCount() {
+        return this.countX * this.countY * this.countZ;
     }
 
     public Vector3 getMin() {
@@ -51,74 +56,83 @@ public final class CaveSampleSpace {
         return this.max;
     }
 
-    public int getSize() {
-        return this.sampleCountX * this.sampleCountY * this.sampleCountZ;
-    }
-
-    public float getResolution() {
-        return this.resolution;
-    }
-
     public CaveSampleSpace(
-            final CavePath cave,
+            final CavePath cavePath,
             final float margin,
             final float resolution,
             final BiFunction<CavePath, Vector3, Float> densityFunction
     ) {
-        final var nodes = cave.getNodesOrdered();
+        System.out.println("Initializing a sample space");
+
+        this.resolution = resolution;
+        this.margin = margin;
+        this.densityFunction = densityFunction;
+        this.cavePath = cavePath;
+
+        final var nodes = cavePath.getNodesOrdered();
 
         this.min = Arrays.stream(nodes)
                          .reduce(new Vector3(Float.POSITIVE_INFINITY,
                                              Float.POSITIVE_INFINITY,
                                              Float.POSITIVE_INFINITY),
-                                 (acc, b) -> acc.min(b, acc));
+                                 (acc, b) -> acc.min(b, acc))
+                         .sub(margin, margin, margin, new Vector3());
         this.max = Arrays.stream(nodes)
                          .reduce(new Vector3(Float.NEGATIVE_INFINITY,
                                              Float.NEGATIVE_INFINITY,
                                              Float.NEGATIVE_INFINITY),
-                                 (acc, b) -> acc.max(b, acc));
+                                 (acc, b) -> acc.max(b, acc))
+                         .add(margin, margin, margin, new Vector3());
 
-        this.margin = margin;
-        this.sampleSpaceSizeX = Math.abs(this.max.getX() - this.min.getX()) + 2 * this.margin;
-        this.sampleSpaceSizeY = Math.abs(this.max.getY() - this.min.getY()) + 2 * this.margin;
-        this.sampleSpaceSizeZ = Math.abs(this.max.getZ() - this.min.getZ()) + 2 * this.margin;
+        this.sizeX = Math.abs(this.max.getX() - this.min.getX());
+        this.sizeY = Math.abs(this.max.getY() - this.min.getY());
+        this.sizeZ = Math.abs(this.max.getZ() - this.min.getZ());
 
-        this.resolution = resolution;
-        this.sampleCountX = (int) (this.sampleSpaceSizeX / this.resolution);
-        this.sampleCountY = (int) (this.sampleSpaceSizeY / this.resolution);
-        this.sampleCountZ = (int) (this.sampleSpaceSizeZ / this.resolution);
-        this.samples = new float[this.sampleCountX * this.sampleCountY * this.sampleCountZ];
-        this.positions = new Vector3[this.sampleCountX * this.sampleCountY * this.sampleCountZ];
+        this.countX = (int) (this.sizeX / resolution);
+        this.countY = (int) (this.sizeY / resolution);
+        this.countZ = (int) (this.sizeZ / resolution);
+        this.samples = new float[this.countX * this.countY * this.countZ];
 
-        for (int x = 0; x < this.sampleCountX; ++x) {
-            for (int y = 0; y < this.sampleCountY; ++y) {
-                for (int z = 0; z < this.sampleCountZ; ++z) {
-                    final int sampleIndex = getSampleIndex(x, y, z);
-                    final var pos = new Vector3((this.min.getX() + x * this.resolution) - this.margin,
-                                                (this.min.getY() + y * this.resolution) - this.margin,
-                                                (this.min.getZ() + z * this.resolution) - this.margin);
-
-                    final var density = densityFunction.apply(cave, pos);
-                    this.samples[sampleIndex] = density;
-                    this.positions[sampleIndex] = pos;
-                }
-            }
-        }
+        System.out.printf("\t-> boundaries (%.3f, %.3f, %.3f)\n",
+                          this.sizeX, this.sizeY, this.sizeZ);
+        System.out.printf("\t-> maximum count of %d samples (%d x %d x %d).\n",
+                          this.countX * this.countY * this.countZ,
+                          this.countX, this.countY, this.countZ);
     }
 
     public int getSampleIndex(final int x, final int y, final int z) {
-        return x + (z * this.sampleCountX) + (y * this.sampleCountX * this.sampleCountZ);
+        return x + (z * this.countX) + (y * this.countX * this.countZ);
     }
 
-    public float getDensity(final int sampleIndex) {
+    public float getDensity(final int sampleIndex, final int x, final int y, final int z) {
+        if (this.samples[sampleIndex] == 0.0f) {
+            calculateDensity(sampleIndex, x, y, z);
+        }
+
         return this.samples[sampleIndex];
     }
 
     public float getDensity(final int x, final int y, final int z) {
-        return getDensity(getSampleIndex(x, y, z));
+        final var sampleIndex = getSampleIndex(x, y, z);
+        if (this.samples[sampleIndex] == 0.0f) {
+            calculateDensity(sampleIndex, x, y, z);
+        }
+
+        return this.samples[sampleIndex];
     }
 
-    public Vector3 getPos(final int sampleIndex) {
-        return this.positions[sampleIndex];
+    public Vector3 getPos(final int x, final int y, final int z) {
+        return new Vector3(this.min.getX() + x * this.resolution,
+                           this.min.getY() + y * this.resolution,
+                           this.min.getZ() + z * this.resolution);
+    }
+
+    private void calculateDensity(final int sampleIndex, final int x, final int y, final int z) {
+        final var pos = new Vector3(this.min.getX() + x * this.resolution,
+                                    this.min.getY() + y * this.resolution,
+                                    this.min.getZ() + z * this.resolution);
+
+        final var density = this.densityFunction.apply(this.cavePath, pos);
+        this.samples[sampleIndex] = density;
     }
 }

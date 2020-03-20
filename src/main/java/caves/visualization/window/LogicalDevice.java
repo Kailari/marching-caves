@@ -51,8 +51,10 @@ public final class LogicalDevice implements AutoCloseable {
         }
 
         try (var stack = stackPush()) {
+            System.out.printf("Enabled device extensions: ");
             BufferUtil.forEachAsStringUTF8(requiredExtensions,
-                                           name -> System.out.printf("Enabled device extension: %s\n", name));
+                                           name -> System.out.printf("%s, ", name));
+            System.out.println();
 
             final VkDeviceCreateInfo deviceCreateInfo = createDeviceCreateInfo(queueFamilies,
                                                                                requiredExtensions,

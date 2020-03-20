@@ -5,19 +5,31 @@ import caves.generator.util.Vector3;
 import java.util.Random;
 
 public final class PathGenerator {
+    /**
+     * Generates a new path using simple Random Walk.
+     *
+     * @param start       starting point
+     * @param length      number of steps
+     * @param nodeSpacing length of a single step
+     * @param seed        generation PRNG seed
+     *
+     * @return a generated cave path
+     */
     public CavePath generate(
             final Vector3 start,
             final int length,
             final float nodeSpacing,
             final long seed
     ) {
+        System.out.printf("Generating a path with %d steps.\n", length);
         final var path = new CavePath();
 
         final var random = new Random(seed);
 
         var previous = new Vector3(start);
         final var sum = new Vector3(0, 0, 0);
-        for (var i = 0; i < length; i++) {
+        path.addNode(previous);
+        for (var i = 1; i < length; i++) {
             final var x = (random.nextFloat() * 2.0f - 1.0f) * nodeSpacing;
             final var y = (random.nextFloat() * 2.0f - 1.0f) * nodeSpacing;
             final var z = (random.nextFloat() * 2.0f - 1.0f) * nodeSpacing;
@@ -28,10 +40,6 @@ public final class PathGenerator {
             previous = next;
         }
 
-        final var middle = new Vector3(sum.getX() / length,
-                                       sum.getY() / length,
-                                       sum.getZ() / length);
-        path.forEach(vec -> vec.sub(middle, vec));
         return path;
     }
 }

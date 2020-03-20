@@ -11,7 +11,7 @@ import java.util.ArrayList;
  * The lookup tables used are adapted to Java from Paul Bourke's C++ implementation. (available at
  * time of writing at http://paulbourke.net/geometry/polygonise/)
  */
-final class MarchingCubesTables {
+public final class MarchingCubesTables {
     /**
      * Index lookup table. These values are bitmasks indicating which edges are cut by the
      * isosurface. This information can then be used to place vertices for those edges.
@@ -318,6 +318,21 @@ final class MarchingCubesTables {
     };
 
     /**
+     * Offsets for the eight vertices of a cube. These allow doing loops instead of calling
+     * functions eight times with offsets.
+     */
+    public static final int[][] VERTEX_OFFSETS = {
+            {0, 1, 0},
+            {1, 1, 0},
+            {1, 1, 1},
+            {0, 1, 1},
+            {0, 0, 0},
+            {1, 0, 0},
+            {1, 0, 1},
+            {0, 0, 1},
+    };
+
+    /**
      * Lookup table for "free" cube faces. A face is free if any of its four vertices is non-solid.
      * This is used for marching the cave with flood-fill style instead of having to march through
      * the whole sample space at once.
@@ -365,11 +380,17 @@ final class MarchingCubesTables {
     }
 
     public enum Facing {
+        /** Facing towards positive X. */
         X_POSITIVE(1, 0, 0, new int[]{1, 2, 6, 5}),
+        /** Facing towards negative X. */
         X_NEGATIVE(-1, 0, 0, new int[]{0, 3, 7, 4}),
+        /** Facing towards positive Y. */
         Y_POSITIVE(0, 1, 0, new int[]{0, 1, 2, 3}),
+        /** Facing towards negative Y. */
         Y_NEGATIVE(0, -1, 0, new int[]{4, 5, 6, 7}),
+        /** Facing towards positive Z. */
         Z_POSITIVE(0, 0, 1, new int[]{2, 3, 7, 6}),
+        /** Facing towards negative Z. */
         Z_NEGATIVE(0, 0, -1, new int[]{0, 1, 5, 4});
 
         private final int x;

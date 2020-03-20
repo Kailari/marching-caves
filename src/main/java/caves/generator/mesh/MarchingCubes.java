@@ -9,20 +9,6 @@ public final class MarchingCubes {
     /** How close two samples' values need to be in order to be considered the same value. */
     private static final float SAME_POINT_EPSILON = 0.0001f;
 
-    /**
-     * Offsets for the eight vertices of a cube. These allow doing loops instead of calling
-     * functions eight times with offsets.
-     */
-    private static final int[][] VERTEX_OFFSETS = {
-            {0, 1, 0},
-            {1, 1, 0},
-            {1, 1, 1},
-            {0, 1, 1},
-            {0, 0, 0},
-            {1, 0, 0},
-            {1, 0, 1},
-            {0, 0, 1},
-    };
     private static final int X = 0;
     private static final int Y = 1;
     private static final int Z = 2;
@@ -62,14 +48,17 @@ public final class MarchingCubes {
 
         final int[] index = new int[NUM_CUBE_VERTS];
         for (var i = 0; i < NUM_CUBE_VERTS; ++i) {
-            index[i] = sampleSpace.getSampleIndex(x + VERTEX_OFFSETS[i][X],
-                                                  y + VERTEX_OFFSETS[i][Y],
-                                                  z + VERTEX_OFFSETS[i][Z]);
+            index[i] = sampleSpace.getSampleIndex(x + MarchingCubesTables.VERTEX_OFFSETS[i][X],
+                                                  y + MarchingCubesTables.VERTEX_OFFSETS[i][Y],
+                                                  z + MarchingCubesTables.VERTEX_OFFSETS[i][Z]);
         }
 
         final float[] density = new float[NUM_CUBE_VERTS];
         for (int i = 0; i < NUM_CUBE_VERTS; ++i) {
-            density[i] = sampleSpace.getDensity(index[i]);
+            density[i] = sampleSpace.getDensity(index[i],
+                                                x + MarchingCubesTables.VERTEX_OFFSETS[i][X],
+                                                y + MarchingCubesTables.VERTEX_OFFSETS[i][Y],
+                                                z + MarchingCubesTables.VERTEX_OFFSETS[i][Z]);
         }
         final var cubeIndex = MarchingCubesTables.calculateCubeIndex(surfaceLevel, density);
         final var edgeMask = MarchingCubesTables.EDGE_TABLE[cubeIndex];
@@ -81,7 +70,9 @@ public final class MarchingCubes {
 
         final Vector3[] pos = new Vector3[NUM_CUBE_VERTS];
         for (int i = 0; i < NUM_CUBE_VERTS; ++i) {
-            pos[i] = sampleSpace.getPos(index[i]);
+            pos[i] = sampleSpace.getPos(x + MarchingCubesTables.VERTEX_OFFSETS[i][X],
+                                        y + MarchingCubesTables.VERTEX_OFFSETS[i][Y],
+                                        z + MarchingCubesTables.VERTEX_OFFSETS[i][Z]);
         }
 
         // We have positions and densities for cube corners, calculate estimated surface gradient
@@ -89,9 +80,9 @@ public final class MarchingCubes {
         final Vector3[] gradient = new Vector3[NUM_CUBE_VERTS];
         for (var i = 0; i < NUM_CUBE_VERTS; ++i) {
             gradient[i] = calculateGradientVector(sampleSpace,
-                                                  x + VERTEX_OFFSETS[i][X],
-                                                  y + VERTEX_OFFSETS[i][Y],
-                                                  z + VERTEX_OFFSETS[i][Z]);
+                                                  x + MarchingCubesTables.VERTEX_OFFSETS[i][X],
+                                                  y + MarchingCubesTables.VERTEX_OFFSETS[i][Y],
+                                                  z + MarchingCubesTables.VERTEX_OFFSETS[i][Z]);
         }
 
         // Create edge vertices (vertex is not created if not needed). Here, we are adding vertices
