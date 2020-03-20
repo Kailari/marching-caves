@@ -9,11 +9,31 @@ public final class MarchingCubes {
     /** How close two samples' values need to be in order to be considered the same value. */
     private static final float SAME_POINT_EPSILON = 0.0001f;
 
+    /**
+     * Offsets for the eight vertices of a cube. These allow doing loops instead of calling
+     * functions eight times with offsets.
+     */
+    private static final int[][] VERTEX_OFFSETS = {
+            {0, 1, 0},
+            {1, 1, 0},
+            {1, 1, 1},
+            {0, 1, 1},
+            {0, 0, 0},
+            {1, 0, 0},
+            {1, 0, 1},
+            {0, 0, 1},
+    };
+    private static final int X = 0;
+    private static final int Y = 1;
+    private static final int Z = 2;
+    private static final int NUM_CUBE_VERTS = 8;
+
     private MarchingCubes() {
     }
 
     /**
-     * Appends a new cube to the given mesh.
+     * Appends a new cube to the given mesh. Gets "free" faces of the cube as return value, for
+     * progressing the flood fill.
      *
      * @param outVertices  vertices of the mesh
      * @param outNormals   vertex normals of the mesh
@@ -23,8 +43,10 @@ public final class MarchingCubes {
      * @param y            y-coordinate to sample
      * @param z            z-coordinate to sample
      * @param surfaceLevel surface level
+     *
+     * @return free faces of the created cube
      */
-    public static void appendToMesh(
+    public static MarchingCubesTables.Facing[] appendToMesh(
             final Collection<Vector3> outVertices,
             final Collection<Vector3> outNormals,
             final Collection<Integer> outIndices,
@@ -38,47 +60,52 @@ public final class MarchingCubes {
         assert y > 1 && y < sampleSpace.getCountY() - 2 : "Sample y must be within [2, size(y) - 2 (=" + sampleSpace.getCountY() + ")], was " + y;
         assert z > 1 && z < sampleSpace.getCountZ() - 2 : "Sample z must be within [2, size(z) - 2 (=" + sampleSpace.getCountZ() + ")], was " + z;
 
-        final int[] index = {
-                sampleSpace.getSampleIndex(x, y + 1, z),
-                sampleSpace.getSampleIndex(x + 1, y + 1, z),
-                sampleSpace.getSampleIndex(x + 1, y + 1, z + 1),
-                sampleSpace.getSampleIndex(x, y + 1, z + 1),
-                sampleSpace.getSampleIndex(x, y, z),
-                sampleSpace.getSampleIndex(x + 1, y, z),
-                sampleSpace.getSampleIndex(x + 1, y, z + 1),
-                sampleSpace.getSampleIndex(x, y, z + 1),
-        };
+        final int[] index = new int[NUM_CUBE_VERTS];
+        for (var i = 0; i < NUM_CUBE_VERTS; ++i) {
+            index[i] = sampleSpace.getSampleIndex(x + VERTEX_OFFSETS[i][X],
+                                                  y + VERTEX_OFFSETS[i][Y],
+                                                  z + VERTEX_OFFSETS[i][Z]);
+        }
 
-        final float[] density = new float[index.length];
-        for (int i = 0; i < index.length; ++i) {
+        final float[] density = new float[NUM_CUBE_VERTS];
+        for (int i = 0; i < NUM_CUBE_VERTS; ++i) {
             density[i] = sampleSpace.getDensity(index[i]);
         }
         final var cubeIndex = MarchingCubesTables.calculateCubeIndex(surfaceLevel, density);
         final var edgeMask = MarchingCubesTables.EDGE_TABLE[cubeIndex];
         if (edgeMask == 0) {
-            return;
+            // Still need to check for free faces as this still may be either empty (all free) or
+            // filled (none free) cube, giving us two very distinct cases during the flood fill.
+            return MarchingCubesTables.FREE_CUBE_FACES[cubeIndex];
         }
 
-        final Vector3[] pos = new Vector3[index.length];
-        for (int i = 0; i < index.length; ++i) {
+        final Vector3[] pos = new Vector3[NUM_CUBE_VERTS];
+        for (int i = 0; i < NUM_CUBE_VERTS; ++i) {
             pos[i] = sampleSpace.getPos(index[i]);
         }
 
         // We have positions and densities for cube corners, calculate estimated surface gradient
         // vectors for them
-        final Vector3[] gradient = {
-                calculateGradientVector(sampleSpace, x, y + 1, z),
-                calculateGradientVector(sampleSpace, x + 1, y + 1, z),
-                calculateGradientVector(sampleSpace, x + 1, y + 1, z + 1),
-                calculateGradientVector(sampleSpace, x, y + 1, z + 1),
-                calculateGradientVector(sampleSpace, x, y, z),
-                calculateGradientVector(sampleSpace, x + 1, y, z),
-                calculateGradientVector(sampleSpace, x + 1, y, z + 1),
-                calculateGradientVector(sampleSpace, x, y, z + 1),
-        };
+        final Vector3[] gradient = new Vector3[NUM_CUBE_VERTS];
+        for (var i = 0; i < NUM_CUBE_VERTS; ++i) {
+            gradient[i] = calculateGradientVector(sampleSpace,
+                                                  x + VERTEX_OFFSETS[i][X],
+                                                  y + VERTEX_OFFSETS[i][Y],
+                                                  z + VERTEX_OFFSETS[i][Z]);
+        }
 
-        // Create edge vertices (vertex is not created if not needed)
-        // Cases:
+        // Create edge vertices (vertex is not created if not needed). Here, we are adding vertices
+        // to the MIDDLE POINTS of cube edges. That is, there are twelve different middle-points we
+        // could possibly need. The `edgeMask` is a 12bit bit-mask with each bit signifying a single
+        // edge vertex. By knowing the edge bit order and positions of the eight corners, it becomes
+        // trivial lookup to place vertices at correct middle-points.
+        //
+        // Furthermore, as we know that the isosurface cuts the edge, likely not at the middle-point,
+        // but at some point between the vertices of the edge, we can interpolate positions based on
+        // delta values between the densities at the corners and the surface level to get more
+        // accurate estimate of the surface.
+        //
+        // Edges ordered by index: (i  from -> to)
         //  Lower layer     Upper layer     Vertical
         //   0  0 -> 1       4  4 -> 5       8  0 -> 4
         //   1  1 -> 2       5  5 -> 6       9  1 -> 5
@@ -122,24 +149,23 @@ public final class MarchingCubes {
         // how they should be connected. Luckily, this is again one of the 256 pre-defined cases, so
         // just use a lookup table. As we are using triangles, there are three vertices per each
         // triangular polygon.
-        final var polygonCornerIndexLookup = MarchingCubesTables.TRIANGULATION_TABLE[cubeIndex];
+        final var vertexIndexLookup = MarchingCubesTables.TRIANGULATION_TABLE[cubeIndex];
         final var verticesPerPolygon = 3;
-        for (var i = 0; i < polygonCornerIndexLookup.length; i += verticesPerPolygon) {
+        for (var i = 0; i < vertexIndexLookup.length; i += verticesPerPolygon) {
             final var baseIndex = outVertices.size();
             for (var j = 0; j < verticesPerPolygon; ++j) {
-                final var vertexIndex = polygonCornerIndexLookup[i + j];
+                final var vertexIndex = vertexIndexLookup[i + j];
 
-                final var vertex = vertices[vertexIndex];
-                assert vertex != null : "Vertex cannot be null! Invalid triangulation list or vertices were populated incorrectly!";
+                assert vertices[vertexIndex] != null : "Vertex cannot be null! Invalid triangulation list or vertices were populated incorrectly!";
+                assert normals[vertexIndex] != null : "Normal cannot be null! Normals were populated incorrectly!";
 
-                final var normal = normals[vertexIndex];
-                assert normal != null : "Normal cannot be null! Normals were populated incorrectly!";
-
-                outVertices.add(vertex);
-                outNormals.add(normal);
+                outVertices.add(vertices[vertexIndex]);
+                outNormals.add(normals[vertexIndex]);
                 outIndices.add(baseIndex + j);
             }
         }
+
+        return MarchingCubesTables.FREE_CUBE_FACES[cubeIndex];
     }
 
     private static Vector3 calculateGradientVector(

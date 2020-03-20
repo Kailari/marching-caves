@@ -55,18 +55,30 @@ public final class Application implements AutoCloseable {
     public Application(final boolean validation) {
         final var caveLength = 40;
         final var spacing = 3f;
-        final var cave = new PathGenerator().generate(new Vector3(0.0f, 0.0f, 0.0f),
+        final var start = new Vector3(0.0f, 0.0f, 0.0f);
+        final var cave = new PathGenerator().generate(start,
                                                       caveLength,
                                                       spacing,
                                                       420);
         final var surfaceLevel = 1.9f;
-        final var resolution = 0.5f;
+        final var subdivisions = 2;
         final var margin = 5.0f;
+        final var resolution = (float) (1.0 / Math.pow(2.0, subdivisions));
         final var densityFunction = createDensityFunction(1.0f, 10f);
         final var sampleSpace = new CaveSampleSpace(cave,
                                                     margin,
                                                     resolution,
                                                     densityFunction);
+
+        System.out.printf("The sample space has size of (%.3f, %.3f, %.3f)\n",
+                          sampleSpace.getSizeX(),
+                          sampleSpace.getSizeY(),
+                          sampleSpace.getSizeZ());
+        System.out.printf("and potential of %d samples (%d x %d x %d).\n",
+                          sampleSpace.getSize(),
+                          sampleSpace.getCountX(),
+                          sampleSpace.getCountY(),
+                          sampleSpace.getCountZ());
 
         final var pointVertices = new ArrayList<Vertex>(sampleSpace.getSize());
         for (var sampleIndex = 0; sampleIndex < sampleSpace.getSize(); ++sampleIndex) {
@@ -98,14 +110,7 @@ public final class Application implements AutoCloseable {
         final var polygonVertices = new ArrayList<Vector3>();
         final var polygonIndices = new ArrayList<Integer>();
         final var polygonNormals = new ArrayList<Vector3>();
-        meshGenerator.generateMeshForRegion(polygonVertices,
-                                            polygonNormals,
-                                            polygonIndices,
-                                            surfaceLevel,
-                                            0, 0, 0,
-                                            sampleSpace.getCountX(),
-                                            sampleSpace.getCountY(),
-                                            sampleSpace.getCountZ());
+        meshGenerator.generate(polygonVertices, polygonNormals, polygonIndices, surfaceLevel);
 
         final var caveVertices = new Vertex[polygonVertices.size()];
         for (var i = 0; i < caveVertices.length; ++i) {

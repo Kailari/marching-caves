@@ -1,5 +1,7 @@
 package caves.generator.mesh;
 
+import java.util.ArrayList;
+
 /**
  * Lookup tables and utilities for selecting appropriate cube based on vertex solidity.
  * <p>
@@ -315,6 +317,19 @@ final class MarchingCubesTables {
             {}
     };
 
+    /**
+     * Lookup table for "free" cube faces. A face is free if any of its four vertices is non-solid.
+     * This is used for marching the cave with flood-fill style instead of having to march through
+     * the whole sample space at once.
+     */
+    public static final Facing[][] FREE_CUBE_FACES = new Facing[256][];
+
+    static {
+        for (var cubeIndex = 0; cubeIndex <= 0xFF; ++cubeIndex) {
+            FREE_CUBE_FACES[cubeIndex] = Facing.freeForCubeIndex(cubeIndex);
+        }
+    }
+
     private MarchingCubesTables() {
     }
 
@@ -347,5 +362,75 @@ final class MarchingCubesTables {
         }
 
         return cubeIndex;
+    }
+
+    public enum Facing {
+        X_POSITIVE(1, 0, 0, new int[]{1, 2, 6, 5}),
+        X_NEGATIVE(-1, 0, 0, new int[]{0, 3, 7, 4}),
+        Y_POSITIVE(0, 1, 0, new int[]{0, 1, 2, 3}),
+        Y_NEGATIVE(0, -1, 0, new int[]{4, 5, 6, 7}),
+        Z_POSITIVE(0, 0, 1, new int[]{2, 3, 7, 6}),
+        Z_NEGATIVE(0, 0, -1, new int[]{0, 1, 5, 4});
+
+        private final int x;
+        private final int y;
+        private final int z;
+        private final int[] bitIndices;
+
+        /**
+         * Gets the X offset of this facing.
+         *
+         * @return the x offset
+         */
+        public int getX() {
+            return this.x;
+        }
+
+        /**
+         * Gets the Y offset of this facing.
+         *
+         * @return the y offset
+         */
+        public int getY() {
+            return this.y;
+        }
+
+        /**
+         * Gets the Z offset of this facing.
+         *
+         * @return the z offset
+         */
+        public int getZ() {
+            return this.z;
+        }
+
+        Facing(final int x, final int y, final int z, final int[] bitIndices) {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.bitIndices = bitIndices;
+        }
+
+        /**
+         * Gets facings of a cube index. These are the non-filled faces of a cube.
+         *
+         * @param cubeIndex the cube index to get facings for
+         *
+         * @return free facings for a cube index
+         */
+        public static Facing[] freeForCubeIndex(final int cubeIndex) {
+            final var facings = new ArrayList<Facing>(8);
+            for (final var facing : values()) {
+                for (final var bitIndex : facing.bitIndices) {
+                    // If any of the vertices is free, we can add the face and break the inner loop
+                    if ((cubeIndex & (1 << bitIndex)) != 0) {
+                        facings.add(facing);
+                        break;
+                    }
+                }
+            }
+
+            return facings.toArray(Facing[]::new);
+        }
     }
 }
