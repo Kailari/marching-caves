@@ -9,3 +9,4 @@ Dokumentaatio
 
 ### Viikkoraportit
  - [viikko 1](./dokumentaatio/viikko_1.md)
+ - [viikko 2](./dokumentaatio/viikko_2.md)
