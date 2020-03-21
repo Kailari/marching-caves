@@ -45,11 +45,9 @@ public final class Application implements AutoCloseable {
     /** Fences for ensuring images that have been sent to GPU are presented before re-using them. */
     private final long[] inFlightFences;
     private final long[] imagesInFlight;
-
+    private final float lookAtDistance;
     /** Indicates that framebuffers have just resized and the swapchain should be re-created. */
     private boolean framebufferResized;
-
-    private final float lookAtDistance;
 
     /**
      * Configures a new visualization application. Call {@link #run()} to start the app.
@@ -60,20 +58,16 @@ public final class Application implements AutoCloseable {
         final var startTime = System.nanoTime();
         final var caveLength = 40;
         final var spacing = 3f;
-        final var start = new Vector3(0.0f, 0.0f, 0.0f);
-        final var cave = new PathGenerator().generate(start,
-                                                      caveLength,
-                                                      spacing,
-                                                      420);
         final var surfaceLevel = 1.9f;
-        final var subdivisions = 2;
+        final var subdivisions = 1;
         final var margin = 5.0f;
+        final var start = new Vector3(0.0f, 0.0f, 0.0f);
+
+        final var cave = new PathGenerator().generate(start, caveLength, spacing, 420);
+
         final var resolution = (float) (1.0 / Math.pow(2.0, subdivisions));
         final var densityFunction = createDensityFunction(1.0f, 10f);
-        final var sampleSpace = new CaveSampleSpace(cave,
-                                                    margin,
-                                                    resolution,
-                                                    densityFunction);
+        final var sampleSpace = new CaveSampleSpace(cave, margin, resolution, densityFunction);
 
         final var meshGenerator = new MeshGenerator(sampleSpace);
         final var caveVertices = new ArrayList<Vector3>();
@@ -95,12 +89,12 @@ public final class Application implements AutoCloseable {
 
         System.out.print("\t-> Creating additional point-cloud visualization...");
         final var startTimePoints = System.nanoTime();
-        final Vertex[] pointVertices = findPointMeshVertices(surfaceLevel,
-                                                             sampleSpace,
-                                                             startX,
-                                                             startY,
-                                                             startZ,
-                                                             middle);
+        final PointVertex[] pointVertices = findPointMeshVertices(surfaceLevel,
+                                                                  sampleSpace,
+                                                                  startX,
+                                                                  startY,
+                                                                  startZ,
+                                                                  middle);
         final var pointIndices = IntStream.range(0, pointVertices.length)
                                           .boxed()
                                           .toArray(Integer[]::new);
@@ -110,31 +104,30 @@ public final class Application implements AutoCloseable {
         System.out.print("\t-> Creating additional path-line visualization...");
         final var startTimeLines = System.nanoTime();
         final var lineVertices = Arrays.stream(cave.getNodesOrdered())
-                                       .map(pos -> new Vertex(new Vector3f(pos.getX() - middle.getX(),
-                                                                           pos.getY() - middle.getY(),
-                                                                           pos.getZ() - middle.getZ()),
-                                                              new Vector3f(1.0f, 1.0f, 0.0f)))
-                                       .toArray(Vertex[]::new);
+                                       .map(pos -> new LineVertex(new Vector3f(pos.getX() - middle.getX(),
+                                                                               pos.getY() - middle.getY(),
+                                                                               pos.getZ() - middle.getZ())))
+                                       .toArray(LineVertex[]::new);
         final var lineIndices = IntStream.range(0, lineVertices.length)
                                          .boxed()
                                          .toArray(Integer[]::new);
         final var timeElapsedLines = (System.nanoTime() - startTimeLines) / 1_000_000_000.0;
         System.out.printf(" Done! (%.3fs)\n", timeElapsedLines);
 
-        final var polygonVertices = new Vertex[caveVertices.size()];
+        final var polygonVertices = new PolygonVertex[caveVertices.size()];
         for (var i = 0; i < polygonVertices.length; ++i) {
             final var pos = caveVertices.get(i);
             final var normal = caveNormals.get(i);
-            polygonVertices[i] = new Vertex(new Vector3f(pos.getX() - middle.getX(),
-                                                         pos.getY() - middle.getY(),
-                                                         pos.getZ() - middle.getZ()),
-                                            new Vector3f(normal.getX(), normal.getY(), normal.getZ()));
+            polygonVertices[i] = new PolygonVertex(new Vector3f(pos.getX() - middle.getX(),
+                                                                pos.getY() - middle.getY(),
+                                                                pos.getZ() - middle.getZ()),
+                                                   new Vector3f(normal.getX(), normal.getY(), normal.getZ()));
         }
 
         System.out.printf("Everything done! (total %.3fs)\n\n", (System.nanoTime() - startTime) / 1_000_000_000.0);
 
         this.lookAtDistance = Math.max(sampleSpace.getMin().length(),
-                                            sampleSpace.getMax().length()) + margin;
+                                       sampleSpace.getMax().length()) + margin;
 
         System.out.println("Starting the visualization");
         this.appContext = new ApplicationContext(
@@ -159,7 +152,7 @@ public final class Application implements AutoCloseable {
         Arrays.fill(this.imagesInFlight, VK_NULL_HANDLE);
     }
 
-    private static Vertex[] findPointMeshVertices(
+    private static PointVertex[] findPointMeshVertices(
             final float surfaceLevel,
             final CaveSampleSpace sampleSpace,
             final int startX,
@@ -167,7 +160,7 @@ public final class Application implements AutoCloseable {
             final int startZ,
             final Vector3 middle
     ) {
-        final var pointVertices = new ArrayList<Vertex>();
+        final var pointVertices = new ArrayList<PointVertex>();
 
         final var pointQueue = new ArrayDeque<PointVertexEntry>();
         final var alreadyQueued = new boolean[sampleSpace.getTotalCount()];
@@ -175,12 +168,12 @@ public final class Application implements AutoCloseable {
 
         while (!pointQueue.isEmpty()) {
             final var entry = pointQueue.pop();
-            final var color = 1.0f;
             final var pos = sampleSpace.getPos(entry.x, entry.y, entry.z);
-            pointVertices.add(new Vertex(new Vector3f(pos.getX() - middle.getX(),
-                                                      pos.getY() - middle.getY(),
-                                                      pos.getZ() - middle.getZ()),
-                                         new Vector3f(color, color, color)));
+            final float density = sampleSpace.getDensity(entry.x, entry.y, entry.z);
+            pointVertices.add(new PointVertex(new Vector3f(pos.getX() - middle.getX(),
+                                                           pos.getY() - middle.getY(),
+                                                           pos.getZ() - middle.getZ()),
+                                              density));
 
             for (final var facing : MarchingCubesTables.Facing.values()) {
                 final var x = entry.x + facing.getX();
@@ -200,7 +193,7 @@ public final class Application implements AutoCloseable {
             }
         }
 
-        return pointVertices.toArray(Vertex[]::new);
+        return pointVertices.toArray(PointVertex[]::new);
     }
 
     private static long[] createFences(final int count, final DeviceContext deviceContext) {

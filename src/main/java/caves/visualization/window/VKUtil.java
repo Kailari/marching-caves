@@ -1,15 +1,13 @@
 package caves.visualization.window;
 
-import caves.visualization.util.shader.ShaderCompiler;
 import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkPipelineShaderStageCreateInfo;
 import org.lwjgl.vulkan.VkShaderModuleCreateInfo;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.LongBuffer;
 
-import static org.lwjgl.system.MemoryUtil.*;
+import static org.lwjgl.system.MemoryStack.stackPush;
+import static org.lwjgl.system.MemoryUtil.memUTF8;
 import static org.lwjgl.vulkan.EXTDebugReport.VK_ERROR_VALIDATION_FAILED_EXT;
 import static org.lwjgl.vulkan.KHRDisplaySwapchain.VK_ERROR_INCOMPATIBLE_DISPLAY_KHR;
 import static org.lwjgl.vulkan.KHRSurface.VK_ERROR_NATIVE_WINDOW_IN_USE_KHR;
@@ -19,52 +17,52 @@ import static org.lwjgl.vulkan.KHRSwapchain.VK_SUBOPTIMAL_KHR;
 import static org.lwjgl.vulkan.VK11.*;
 
 public final class VKUtil {
+    private static final ByteBuffer ENTRY_POINT_NAME = memUTF8("main");
+
     private VKUtil() {
     }
 
     /**
-     * Loads a shader module by reading its source from file and creates a stage from it.
+     * Loads a shader module by reading its source from file and creates a stage from it. Shader is
+     * loaded on the thread-local stack.
      *
-     * @param device    device to use for the shader
-     * @param classPath path to the IO resource containing the shader source
-     * @param stage     shader stage to load the shader as
+     * @param device     device to use for the shader
+     * @param shaderCode compiled shader code
+     * @param stage      shader stage to load the shader as
      *
      * @return shader stage create info for the given shader
-     *
-     * @throws IOException if an IO error occurs while loading the shader
      */
     public static VkPipelineShaderStageCreateInfo loadShader(
             final VkDevice device,
-            final String classPath,
+            final ByteBuffer shaderCode,
             final int stage
-    ) throws IOException {
-        return VkPipelineShaderStageCreateInfo.calloc()
+    ) {
+        return VkPipelineShaderStageCreateInfo.callocStack()
                                               .sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)
                                               .stage(stage)
-                                              .module(loadShader(classPath, device, stage))
-                                              .pName(memUTF8("main"));
+                                              .module(createShaderModule(shaderCode, device))
+                                              .pName(ENTRY_POINT_NAME);
     }
 
-    private static long loadShader(
-            final String classPath,
-            final VkDevice device,
-            final int stage
-    ) throws IOException {
-        final ByteBuffer shaderCode = ShaderCompiler.loadGLSLShader(classPath, stage);
-        final VkShaderModuleCreateInfo moduleCreateInfo = VkShaderModuleCreateInfo
-                .calloc()
-                .sType(VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO)
-                .pCode(shaderCode);
-        final LongBuffer pShaderModule = memAllocLong(1);
-        final var error = vkCreateShaderModule(device, moduleCreateInfo, null, pShaderModule);
-        final var shaderModule = pShaderModule.get(0);
-        memFree(pShaderModule);
-        if (error != VK_SUCCESS) {
-            throw new AssertionError("Failed to create shader module: "
-                                             + translateVulkanResult(error));
-        }
+    private static long createShaderModule(
+            final ByteBuffer shaderCode,
+            final VkDevice device
+    ) {
+        try (var stack = stackPush()) {
+            final VkShaderModuleCreateInfo moduleCreateInfo = VkShaderModuleCreateInfo
+                    .callocStack(stack)
+                    .sType(VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO)
+                    .pCode(shaderCode);
 
-        return shaderModule;
+            final var pShaderModule = stack.mallocLong(1);
+            final var result = vkCreateShaderModule(device, moduleCreateInfo, null, pShaderModule);
+            if (result != VK_SUCCESS) {
+                throw new AssertionError("Failed to create shader module: "
+                                                 + translateVulkanResult(result));
+            }
+
+            return pShaderModule.get(0);
+        }
     }
 
     /**

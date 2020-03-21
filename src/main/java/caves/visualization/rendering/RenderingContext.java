@@ -1,5 +1,8 @@
 package caves.visualization.rendering;
 
+import caves.visualization.LineVertex;
+import caves.visualization.PointVertex;
+import caves.visualization.PolygonVertex;
 import caves.visualization.rendering.command.CommandPool;
 import caves.visualization.rendering.mesh.Mesh;
 import caves.visualization.rendering.renderpass.RenderPass;
@@ -21,9 +24,9 @@ public final class RenderingContext implements AutoCloseable {
 
     private final SwapChain swapChain;
     private final RenderPass renderPass;
-    private final GraphicsPipeline pointPipeline;
-    private final GraphicsPipeline linePipeline;
-    private final GraphicsPipeline polygonPipeline;
+    private final GraphicsPipeline<PointVertex> pointPipeline;
+    private final GraphicsPipeline<LineVertex> linePipeline;
+    private final GraphicsPipeline<PolygonVertex> polygonPipeline;
     private final CommandPool commandPool;
 
     private final RenderCommandBuffers renderCommandBuffers;
@@ -62,9 +65,9 @@ public final class RenderingContext implements AutoCloseable {
      * @param windowHandle  handle to the window
      */
     public RenderingContext(
-            final Mesh pointMesh,
-            final Mesh lineMesh,
-            final Mesh polygonMesh,
+            final Mesh<PointVertex> pointMesh,
+            final Mesh<LineVertex> lineMesh,
+            final Mesh<PolygonVertex> polygonMesh,
             final DeviceContext deviceContext,
             final long surface,
             final long windowHandle
@@ -81,21 +84,32 @@ public final class RenderingContext implements AutoCloseable {
 
         this.renderPass = new RenderPass(this.deviceContext, this.swapChain);
 
-        this.pointPipeline = new GraphicsPipeline(deviceContext.getDeviceHandle(),
-                                                  this.swapChain,
-                                                  this.renderPass,
-                                                  this.uniformBufferObject,
-                                                  VK_PRIMITIVE_TOPOLOGY_POINT_LIST);
-        this.linePipeline = new GraphicsPipeline(deviceContext.getDeviceHandle(),
-                                                 this.swapChain,
-                                                 this.renderPass,
-                                                 this.uniformBufferObject,
-                                                 VK_PRIMITIVE_TOPOLOGY_LINE_STRIP);
-        this.polygonPipeline = new GraphicsPipeline(deviceContext.getDeviceHandle(),
+        this.pointPipeline = new GraphicsPipeline<>(deviceContext.getDeviceHandle(),
                                                     this.swapChain,
                                                     this.renderPass,
                                                     this.uniformBufferObject,
-                                                    VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+                                                    "points",
+                                                    "shader",
+                                                    PointVertex.FORMAT,
+                                                    VK_PRIMITIVE_TOPOLOGY_POINT_LIST);
+
+        this.linePipeline = new GraphicsPipeline<>(deviceContext.getDeviceHandle(),
+                                                   this.swapChain,
+                                                   this.renderPass,
+                                                   this.uniformBufferObject,
+                                                   "lines",
+                                                   "shader",
+                                                   LineVertex.FORMAT,
+                                                   VK_PRIMITIVE_TOPOLOGY_LINE_STRIP);
+
+        this.polygonPipeline = new GraphicsPipeline<>(deviceContext.getDeviceHandle(),
+                                                      this.swapChain,
+                                                      this.renderPass,
+                                                      this.uniformBufferObject,
+                                                      "polygons",
+                                                      "shader",
+                                                      PolygonVertex.FORMAT,
+                                                      VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 
         this.renderCommandBuffers = new RenderCommandBuffers(deviceContext,
                                                              this.commandPool,

@@ -1,8 +1,10 @@
 package caves.visualization.window;
 
-import caves.visualization.Vertex;
-import caves.visualization.rendering.command.CommandPool;
+import caves.visualization.LineVertex;
+import caves.visualization.PointVertex;
+import caves.visualization.PolygonVertex;
 import caves.visualization.rendering.RenderingContext;
+import caves.visualization.rendering.command.CommandPool;
 import caves.visualization.rendering.mesh.Mesh;
 import org.lwjgl.PointerBuffer;
 
@@ -23,9 +25,9 @@ public final class ApplicationContext implements AutoCloseable {
 
     private final GLFWVulkanWindow window;
 
-    private final Mesh pointMesh;
-    private final Mesh lineMesh;
-    private final Mesh polygonMesh;
+    private final Mesh<PointVertex> pointMesh;
+    private final Mesh<LineVertex> lineMesh;
+    private final Mesh<PolygonVertex> polygonMesh;
 
     /**
      * Gets the application window.
@@ -72,18 +74,18 @@ public final class ApplicationContext implements AutoCloseable {
      * @param pointIndices     indices to the point vertex array for rendering
      * @param lineVertices     vertices that should be rendered as lines
      * @param lineIndices      indices to the line vertex array for rendering
-     * @param polygonVertices     vertices that should be rendered as polygons
-     * @param polygonIndices      indices to the polygon vertex array for rendering
+     * @param polygonVertices  vertices that should be rendered as polygons
+     * @param polygonIndices   indices to the polygon vertex array for rendering
      */
     public ApplicationContext(
             final int width,
             final int height,
             final boolean enableValidation,
-            final Vertex[] pointVertices,
+            final PointVertex[] pointVertices,
             final Integer[] pointIndices,
-            final Vertex[] lineVertices,
+            final LineVertex[] lineVertices,
             final Integer[] lineIndices,
-            final Vertex[] polygonVertices,
+            final PolygonVertex[] polygonVertices,
             final Integer[] polygonIndices
     ) {
         if (!glfwInit()) {
@@ -105,9 +107,21 @@ public final class ApplicationContext implements AutoCloseable {
             try (var commandPool = new CommandPool(this.deviceContext,
                                                    this.deviceContext.getQueueFamilies().getTransfer())
             ) {
-                this.pointMesh = new Mesh(this.deviceContext, commandPool, pointVertices, pointIndices);
-                this.lineMesh = new Mesh(this.deviceContext, commandPool, lineVertices, lineIndices);
-                this.polygonMesh = new Mesh(this.deviceContext, commandPool, polygonVertices, polygonIndices);
+                this.pointMesh = new Mesh<>(this.deviceContext,
+                                            commandPool,
+                                            PointVertex.FORMAT,
+                                            pointVertices,
+                                            pointIndices);
+                this.lineMesh = new Mesh<>(this.deviceContext,
+                                           commandPool,
+                                           LineVertex.FORMAT,
+                                           lineVertices,
+                                           lineIndices);
+                this.polygonMesh = new Mesh<>(this.deviceContext,
+                                              commandPool,
+                                              PolygonVertex.FORMAT,
+                                              polygonVertices,
+                                              polygonIndices);
 
                 this.renderContext = new RenderingContext(this.pointMesh,
                                                           this.lineMesh,

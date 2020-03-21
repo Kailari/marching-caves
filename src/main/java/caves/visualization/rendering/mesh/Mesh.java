@@ -1,8 +1,9 @@
 package caves.visualization.rendering.mesh;
 
-import caves.visualization.Vertex;
-import caves.visualization.rendering.command.CommandPool;
+import caves.visualization.PolygonVertex;
 import caves.visualization.rendering.SequentialGPUBuffer;
+import caves.visualization.rendering.VertexFormat;
+import caves.visualization.rendering.command.CommandPool;
 import caves.visualization.window.DeviceContext;
 import org.lwjgl.vulkan.VkCommandBuffer;
 
@@ -12,8 +13,8 @@ import java.util.Arrays;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.vulkan.VK10.*;
 
-public final class Mesh implements AutoCloseable {
-    private final SequentialGPUBuffer<Vertex> vertexBuffer;
+public final class Mesh<TVertex> implements AutoCloseable {
+    private final SequentialGPUBuffer<TVertex> vertexBuffer;
     private final SequentialGPUBuffer<Integer> indexBuffer;
 
     /**
@@ -24,19 +25,21 @@ public final class Mesh implements AutoCloseable {
      *
      * @param deviceContext device the mesh will be allocated on
      * @param commandPool   command pool to use for allocating temporary transfer command buffers
+     * @param vertexFormat  vertex format
      * @param vertices      mesh vertices
      * @param indices       mesh element indices
      */
     public Mesh(
             final DeviceContext deviceContext,
             final CommandPool commandPool,
-            final Vertex[] vertices,
+            final VertexFormat<TVertex> vertexFormat,
+            final TVertex[] vertices,
             final Integer[] indices
     ) {
         this.vertexBuffer = new SequentialGPUBuffer<>(
                 deviceContext,
                 vertices.length,
-                Vertex.SIZE_IN_BYTES,
+                vertexFormat.getSizeInBytes(),
                 VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                 null);
@@ -48,23 +51,24 @@ public final class Mesh implements AutoCloseable {
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                 null);
 
-        updateVertexBuffer(this.vertexBuffer, deviceContext, commandPool, vertices);
+        updateVertexBuffer(this.vertexBuffer, vertexFormat, deviceContext, commandPool, vertices);
         updateIndexBuffer(this.indexBuffer, deviceContext, commandPool, indices);
     }
 
-    private static void updateVertexBuffer(
-            final SequentialGPUBuffer<Vertex> vertexBuffer,
+    private static <TVertex> void updateVertexBuffer(
+            final SequentialGPUBuffer<TVertex> vertexBuffer,
+            final VertexFormat<TVertex> vertexFormat,
             final DeviceContext deviceContext,
             final CommandPool commandPool,
-            final Vertex[] vertices
+            final TVertex[] vertices
     ) {
         final var stagingBuffer = new SequentialGPUBuffer<>(
                 deviceContext,
                 vertices.length,
-                Vertex.SIZE_IN_BYTES,
+                vertexFormat.getSizeInBytes(),
                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                Vertex::write);
+                vertexFormat::write);
 
         stagingBuffer.pushElements(Arrays.asList(vertices));
         stagingBuffer.copyToAndWait(commandPool.getHandle(),

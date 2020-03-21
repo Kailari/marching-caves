@@ -1,23 +1,29 @@
 package caves.visualization.rendering.swapchain;
 
-import caves.visualization.Vertex;
+import caves.visualization.rendering.VertexFormat;
 import caves.visualization.rendering.command.CommandBuffer;
 import caves.visualization.rendering.renderpass.RenderPass;
 import caves.visualization.rendering.uniform.UniformBufferObject;
+import caves.visualization.util.shader.ShaderCompiler;
 import caves.visualization.window.VKUtil;
 import org.lwjgl.vulkan.*;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 import static caves.visualization.window.VKUtil.translateVulkanResult;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.vulkan.VK10.*;
 
-public final class GraphicsPipeline implements RecreatedWithSwapChain {
+public final class GraphicsPipeline<TVertex> implements RecreatedWithSwapChain {
     private final VkDevice device;
     private final SwapChain swapChain;
     private final UniformBufferObject uniformBufferObject;
     private final RenderPass renderPass;
+
+    private final VertexFormat<TVertex> vertexFormat;
+    private final ByteBuffer compiledVertexShader;
+    private final ByteBuffer compiledFragmentShader;
 
     private final int topology;
 
@@ -43,6 +49,9 @@ public final class GraphicsPipeline implements RecreatedWithSwapChain {
      * @param swapChain           the swapchain used for rendering
      * @param renderPass          the render pass this pipeline belongs to
      * @param uniformBufferObject the uniform buffer object to use for uniforms
+     * @param vertexShader        name of the vertex shader to use
+     * @param fragmentShader      name of the fragment shader to use
+     * @param vertexFormat        vertex format
      * @param topology            the input assembly topology to use
      */
     public GraphicsPipeline(
@@ -50,13 +59,27 @@ public final class GraphicsPipeline implements RecreatedWithSwapChain {
             final SwapChain swapChain,
             final RenderPass renderPass,
             final UniformBufferObject uniformBufferObject,
+            final String vertexShader,
+            final String fragmentShader,
+            final VertexFormat<TVertex> vertexFormat,
             final int topology
     ) {
         this.device = device;
         this.swapChain = swapChain;
         this.renderPass = renderPass;
         this.uniformBufferObject = uniformBufferObject;
+        this.vertexFormat = vertexFormat;
         this.topology = topology;
+
+        try {
+            this.compiledVertexShader = ShaderCompiler.loadGLSLShader("shaders/" + vertexShader + ".vert",
+                                                                      VK_SHADER_STAGE_VERTEX_BIT);
+            this.compiledFragmentShader = ShaderCompiler.loadGLSLShader("shaders/" + fragmentShader + ".frag",
+                                                                        VK_SHADER_STAGE_FRAGMENT_BIT);
+        } catch (final IOException e) {
+            throw new IllegalStateException("Loading/compiling shaders for a graphics pipeline failed: "
+                                                    + e.getMessage());
+        }
 
         this.cleanedUp = true;
 
@@ -166,19 +189,28 @@ public final class GraphicsPipeline implements RecreatedWithSwapChain {
                 .primitiveRestartEnable(false);
     }
 
-    private static VkPipelineVertexInputStateCreateInfo createVertexInputInfo() {
-        final var pVertexBindingDescriptions = VkVertexInputBindingDescription.callocStack(1);
-        pVertexBindingDescriptions.put(0, Vertex.BINDING_DESCRIPTION);
+    private static <TVertex> VkPipelineVertexInputStateCreateInfo createVertexInputInfo(
+            final VertexFormat<TVertex> format
+    ) {
+        final var bindings = format.getBindingDescriptions();
+        final var pBindings = VkVertexInputBindingDescription.callocStack(bindings.length);
+        for (final var binding : bindings) {
+            pBindings.put(binding);
+        }
+        pBindings.flip();
 
-        final var pVertexAttributeDescriptions = VkVertexInputAttributeDescription.callocStack(2);
-        pVertexAttributeDescriptions.put(0, Vertex.ATTRIBUTE_DESCRIPTIONS[0]);
-        pVertexAttributeDescriptions.put(1, Vertex.ATTRIBUTE_DESCRIPTIONS[1]);
+        final var attributes = format.getAttributeDescriptions();
+        final var pAttributes = VkVertexInputAttributeDescription.callocStack(attributes.length);
+        for (final var attribute : attributes) {
+            pAttributes.put(attribute);
+        }
+        pAttributes.flip();
 
         return VkPipelineVertexInputStateCreateInfo
                 .callocStack()
                 .sType(VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO)
-                .pVertexAttributeDescriptions(pVertexAttributeDescriptions)
-                .pVertexBindingDescriptions(pVertexBindingDescriptions);
+                .pVertexAttributeDescriptions(pAttributes)
+                .pVertexBindingDescriptions(pBindings);
     }
 
     private static VkPipelineDepthStencilStateCreateInfo createDepthStencilState() {
@@ -240,10 +272,10 @@ public final class GraphicsPipeline implements RecreatedWithSwapChain {
 
         try (var stack = stackPush()) {
             final var vertexShaderStage = VKUtil.loadShader(this.device,
-                                                            "shaders/shader.vert",
+                                                            this.compiledVertexShader,
                                                             VK_SHADER_STAGE_VERTEX_BIT);
             final var fragmentShaderStage = VKUtil.loadShader(this.device,
-                                                              "shaders/shader.frag",
+                                                              this.compiledFragmentShader,
                                                               VK_SHADER_STAGE_FRAGMENT_BIT);
 
             final var shaderStages = VkPipelineShaderStageCreateInfo.mallocStack(2)
@@ -251,7 +283,7 @@ public final class GraphicsPipeline implements RecreatedWithSwapChain {
                                                                     .put(fragmentShaderStage)
                                                                     .flip();
 
-            final var vertexInputInfo = createVertexInputInfo();
+            final var vertexInputInfo = createVertexInputInfo(this.vertexFormat);
             final var inputAssembly = createInputAssembly(this.topology);
             final var viewportState = createViewportState(this.swapChain);
             final var rasterizer = createRasterizationState();
@@ -291,8 +323,6 @@ public final class GraphicsPipeline implements RecreatedWithSwapChain {
 
             vkDestroyShaderModule(this.device, vertexShaderStage.module(), null);
             vkDestroyShaderModule(this.device, fragmentShaderStage.module(), null);
-        } catch (final IOException e) {
-            throw new IllegalStateException("Loading shader failed: " + e.getMessage());
         }
 
         this.cleanedUp = false;

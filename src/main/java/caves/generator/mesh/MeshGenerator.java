@@ -64,7 +64,7 @@ public class MeshGenerator {
             return;
         }
 
-        System.err.printf("\t-> Starting flood fill at (%d, %d, %d)\n",
+        System.out.printf("\t-> Starting flood fill at (%d, %d, %d)\n",
                           startX,
                           startY,
                           startZ);
