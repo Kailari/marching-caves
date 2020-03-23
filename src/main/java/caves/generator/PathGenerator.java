@@ -28,12 +28,17 @@ public final class PathGenerator {
 
         var previous = new Vector3(start);
         final var sum = new Vector3(0, 0, 0);
+        final var direction = new Vector3(0, 0, -1);
         path.addNode(previous);
         for (var i = 1; i < length; i++) {
-            final var x = (random.nextFloat() * 2.0f - 1.0f) * nodeSpacing;
-            final var y = (random.nextFloat() * 2.0f - 1.0f) * nodeSpacing;
-            final var z = (random.nextFloat() * 2.0f - 1.0f) * nodeSpacing;
-            final var next = previous.add(x, y, z, new Vector3());
+            final var x = Math.fma(random.nextFloat(), 2.0f, -1.0f) * nodeSpacing;
+            final var y = Math.fma(random.nextFloat(), 2.0f, -1.0f) * nodeSpacing;
+            final var z = Math.fma(random.nextFloat(), 2.0f, -1.0f) * nodeSpacing;
+            direction.add(x, y, z, direction);
+            direction.normalize();
+            direction.mul(nodeSpacing, direction);
+
+            final var next = previous.add(direction, new Vector3());
             path.addNode(next);
             sum.add(next, sum);
 

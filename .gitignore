@@ -4,3 +4,4 @@ target/
 out/
 
 hs_err_pid*.log
+.notes
