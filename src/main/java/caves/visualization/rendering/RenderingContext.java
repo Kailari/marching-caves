@@ -107,7 +107,7 @@ public final class RenderingContext implements AutoCloseable {
                                                       this.renderPass,
                                                       this.uniformBufferObject,
                                                       "polygons",
-                                                      "shader",
+                                                      "polygons",
                                                       PolygonVertex.FORMAT,
                                                       VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 

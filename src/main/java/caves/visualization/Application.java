@@ -118,10 +118,12 @@ public final class Application implements AutoCloseable {
         for (var i = 0; i < polygonVertices.length; ++i) {
             final var pos = caveVertices.get(i);
             final var normal = caveNormals.get(i);
+            final var color = new Vector3f(0.7f, 0.3f, 0.1f);
             polygonVertices[i] = new PolygonVertex(new Vector3f(pos.getX() - middle.getX(),
                                                                 pos.getY() - middle.getY(),
                                                                 pos.getZ() - middle.getZ()),
-                                                   new Vector3f(normal.getX(), normal.getY(), normal.getZ()));
+                                                   new Vector3f(normal.getX(), normal.getY(), normal.getZ()),
+                                                   color);
         }
 
         System.out.printf("Everything done! (total %.3fs)\n\n", (System.nanoTime() - startTime) / 1_000_000_000.0);
