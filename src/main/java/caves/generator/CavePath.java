@@ -21,6 +21,18 @@ public final class CavePath {
     }
 
     /**
+     * Gets the average position of all path nodes.
+     *
+     * @return the average position
+     */
+    public Vector3 getAveragePosition() {
+        return this.nodes.stream()
+                         .reduce((a, b) -> a.add(b, new Vector3()))
+                         .map(sum -> sum.mul(1.0f / this.nodes.size(), sum))
+                         .orElseThrow();
+    }
+
+    /**
      * Constructs a new empty path.
      */
     public CavePath() {

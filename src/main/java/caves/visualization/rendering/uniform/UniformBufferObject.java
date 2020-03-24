@@ -146,7 +146,7 @@ public final class UniformBufferObject implements RecreatedWithSwapChain {
 
         final var fovY = (float) Math.toRadians(45.0f);
         final float zNear = 0.1f;
-        final float zFar = 1000.0f;
+        final float zFar = 10000.0f;
         this.tmpProjection.setPerspective(fovY, aspectRatio, zNear, zFar, true)
                           .scale(1, -1, 1);
 

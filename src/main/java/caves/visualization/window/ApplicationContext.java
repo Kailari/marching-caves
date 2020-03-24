@@ -4,7 +4,6 @@ import caves.visualization.LineVertex;
 import caves.visualization.PointVertex;
 import caves.visualization.PolygonVertex;
 import caves.visualization.rendering.RenderingContext;
-import caves.visualization.rendering.command.CommandPool;
 import caves.visualization.rendering.mesh.Mesh;
 import org.lwjgl.PointerBuffer;
 
@@ -24,10 +23,6 @@ public final class ApplicationContext implements AutoCloseable {
     private final RenderingContext renderContext;
 
     private final GLFWVulkanWindow window;
-
-    private final Mesh<PointVertex> pointMesh;
-    private final Mesh<LineVertex> lineMesh;
-    private final Mesh<PolygonVertex> polygonMesh;
 
     /**
      * Gets the application window.
@@ -70,23 +65,11 @@ public final class ApplicationContext implements AutoCloseable {
      * @param width            initial width of the window
      * @param height           initial height of the window
      * @param enableValidation should the validation/debug features be enabled
-     * @param pointVertices    vertices that should be rendered as points
-     * @param pointIndices     indices to the point vertex array for rendering
-     * @param lineVertices     vertices that should be rendered as lines
-     * @param lineIndices      indices to the line vertex array for rendering
-     * @param polygonVertices  vertices that should be rendered as polygons
-     * @param polygonIndices   indices to the polygon vertex array for rendering
      */
     public ApplicationContext(
             final int width,
             final int height,
-            final boolean enableValidation,
-            final PointVertex[] pointVertices,
-            final Integer[] pointIndices,
-            final LineVertex[] lineVertices,
-            final Integer[] lineIndices,
-            final PolygonVertex[] polygonVertices,
-            final Integer[] polygonIndices
+            final boolean enableValidation
     ) {
         if (!glfwInit()) {
             throw new IllegalStateException("Initializing GLFW failed.");
@@ -104,42 +87,17 @@ public final class ApplicationContext implements AutoCloseable {
             this.deviceContext = new DeviceContext(this.instance,
                                                    this.window.getSurfaceHandle(),
                                                    stack.pointers(stack.UTF8(VK_KHR_SWAPCHAIN_EXTENSION_NAME)));
-            try (var commandPool = new CommandPool(this.deviceContext,
-                                                   this.deviceContext.getQueueFamilies().getTransfer())
-            ) {
-                this.pointMesh = new Mesh<>(this.deviceContext,
-                                            commandPool,
-                                            PointVertex.FORMAT,
-                                            pointVertices,
-                                            pointIndices);
-                this.lineMesh = new Mesh<>(this.deviceContext,
-                                           commandPool,
-                                           LineVertex.FORMAT,
-                                           lineVertices,
-                                           lineIndices);
-                this.polygonMesh = new Mesh<>(this.deviceContext,
-                                              commandPool,
-                                              PolygonVertex.FORMAT,
-                                              polygonVertices,
-                                              polygonIndices);
-
-                this.renderContext = new RenderingContext(this.pointMesh,
-                                                          this.lineMesh,
-                                                          this.polygonMesh,
-                                                          this.deviceContext,
-                                                          this.window.getSurfaceHandle(),
-                                                          this.window.getHandle());
-            }
+            this.renderContext = new RenderingContext(null,
+                                                      null,
+                                                      null,
+                                                      this.deviceContext,
+                                                      this.window.getSurfaceHandle(),
+                                                      this.window.getHandle());
         }
     }
 
     @Override
     public void close() {
-        // Release content resources
-        this.pointMesh.close();
-        this.lineMesh.close();
-        this.polygonMesh.close();
-
         // Release rendering resources
         this.renderContext.close();
         this.deviceContext.close();
@@ -150,5 +108,20 @@ public final class ApplicationContext implements AutoCloseable {
 
         // Release window resources
         this.window.close();
+    }
+
+    /**
+     * Updates the rendered meshes.
+     *
+     * @param caveMesh  polygon mesh
+     * @param lineMesh  line mesh
+     * @param pointMesh point mesh
+     */
+    public void setMeshes(
+            final Mesh<PolygonVertex> caveMesh,
+            final Mesh<LineVertex> lineMesh,
+            final Mesh<PointVertex> pointMesh
+    ) {
+        this.renderContext.setMeshes(caveMesh, lineMesh, pointMesh);
     }
 }

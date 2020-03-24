@@ -13,6 +13,8 @@ import caves.visualization.rendering.uniform.UniformBufferObject;
 import caves.visualization.window.DeviceContext;
 import org.lwjgl.vulkan.VkCommandBuffer;
 
+import javax.annotation.Nullable;
+
 import static org.lwjgl.glfw.GLFW.glfwGetFramebufferSize;
 import static org.lwjgl.glfw.GLFW.glfwWaitEvents;
 import static org.lwjgl.system.MemoryStack.stackPush;
@@ -65,9 +67,9 @@ public final class RenderingContext implements AutoCloseable {
      * @param windowHandle  handle to the window
      */
     public RenderingContext(
-            final Mesh<PointVertex> pointMesh,
-            final Mesh<LineVertex> lineMesh,
-            final Mesh<PolygonVertex> polygonMesh,
+            @Nullable final Mesh<PointVertex> pointMesh,
+            @Nullable final Mesh<LineVertex> lineMesh,
+            @Nullable final Mesh<PolygonVertex> polygonMesh,
             final DeviceContext deviceContext,
             final long surface,
             final long windowHandle
@@ -228,5 +230,22 @@ public final class RenderingContext implements AutoCloseable {
             final float lookAtDistance
     ) {
         this.uniformBufferObject.update(imageIndex, angle, lookAtDistance);
+    }
+
+    /**
+     * Updates the rendered meshes.
+     *
+     * @param caveMesh  polygon mesh
+     * @param lineMesh  line mesh
+     * @param pointMesh point mesh
+     */
+    public void setMeshes(
+            final Mesh<PolygonVertex> caveMesh,
+            final Mesh<LineVertex> lineMesh,
+            final Mesh<PointVertex> pointMesh
+    ) {
+        this.renderCommandBuffers.cleanup();
+        this.renderCommandBuffers.setMeshes(caveMesh, lineMesh, pointMesh);
+        this.renderCommandBuffers.recreate();
     }
 }
