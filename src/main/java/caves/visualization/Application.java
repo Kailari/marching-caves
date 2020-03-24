@@ -57,25 +57,25 @@ public final class Application implements AutoCloseable {
     public Application(final boolean validation) {
         final var startTime = System.nanoTime();
         final var caveLength = 40;
-        final var spacing = 3f;
-        final var surfaceLevel = 1.9f;
-        final var subdivisions = 1;
-        final var margin = 5.0f;
+        final var spacing = 10f;
+        final var surfaceLevel = 0.5f;
+        final var samplesPerUnit = 1.0f / 4;
+        final var pathInfluenceRadius = 20.0;
         final var start = new Vector3(0.0f, 0.0f, 0.0f);
 
         final var cave = new PathGenerator().generate(start, caveLength, spacing, 420);
 
-        final var resolution = (float) (1.0 / Math.pow(2.0, subdivisions));
-        final var densityFunction = createDensityFunction(1.0f, 10f);
-        final var sampleSpace = new CaveSampleSpace(cave, margin, resolution, densityFunction);
+        final var margin = (float) pathInfluenceRadius + 1;
+        final var densityFunction = createDensityFunction(1.0, pathInfluenceRadius);
+        final var sampleSpace = new CaveSampleSpace(cave, margin, samplesPerUnit, densityFunction);
 
         final var meshGenerator = new MeshGenerator(sampleSpace);
         final var caveVertices = new ArrayList<Vector3>();
         final var caveIndices = new ArrayList<Integer>();
         final var caveNormals = new ArrayList<Vector3>();
-        final var startX = (int) Math.floor(Math.abs(start.getX() - sampleSpace.getMin().getX()) / resolution);
-        final var startY = (int) Math.floor(Math.abs(start.getY() - sampleSpace.getMin().getY()) / resolution);
-        final var startZ = (int) Math.floor(Math.abs(start.getZ() - sampleSpace.getMin().getZ()) / resolution);
+        final var startX = (int) Math.floor(Math.abs(start.getX() - sampleSpace.getMin().getX()) * samplesPerUnit);
+        final var startY = (int) Math.floor(Math.abs(start.getY() - sampleSpace.getMin().getY()) * samplesPerUnit);
+        final var startZ = (int) Math.floor(Math.abs(start.getZ() - sampleSpace.getMin().getZ()) * samplesPerUnit);
         meshGenerator.generate(caveVertices, caveNormals, caveIndices, surfaceLevel, startX, startY, startZ);
 
         final var timeElapsed = (System.nanoTime() - startTime) / 1_000_000_000.0;
@@ -248,11 +248,24 @@ public final class Application implements AutoCloseable {
         return pSemaphore.get(0);
     }
 
+    private static double densityCurve(final double t) {
+        // Linear interpolation
+        final var a = 0.0;
+        final var b = 1.0;
+        return (1 - t) * a + t * b;
+    }
+
     private BiFunction<CavePath, Vector3, Float> createDensityFunction(
-            final float densityModifier,
-            final float maxDensity
+            final double maxDensity,
+            final double pathInfluenceRadius
     ) {
-        return (path, pos) -> Math.min(maxDensity, path.distanceTo(pos) / densityModifier);
+        return (path, pos) -> {
+            final var closestPoint = path.closestPoint(pos);
+
+            final var distance = Math.sqrt(closestPoint.distanceSq(pos));
+            final var clampedDistanceAlpha = Math.min(1.0, distance / pathInfluenceRadius);
+            return (float) Math.min(maxDensity, densityCurve(clampedDistanceAlpha) * maxDensity);
+        };
     }
 
     /**

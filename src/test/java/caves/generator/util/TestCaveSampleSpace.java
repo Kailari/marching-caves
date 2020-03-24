@@ -19,14 +19,6 @@ public class TestCaveSampleSpace {
     }
 
     @Test
-    void sampleSpaceHasExpectedBounds() {
-        final var space = new CaveSampleSpace(cave, 1.0f, 0.25f, (p, v) -> 1.0f);
-        assertAll(() -> assertEquals(10.0f + 2.0f, space.getSizeX()),
-                  () -> assertEquals(7.276f + 2.0f, space.getSizeY()),
-                  () -> assertEquals(3.64f + 2.0f, space.getSizeZ()));
-    }
-
-    @Test
     void sampleSpaceHasExpectedCounts() {
         final var space = new CaveSampleSpace(cave, 1.0f, 0.25f, (p, v) -> 1.0f);
         assertAll(() -> assertEquals(Math.floor((10.0f + 2.0f) / 0.25f), space.getCountX(), 0.5),
