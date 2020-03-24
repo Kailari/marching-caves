@@ -55,18 +55,19 @@ public final class Application implements AutoCloseable {
      * @param validation should validation/debug features be enabled.
      */
     public Application(final boolean validation) {
-        final var startTime = System.nanoTime();
         final var caveLength = 40;
         final var spacing = 10f;
         final var surfaceLevel = 0.5f;
-        final var samplesPerUnit = 1.0f / 4;
+        final var samplesPerUnit = 1.0f / 2;
         final var pathInfluenceRadius = 20.0;
-        final var start = new Vector3(0.0f, 0.0f, 0.0f);
+        final var floorFlatness = 1.0;
 
+        final var start = new Vector3(0.0f, 0.0f, 0.0f);
+        final var startTime = System.nanoTime();
         final var cave = new PathGenerator().generate(start, caveLength, spacing, 420);
 
         final var margin = (float) pathInfluenceRadius + 1;
-        final var densityFunction = createDensityFunction(1.0, pathInfluenceRadius);
+        final var densityFunction = createDensityFunction(pathInfluenceRadius, floorFlatness);
         final var sampleSpace = new CaveSampleSpace(cave, margin, samplesPerUnit, densityFunction);
 
         final var meshGenerator = new MeshGenerator(sampleSpace);
@@ -249,22 +250,47 @@ public final class Application implements AutoCloseable {
     }
 
     private static double densityCurve(final double t) {
-        // Linear interpolation
         final var a = 0.0;
         final var b = 1.0;
+        return lerp(a, b, t);
+    }
+
+    private static double lerp(final double a, final double b, final double t) {
         return (1 - t) * a + t * b;
     }
 
     private BiFunction<CavePath, Vector3, Float> createDensityFunction(
-            final double maxDensity,
-            final double pathInfluenceRadius
+            final double pathInfluenceRadius,
+            final double floorFlatness
     ) {
+
         return (path, pos) -> {
             final var closestPoint = path.closestPoint(pos);
 
             final var distance = Math.sqrt(closestPoint.distanceSq(pos));
             final var clampedDistanceAlpha = Math.min(1.0, distance / pathInfluenceRadius);
-            return (float) Math.min(maxDensity, densityCurve(clampedDistanceAlpha) * maxDensity);
+            final var baseDensity = Math.min(1.0, densityCurve(clampedDistanceAlpha));
+
+            final var up = new Vector3(0.0f, 1.0f, 0.0f);
+            final var direction = closestPoint.sub(pos, new Vector3())
+                                              .normalize();
+
+            // Dot product can kind of be thought as to signify "how perpendicular two vectors are?"
+            // or "what is the size of the portion of these two vectors that overlaps?". Here, we
+            // are working with up axis and a direction, thus taking their dot product in this
+            // context practically means "how upwards the direction vector points".
+            //
+            // Both are unit vectors so resulting scalar has maximum absolute value of 1.0.
+            //
+            // Furthermore, for the ceiling the dot product is negative, so by clamping to zero we
+            // get a nice weight multiplier for the floor. (The resulting value is zero for walls
+            // and the ceiling).
+            //
+            // From there, just lerp between the base density and higher density (based on the base
+            // density) to get a nice flat floor.
+            final var floorWeight = Math.max(0.0, direction.dot(up));
+            final var floorDensity = Math.min(1.0, (Math.pow(distance, 1 + floorFlatness)) / pathInfluenceRadius);
+            return (float) lerp(baseDensity, floorDensity, floorWeight);
         };
     }
 
