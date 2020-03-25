@@ -4,6 +4,8 @@ import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VkDebugUtilsMessengerCallbackDataEXT;
 import org.lwjgl.vulkan.VkDebugUtilsMessengerCreateInfoEXT;
 import org.lwjgl.vulkan.VkInstance;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import java.util.Objects;
@@ -14,6 +16,8 @@ import static org.lwjgl.vulkan.VK10.VK_FALSE;
 import static org.lwjgl.vulkan.VK10.VK_SUCCESS;
 
 public final class DebugMessenger implements AutoCloseable {
+    private static final Logger LOG = LoggerFactory.getLogger(DebugMessenger.class);
+
     private boolean initialized;
 
     @Nullable private VkDebugUtilsMessengerCreateInfoEXT createInfo;
@@ -89,7 +93,7 @@ public final class DebugMessenger implements AutoCloseable {
             final long pUserData
     ) {
         final var callbackData = VkDebugUtilsMessengerCallbackDataEXT.create(pCallbackData);
-        System.out.printf("Validation layer: %s\n", callbackData.pMessageString());
+        LOG.error("Validation layer: {}", callbackData.pMessageString());
         return VK_FALSE;
     }
 

@@ -1,5 +1,6 @@
 package caves.visualization;
 
+import caves.Main;
 import caves.generator.CavePath;
 import caves.generator.CaveSampleSpace;
 import caves.generator.PathGenerator;
@@ -14,11 +15,16 @@ import org.lwjgl.vulkan.VkFenceCreateInfo;
 import org.lwjgl.vulkan.VkPresentInfoKHR;
 import org.lwjgl.vulkan.VkSemaphoreCreateInfo;
 import org.lwjgl.vulkan.VkSubmitInfo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.stream.IntStream;
 
+import static caves.util.profiler.Profiler.PROFILER;
 import static caves.visualization.window.VKUtil.translateVulkanResult;
 import static org.lwjgl.glfw.GLFW.glfwPollEvents;
 import static org.lwjgl.system.MemoryStack.stackPush;
@@ -28,6 +34,8 @@ import static org.lwjgl.vulkan.VK10.*;
 
 @SuppressWarnings("SameParameterValue")
 public final class Application implements AutoCloseable {
+    private static final Logger LOG = LoggerFactory.getLogger(Main.class);
+
     private static final int DEFAULT_WINDOW_WIDTH = 800;
     private static final int DEFAULT_WINDOW_HEIGHT = 600;
     private static final long UINT64_MAX = 0xFFFFFFFFFFFFFFFFL; // or "-1L", but this looks nicer.
@@ -65,13 +73,18 @@ public final class Application implements AutoCloseable {
         final var floorFlatness = 1.0;
 
         final var start = new Vector3(0.0f, 0.0f, 0.0f);
-        final var startTime = System.nanoTime();
+        PROFILER.start("Initialization");
+        PROFILER.start("Generation step (The interesting part of the algorithm)");
+
+        PROFILER.start("Generating path");
         final var cavePath = new PathGenerator().generate(start, caveLength, spacing, 420);
 
+        PROFILER.next("Initializing sample space");
         final var margin = (float) pathInfluenceRadius + 1;
         final var densityFunction = createDensityFunction(pathInfluenceRadius, floorFlatness);
         final var sampleSpace = new CaveSampleSpace(cavePath, margin, samplesPerUnit, densityFunction);
 
+        PROFILER.next("Creating isosurface mesh with Marching Cubes");
         final var meshGenerator = new MeshGenerator(sampleSpace);
         final var caveVertices = new ArrayList<Vector3>();
         final var caveIndices = new ArrayList<Integer>();
@@ -81,10 +94,10 @@ public final class Application implements AutoCloseable {
         final var startZ = (int) Math.floor(Math.abs(start.getZ() - sampleSpace.getMin().getZ()) * samplesPerUnit);
         meshGenerator.generate(caveVertices, caveNormals, caveIndices, surfaceLevel, startX, startY, startZ);
 
-        final var timeElapsed = (System.nanoTime() - startTime) / 1_000_000_000.0;
-        System.out.printf("Generation finished! (%.3fs)\n\n", timeElapsed);
+        PROFILER.end();
+        PROFILER.end();
 
-        System.out.println("Initializing the visualization");
+        PROFILER.start("Initializing the visualization");
         this.appContext = new ApplicationContext(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT, validation);
         this.appContext.getWindow().onResize((windowHandle, width, height) -> this.framebufferResized = true);
         final var deviceContext = this.appContext.getDeviceContext();
@@ -92,31 +105,22 @@ public final class Application implements AutoCloseable {
         try (var commandPool = new CommandPool(deviceContext,
                                                deviceContext.getQueueFamilies().getTransfer())
         ) {
-            System.out.println("\nConstructing meshes:");
+            PROFILER.start("Constructing meshes");
             final var middle = cavePath.getAveragePosition();
 
-            System.out.print("\t-> Constructing actual vertices from Marching Cubes vectors...");
-            final var startTimeCave = System.nanoTime();
+            PROFILER.start("Constructing actual vertices from Marching Cubes vectors");
             this.caveMesh = Meshes.createCaveMesh(middle,
                                                   caveIndices,
                                                   caveVertices,
                                                   caveNormals,
                                                   deviceContext,
                                                   commandPool);
-            System.out.printf(" Done! (%.3fs)\n",
-                              (System.nanoTime() - startTimeCave) / 1_000_000_000.0);
-
-            System.out.print("\t-> Creating additional path-line visualization...");
-            final var startTimeLines = System.nanoTime();
+            PROFILER.next("Creating additional path-line visualization");
             this.lineMesh = Meshes.createLineMesh(cavePath,
                                                   middle,
                                                   deviceContext,
                                                   commandPool);
-            System.out.printf(" Done! (%.3fs)\n",
-                              (System.nanoTime() - startTimeLines) / 1_000_000_000.0);
-
-            System.out.print("\t-> Creating additional point-cloud visualization...");
-            final var startTimePoints = System.nanoTime();
+            PROFILER.next("Creating additional point-cloud visualization");
             this.pointMesh = Meshes.createPointMesh(surfaceLevel,
                                                     sampleSpace,
                                                     startX,
@@ -125,10 +129,10 @@ public final class Application implements AutoCloseable {
                                                     middle,
                                                     deviceContext,
                                                     commandPool);
-            System.out.printf(" Done! (%.3fs)\n",
-                              (System.nanoTime() - startTimePoints) / 1_000_000_000.0);
+            PROFILER.end();
 
             this.appContext.setMeshes(this.caveMesh, this.lineMesh, this.pointMesh);
+            PROFILER.end();
         }
 
         final var renderContext = this.appContext.getRenderContext();
@@ -142,7 +146,8 @@ public final class Application implements AutoCloseable {
         this.lookAtDistance = Math.max(sampleSpace.getMin().length(),
                                        sampleSpace.getMax().length()) + margin;
 
-        System.out.printf("Everything done! (total %.3fs)\n\n", (System.nanoTime() - startTime) / 1_000_000_000.0);
+        PROFILER.end();
+        PROFILER.end();
     }
 
     private static long[] createFences(final int count, final DeviceContext deviceContext) {

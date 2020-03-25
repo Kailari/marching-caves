@@ -8,6 +8,7 @@ import org.lwjgl.vulkan.*;
 import java.util.List;
 import java.util.TreeSet;
 
+import static caves.util.profiler.Profiler.PROFILER;
 import static caves.visualization.window.VKUtil.translateVulkanResult;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.vulkan.VK10.*;
@@ -51,10 +52,8 @@ public final class LogicalDevice implements AutoCloseable {
         }
 
         try (var stack = stackPush()) {
-            System.out.printf("Enabled device extensions: ");
             BufferUtil.forEachAsStringUTF8(requiredExtensions,
-                                           name -> System.out.printf("%s, ", name));
-            System.out.println();
+                                           name -> PROFILER.log("-> Enabled device extension: {}", name));
 
             final VkDeviceCreateInfo deviceCreateInfo = createDeviceCreateInfo(queueFamilies,
                                                                                requiredExtensions,

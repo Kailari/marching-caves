@@ -9,6 +9,7 @@ import org.lwjgl.vulkan.*;
 import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 
+import static caves.util.profiler.Profiler.PROFILER;
 import static caves.visualization.window.VKUtil.translateVulkanResult;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.system.MemoryUtil.NULL;
@@ -67,13 +68,10 @@ public final class VulkanInstance implements AutoCloseable {
             final PointerBuffer enabledLayerNames,
             @Nullable final DebugMessenger debugMessenger
     ) {
-        System.out.print("Enabled instance extensions: ");
         BufferUtil.forEachAsStringUTF8(enabledExtensionNames,
-                                       name -> System.out.printf("%s, ", name));
-        System.out.print("\nEnabled validation layers: ");
+                                       name -> PROFILER.log("-> Enabled instance extension: {}", name));
         BufferUtil.forEachAsStringUTF8(enabledLayerNames,
-                                       name -> System.out.printf("%s, ", name));
-        System.out.println();
+                                       name -> PROFILER.log("-> Enabled validation layer: {}", name));
 
         final var debugMessengerInfo = debugMessenger != null ? debugMessenger.getCreateInfo() : null;
         final var appInfo = createAppInfo(stack);
@@ -128,7 +126,7 @@ public final class VulkanInstance implements AutoCloseable {
                 name -> availableLayers.stream()
                                        .map(VkLayerProperties::layerNameString)
                                        .noneMatch(name::equals),
-                notFound -> System.out.printf("Validation layer \"%s\" not found.", notFound));
+                notFound -> PROFILER.err("Validation layer \"{}\" not found.", notFound));
     }
 
     private static PointerBuffer selectExtensions(
@@ -165,7 +163,7 @@ public final class VulkanInstance implements AutoCloseable {
                 name -> availableExtensions.stream()
                                            .map(VkExtensionProperties::extensionNameString)
                                            .noneMatch(name::equals),
-                notFound -> System.out.printf("Instance extension \"%s\" not found.", notFound));
+                notFound -> PROFILER.err("Instance extension \"%s\" not found.", notFound));
     }
 
     @Override

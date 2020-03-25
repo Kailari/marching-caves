@@ -12,6 +12,8 @@ import caves.visualization.rendering.uniform.DescriptorPool;
 import caves.visualization.rendering.uniform.UniformBufferObject;
 import caves.visualization.window.DeviceContext;
 import org.lwjgl.vulkan.VkCommandBuffer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 
@@ -21,6 +23,8 @@ import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.vulkan.VK10.*;
 
 public final class RenderingContext implements AutoCloseable {
+    private static final Logger LOG = LoggerFactory.getLogger(RenderingContext.class);
+
     private final DeviceContext deviceContext;
     private final long windowHandle;
 
@@ -153,7 +157,7 @@ public final class RenderingContext implements AutoCloseable {
         }
 
         vkDeviceWaitIdle(this.deviceContext.getDeviceHandle());
-        System.out.println("Re-creating the swapchain!");
+        LOG.debug("Re-creating the swapchain!");
 
         this.renderCommandBuffers.cleanup();
 

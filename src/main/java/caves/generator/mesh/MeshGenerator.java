@@ -6,6 +6,8 @@ import caves.generator.util.Vector3;
 import java.util.ArrayDeque;
 import java.util.Collection;
 
+import static caves.util.profiler.Profiler.PROFILER;
+
 public class MeshGenerator {
     private static final int X = 0;
     private static final int Y = 1;
@@ -44,8 +46,8 @@ public class MeshGenerator {
             final int startY,
             final int startZ
     ) {
-        System.out.printf("Marching through the sample space using flood fill. Using surface level of %.3f\n",
-                          surfaceLevel);
+        PROFILER.log("-> Using surface level of {}",
+                     String.format("%.3f", surfaceLevel));
 
         var allSolid = true;
         for (final var offset : MarchingCubesTables.VERTEX_OFFSETS) {
@@ -57,17 +59,13 @@ public class MeshGenerator {
             }
         }
         if (allSolid) {
-            System.err.printf("\t-> ERROR: The starting cube at (%d, %d, %d) was fully solid!\n",
-                              startX,
-                              startY,
-                              startZ);
+            PROFILER.err("-> ERROR: The starting cube at  was fully solid!",
+                         String.format("(%d, %d, %d)", startX, startY, startZ));
             return;
         }
 
-        System.out.printf("\t-> Starting flood fill at (%d, %d, %d)\n",
-                          startX,
-                          startY,
-                          startZ);
+        PROFILER.log("-> Starting flood fill at {}",
+                     String.format("(%d, %d, %d)", startX, startY, startZ));
 
         final var startFacings = MarchingCubes.appendToMesh(outVertices, outNormals, outIndices,
                                                             this.sampleSpace,
@@ -116,9 +114,9 @@ public class MeshGenerator {
         final var bruteIterations = (this.sampleSpace.getCountX() - 4)
                 * (this.sampleSpace.getCountY() - 4)
                 * (this.sampleSpace.getCountZ() - 4);
-        System.out.printf("\t-> Flood-filling the cave finished in %d steps (Naive iteration requires %d steps)\n",
-                          iterations,
-                          bruteIterations);
+        PROFILER.log("-> Flood-filling the cave finished in {} steps ", iterations);
+        PROFILER.log("-> Naive iteration requires {} steps.", bruteIterations);
+        PROFILER.log("-> We saved {} steps with flood fill", bruteIterations - iterations);
     }
 
     private static final class FloodFillEntry {

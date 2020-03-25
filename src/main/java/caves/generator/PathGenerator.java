@@ -4,6 +4,8 @@ import caves.generator.util.Vector3;
 
 import java.util.Random;
 
+import static caves.util.profiler.Profiler.PROFILER;
+
 public final class PathGenerator {
     /**
      * Generates a new path using simple Random Walk.
@@ -21,7 +23,7 @@ public final class PathGenerator {
             final float nodeSpacing,
             final long seed
     ) {
-        System.out.printf("Generating a path with %d steps.\n", length);
+        PROFILER.log("-> With {} steps.", length);
         final var path = new CavePath();
 
         final var random = new Random(seed);

@@ -50,11 +50,7 @@ public final class SequentialGPUBuffer<T> extends GPUBuffer {
     ) {
         super(deviceContext, elementSize * elementCount, usageFlags, propertyFlags);
         final var deviceLocal = (propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) != 0;
-        if (!deviceLocal && memoryMapper == null) {
-            System.err.println("Memory mapper was null on non-device-local GPU buffer!");
-        } else if (deviceLocal && memoryMapper != null) {
-            System.err.println("Memory mapper was defined for device-local GPU buffer!");
-        }
+        assert deviceLocal || memoryMapper != null : "Either the buffer must be device local or the memory mapper must not be defined!";
 
         this.elementCount = elementCount;
         this.memoryMapper = memoryMapper;
