@@ -1,5 +1,6 @@
 package caves.generator.util;
 
+import caves.util.math.Vector3;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;

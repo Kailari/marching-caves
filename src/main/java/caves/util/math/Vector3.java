@@ -1,4 +1,4 @@
-package caves.generator.util;
+package caves.util.math;
 
 import java.util.Objects;
 
@@ -166,6 +166,18 @@ public final class Vector3 {
     }
 
     /**
+     * Calculates the scalar multiplication of this vector with a scalar. Note that this modifies
+     * the original.
+     *
+     * @param scalar the multiplier
+     *
+     * @return this vector, multiplied by the scalar
+     */
+    public Vector3 mul(final float scalar) {
+        return mul(scalar, this);
+    }
+
+    /**
      * Calculates the component-wise minimum of this and the given other vector.
      *
      * @param other  the other vector
@@ -280,6 +292,15 @@ public final class Vector3 {
         this.y /= length;
         this.z /= length;
         return this;
+    }
+
+    /**
+     * Takes component-wise absolute of this vector. Note that this modifies the original.
+     *
+     * @return component wise absolute of this vector
+     */
+    public Vector3 abs() {
+        return this.set(Math.abs(this.x), Math.abs(this.y), Math.abs(this.z));
     }
 
     @Override

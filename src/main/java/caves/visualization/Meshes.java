@@ -3,7 +3,7 @@ package caves.visualization;
 import caves.generator.CavePath;
 import caves.generator.CaveSampleSpace;
 import caves.generator.mesh.MarchingCubesTables;
-import caves.generator.util.Vector3;
+import caves.util.math.Vector3;
 import caves.visualization.rendering.command.CommandPool;
 import caves.visualization.rendering.mesh.Mesh;
 import caves.visualization.window.DeviceContext;

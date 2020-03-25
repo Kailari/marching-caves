@@ -1,12 +1,9 @@
 package caves.generator;
 
-import caves.generator.util.Vector3;
+import caves.util.math.Vector3;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
-
-// TODO: Store nodes in octree for faster distance queries
 
 public final class CavePath {
     private final List<Vector3> nodes;
@@ -39,10 +36,6 @@ public final class CavePath {
         this.nodes = new ArrayList<>();
     }
 
-    public void forEach(final Consumer<Vector3> action) {
-        this.nodes.forEach(action);
-    }
-
     /**
      * Adds a node to the path. The node is added to the end of the path.
      *
@@ -52,6 +45,13 @@ public final class CavePath {
         this.nodes.add(node);
     }
 
+    /**
+     * Finds the point on the path that is closest to the arbitrary specified point in space.
+     *
+     * @param position the arbitrary point in space
+     *
+     * @return the point on path, closest to the specified position
+     */
     public Vector3 closestPoint(final Vector3 position) {
         float minDistanceSq = Float.POSITIVE_INFINITY;
         Vector3 closest = new Vector3();
@@ -78,7 +78,7 @@ public final class CavePath {
                 // Project the pos to the direction vector AB
                 final var d = ab.normalize(new Vector3());
                 final var t = ap.dot(d);
-                closestOnSegment = nodeA.add(d.mul(t, d), d);
+                closestOnSegment = nodeA.add(d.mul(t), d);
             }
 
             final var distanceSq = closestOnSegment.distanceSq(position);

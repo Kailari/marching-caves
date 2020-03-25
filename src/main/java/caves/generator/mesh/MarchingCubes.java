@@ -1,7 +1,7 @@
 package caves.generator.mesh;
 
 import caves.generator.CaveSampleSpace;
-import caves.generator.util.Vector3;
+import caves.util.math.Vector3;
 
 import java.util.Collection;
 

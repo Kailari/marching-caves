@@ -5,7 +5,6 @@ import caves.visualization.rendering.swapchain.RecreatedWithSwapChain;
 import caves.visualization.rendering.swapchain.SwapChain;
 import caves.visualization.window.DeviceContext;
 import org.joml.Matrix4f;
-import org.joml.Vector3f;
 import org.lwjgl.vulkan.*;
 
 import static caves.visualization.window.VKUtil.translateVulkanResult;
@@ -137,9 +136,9 @@ public final class UniformBufferObject implements RecreatedWithSwapChain {
         final var lookAtHeight = lookAtDistance / 3.0f;
 
         this.tmpModel.identity().rotateLocalY((float) Math.toRadians(angle));
-        this.tmpView.setLookAt(new Vector3f(0, lookAtHeight, -lookAtDistance * 1.25f),
-                               new Vector3f(0.0f, 0.0f, 0.0f),
-                               new Vector3f(0.0f, 1.0f, 0.0f));
+        this.tmpView.setLookAt(0, lookAtHeight, -lookAtDistance * 1.25f,
+                               0.0f, 0.0f, 0.0f,
+                               0.0f, 1.0f, 0.0f);
 
         final var swapChainExtent = this.swapChain.getExtent();
         final var aspectRatio = swapChainExtent.width() / (float) swapChainExtent.height();

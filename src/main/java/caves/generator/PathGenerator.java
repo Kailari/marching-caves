@@ -1,6 +1,6 @@
 package caves.generator;
 
-import caves.generator.util.Vector3;
+import caves.util.math.Vector3;
 
 import java.util.Random;
 

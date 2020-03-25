@@ -2,6 +2,7 @@ package caves.generator.util;
 
 import caves.generator.CavePath;
 import caves.generator.CaveSampleSpace;
+import caves.util.math.Vector3;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

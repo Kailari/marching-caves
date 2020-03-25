@@ -1,11 +1,10 @@
 package caves.visualization;
 
-import caves.Main;
-import caves.generator.CavePath;
 import caves.generator.CaveSampleSpace;
+import caves.generator.DensityFunction;
 import caves.generator.PathGenerator;
 import caves.generator.mesh.MeshGenerator;
-import caves.generator.util.Vector3;
+import caves.util.math.Vector3;
 import caves.visualization.rendering.command.CommandPool;
 import caves.visualization.rendering.mesh.Mesh;
 import caves.visualization.window.ApplicationContext;
@@ -15,13 +14,10 @@ import org.lwjgl.vulkan.VkFenceCreateInfo;
 import org.lwjgl.vulkan.VkPresentInfoKHR;
 import org.lwjgl.vulkan.VkSemaphoreCreateInfo;
 import org.lwjgl.vulkan.VkSubmitInfo;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Optional;
-import java.util.function.BiFunction;
 import java.util.stream.IntStream;
 
 import static caves.util.profiler.Profiler.PROFILER;
@@ -34,8 +30,6 @@ import static org.lwjgl.vulkan.VK10.*;
 
 @SuppressWarnings("SameParameterValue")
 public final class Application implements AutoCloseable {
-    private static final Logger LOG = LoggerFactory.getLogger(Main.class);
-
     private static final int DEFAULT_WINDOW_WIDTH = 800;
     private static final int DEFAULT_WINDOW_HEIGHT = 600;
     private static final long UINT64_MAX = 0xFFFFFFFFFFFFFFFFL; // or "-1L", but this looks nicer.
@@ -67,10 +61,10 @@ public final class Application implements AutoCloseable {
     public Application(final boolean validation) {
         final var caveLength = 40;
         final var spacing = 10f;
-        final var surfaceLevel = 0.5f;
-        final var samplesPerUnit = 1.0f / 2;
+        final var surfaceLevel = 0.75f;
+        final var spaceBetweenSamples = 0.5f;
         final var pathInfluenceRadius = 20.0;
-        final var floorFlatness = 1.0;
+        final var floorFlatness = 0.45;
 
         final var start = new Vector3(0.0f, 0.0f, 0.0f);
         PROFILER.start("Initialization");
@@ -80,18 +74,24 @@ public final class Application implements AutoCloseable {
         final var cavePath = new PathGenerator().generate(start, caveLength, spacing, 420);
 
         PROFILER.next("Initializing sample space");
-        final var margin = (float) pathInfluenceRadius + 1;
-        final var densityFunction = createDensityFunction(pathInfluenceRadius, floorFlatness);
-        final var sampleSpace = new CaveSampleSpace(cavePath, margin, samplesPerUnit, densityFunction);
+        final var samplesPerUnit = 1.0f / spaceBetweenSamples;
+        final var sampleSpace = new CaveSampleSpace(cavePath,
+                                                    (float) pathInfluenceRadius + 1.5f,
+                                                    samplesPerUnit,
+                                                    new DensityFunction(pathInfluenceRadius, floorFlatness));
 
         PROFILER.next("Creating isosurface mesh with Marching Cubes");
+        final var caveStartSampleCoord = start.sub(sampleSpace.getMin(), new Vector3())
+                                              .abs()
+                                              .mul(samplesPerUnit);
+        final var startX = (int) caveStartSampleCoord.getX();
+        final var startY = (int) caveStartSampleCoord.getY();
+        final var startZ = (int) caveStartSampleCoord.getZ();
+
         final var meshGenerator = new MeshGenerator(sampleSpace);
         final var caveVertices = new ArrayList<Vector3>();
         final var caveIndices = new ArrayList<Integer>();
         final var caveNormals = new ArrayList<Vector3>();
-        final var startX = (int) Math.floor(Math.abs(start.getX() - sampleSpace.getMin().getX()) * samplesPerUnit);
-        final var startY = (int) Math.floor(Math.abs(start.getY() - sampleSpace.getMin().getY()) * samplesPerUnit);
-        final var startZ = (int) Math.floor(Math.abs(start.getZ() - sampleSpace.getMin().getZ()) * samplesPerUnit);
         meshGenerator.generate(caveVertices, caveNormals, caveIndices, surfaceLevel, startX, startY, startZ);
 
         PROFILER.end();
@@ -131,7 +131,7 @@ public final class Application implements AutoCloseable {
                                                     commandPool);
             PROFILER.end();
 
-            this.appContext.setMeshes(this.caveMesh, this.lineMesh, this.pointMesh);
+            this.appContext.setMeshes(this.caveMesh, this.lineMesh, null/*this.pointMesh*/);
             PROFILER.end();
         }
 
@@ -144,7 +144,7 @@ public final class Application implements AutoCloseable {
         Arrays.fill(this.imagesInFlight, VK_NULL_HANDLE);
 
         this.lookAtDistance = Math.max(sampleSpace.getMin().length(),
-                                       sampleSpace.getMax().length()) + margin;
+                                       sampleSpace.getMax().length()) + (float) pathInfluenceRadius + 1;
 
         PROFILER.end();
         PROFILER.end();
@@ -198,51 +198,6 @@ public final class Application implements AutoCloseable {
                                                     + translateVulkanResult(error));
         }
         return pSemaphore.get(0);
-    }
-
-    private static double densityCurve(final double t) {
-        final var a = 0.0;
-        final var b = 1.0;
-        return lerp(a, b, t);
-    }
-
-    private static double lerp(final double a, final double b, final double t) {
-        return (1 - t) * a + t * b;
-    }
-
-    private BiFunction<CavePath, Vector3, Float> createDensityFunction(
-            final double pathInfluenceRadius,
-            final double floorFlatness
-    ) {
-
-        return (path, pos) -> {
-            final var closestPoint = path.closestPoint(pos);
-
-            final var distance = Math.sqrt(closestPoint.distanceSq(pos));
-            final var clampedDistanceAlpha = Math.min(1.0, distance / pathInfluenceRadius);
-            final var baseDensity = Math.min(1.0, densityCurve(clampedDistanceAlpha));
-
-            final var up = new Vector3(0.0f, 1.0f, 0.0f);
-            final var direction = closestPoint.sub(pos, new Vector3())
-                                              .normalize();
-
-            // Dot product can kind of be thought as to signify "how perpendicular two vectors are?"
-            // or "what is the size of the portion of these two vectors that overlaps?". Here, we
-            // are working with up axis and a direction, thus taking their dot product in this
-            // context practically means "how upwards the direction vector points".
-            //
-            // Both are unit vectors so resulting scalar has maximum absolute value of 1.0.
-            //
-            // Furthermore, for the ceiling the dot product is negative, so by clamping to zero we
-            // get a nice weight multiplier for the floor. (The resulting value is zero for walls
-            // and the ceiling).
-            //
-            // From there, just lerp between the base density and higher density (based on the base
-            // density) to get a nice flat floor.
-            final var floorWeight = Math.max(0.0, direction.dot(up));
-            final var floorDensity = Math.min(1.0, (Math.pow(distance, 1 + floorFlatness)) / pathInfluenceRadius);
-            return (float) lerp(baseDensity, floorDensity, floorWeight);
-        };
     }
 
     /**
