@@ -1,8 +1,9 @@
 package caves.visualization;
 
 import caves.generator.CaveSampleSpace;
-import caves.generator.DensityFunction;
 import caves.generator.PathGenerator;
+import caves.generator.density.ContributionDensityFunction;
+import caves.generator.density.EdgeDensityFunction;
 import caves.generator.mesh.MeshGenerator;
 import caves.util.math.Vector3;
 import caves.visualization.rendering.command.CommandPool;
@@ -59,12 +60,12 @@ public final class Application implements AutoCloseable {
      * @param validation should validation/debug features be enabled.
      */
     public Application(final boolean validation) {
-        final var caveLength = 40;
-        final var spacing = 10f;
+        final var caveLength = 6;
+        final var spacing = 30f;
         final var surfaceLevel = 0.75f;
         final var spaceBetweenSamples = 0.5f;
         final var pathInfluenceRadius = 20.0;
-        final var floorFlatness = 0.45;
+        final var floorFlatness = 0.75;
 
         final var start = new Vector3(0.0f, 0.0f, 0.0f);
         PROFILER.start("Initialization");
@@ -75,15 +76,20 @@ public final class Application implements AutoCloseable {
 
         PROFILER.next("Initializing sample space");
         final var samplesPerUnit = 1.0f / spaceBetweenSamples;
+        final var edgeFunc = new EdgeDensityFunction(pathInfluenceRadius, floorFlatness);
         final var sampleSpace = new CaveSampleSpace(cavePath,
-                                                    (float) pathInfluenceRadius + 1.5f,
+                                                    (float) pathInfluenceRadius + spaceBetweenSamples * 4,
                                                     samplesPerUnit,
-                                                    new DensityFunction(pathInfluenceRadius, floorFlatness));
+                                                    new ContributionDensityFunction(cavePath,
+                                                                                    pathInfluenceRadius,
+                                                                                    edgeFunc));
 
         PROFILER.next("Creating isosurface mesh with Marching Cubes");
-        final var caveStartSampleCoord = start.sub(sampleSpace.getMin(), new Vector3())
-                                              .abs()
-                                              .mul(samplesPerUnit);
+
+        final var floodStartPos = cavePath.get(caveLength / 2);
+        final var caveStartSampleCoord = floodStartPos.sub(sampleSpace.getMin(), new Vector3())
+                                                      .abs()
+                                                      .mul(samplesPerUnit);
         final var startX = (int) caveStartSampleCoord.getX();
         final var startY = (int) caveStartSampleCoord.getY();
         final var startZ = (int) caveStartSampleCoord.getZ();
@@ -96,6 +102,10 @@ public final class Application implements AutoCloseable {
 
         PROFILER.end();
         PROFILER.end();
+
+        if (caveVertices.size() == 0) {
+            throw new IllegalStateException("No vertices were generated!");
+        }
 
         PROFILER.start("Initializing the visualization");
         this.appContext = new ApplicationContext(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT, validation);

@@ -2,8 +2,7 @@ package caves.generator;
 
 import caves.util.math.Vector3;
 
-import java.util.Arrays;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static caves.util.profiler.Profiler.PROFILER;
 
@@ -15,8 +14,7 @@ public final class CaveSampleSpace {
     private final float samplesPerUnit;
     private final Vector3 min;
     private final Vector3 max;
-    private final BiFunction<CavePath, Vector3, Float> densityFunction;
-    private final CavePath cavePath;
+    private final Function<Vector3, Float> densityFunction;
 
     /**
      * Gets the number of samples on the x-axis.
@@ -89,26 +87,24 @@ public final class CaveSampleSpace {
             final CavePath cavePath,
             final float margin,
             final float samplesPerUnit,
-            final BiFunction<CavePath, Vector3, Float> densityFunction
+            final Function<Vector3, Float> densityFunction
     ) {
         this.samplesPerUnit = samplesPerUnit;
         this.densityFunction = densityFunction;
-        this.cavePath = cavePath;
 
-        final var nodes = cavePath.getNodesOrdered();
-
-        this.min = Arrays.stream(nodes)
-                         .reduce(new Vector3(Float.POSITIVE_INFINITY,
-                                             Float.POSITIVE_INFINITY,
-                                             Float.POSITIVE_INFINITY),
-                                 (acc, b) -> acc.min(b, acc))
-                         .sub(margin, margin, margin, new Vector3());
-        this.max = Arrays.stream(nodes)
-                         .reduce(new Vector3(Float.NEGATIVE_INFINITY,
-                                             Float.NEGATIVE_INFINITY,
-                                             Float.NEGATIVE_INFINITY),
-                                 (acc, b) -> acc.max(b, acc))
-                         .add(margin, margin, margin, new Vector3());
+        final var nodes = cavePath.getAllNodes();
+        this.min = nodes.stream()
+                        .reduce(new Vector3(Float.POSITIVE_INFINITY,
+                                            Float.POSITIVE_INFINITY,
+                                            Float.POSITIVE_INFINITY),
+                                (acc, b) -> acc.min(b, acc))
+                        .sub(margin, margin, margin, new Vector3());
+        this.max = nodes.stream()
+                        .reduce(new Vector3(Float.NEGATIVE_INFINITY,
+                                            Float.NEGATIVE_INFINITY,
+                                            Float.NEGATIVE_INFINITY),
+                                (acc, b) -> acc.max(b, acc))
+                        .add(margin, margin, margin, new Vector3());
 
         final var sizeX = Math.abs(this.max.getX() - this.min.getX());
         final var sizeY = Math.abs(this.max.getY() - this.min.getY());
@@ -195,8 +191,6 @@ public final class CaveSampleSpace {
     }
 
     private void calculateDensity(final int sampleIndex, final int x, final int y, final int z) {
-        final var pos = getPos(x, y, z);
-        final var density = this.densityFunction.apply(this.cavePath, pos);
-        this.samples[sampleIndex] = density;
+        this.samples[sampleIndex] = this.densityFunction.apply(getPos(x, y, z));
     }
 }

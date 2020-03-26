@@ -1,23 +1,26 @@
-package caves.generator;
+package caves.generator.density;
 
+import caves.util.math.LineSegment;
 import caves.util.math.Vector3;
 
-import java.util.function.BiFunction;
-
+/**
+ * Density function for a single node.
+ */
 @SuppressWarnings("SameParameterValue")
-public final class DensityFunction implements BiFunction<CavePath, Vector3, Float> {
+public final class EdgeDensityFunction {
     private final double pathInfluenceRadius;
     private final double pathFloorInfluenceRadius;
     private final double floorFlatness;
+
     private final Vector3 directionUp;
 
     /**
-     * Creates a new density function.
+     * Creates a new density function for calculating densities for a single edge.
      *
      * @param pathInfluenceRadius how far the path influences the sample densities
      * @param floorFlatness       "flatness" of cave floor, lower values make the floor more round
      */
-    public DensityFunction(
+    public EdgeDensityFunction(
             final double pathInfluenceRadius,
             final double floorFlatness
     ) {
@@ -28,10 +31,10 @@ public final class DensityFunction implements BiFunction<CavePath, Vector3, Floa
     }
 
     private static double baseDensityCurve(final double t) {
-        return Math.min(1.0, lerp(0.0, 1.0, t));
+        return Math.min(1.0, lerp(1.0, 0.0, t));
     }
 
-    private static double lerp(final double a, final double b, final double t) {
+    public static double lerp(final double a, final double b, final double t) {
         return (1 - t) * a + t * b;
     }
 
@@ -39,18 +42,29 @@ public final class DensityFunction implements BiFunction<CavePath, Vector3, Floa
         return baseDensityCurve(t);
     }
 
-    @Override
-    public Float apply(final CavePath path, final Vector3 pos) {
-        final var closestPoint = path.closestPoint(pos);
+    /**
+     * Calculates the density contribution for the given point from the cave path edge defined by
+     * nodes A and B.
+     *
+     * @param nodeA the start point of the edge
+     * @param nodeB the end point of the edge
+     * @param pos   position for which to calculate the density
+     *
+     * @return the density contribution
+     */
+    public float apply(final Vector3 nodeA, final Vector3 nodeB, final Vector3 pos) {
+        final var closestPoint = LineSegment.closestPoint(nodeA, nodeB, pos);
 
         final var distanceSq = closestPoint.distanceSq(pos);
         if (distanceSq > this.pathInfluenceRadius * this.pathInfluenceRadius) {
-            return 1.0f;
+            //return 0.0f;
         }
 
         final var distance = Math.sqrt(distanceSq);
         final var clampedDistanceAlpha = Math.min(1.0, distance / this.pathInfluenceRadius);
         final var baseDensity = baseDensityCurve(clampedDistanceAlpha);
+
+        //if (true) return (float) lerp(-1.0, 0.0, clampedDistanceAlpha);
 
         final var direction = closestPoint.sub(pos, new Vector3()).normalize();
 
@@ -71,10 +85,11 @@ public final class DensityFunction implements BiFunction<CavePath, Vector3, Floa
         assert floorWeight >= 0.0 && floorWeight <= 1.0;
 
         final var verticalDistance = Math.abs(pos.getY() - closestPoint.getY());
-
         final var distanceToFloorAlpha = Math.min(1.0, verticalDistance / this.pathFloorInfluenceRadius);
+
         final var floorDensity = floorDensityCurve(distanceToFloorAlpha);
 
-        return (float) lerp(baseDensity, floorDensity, floorWeight);
+        // Return as negative to "decrease the density" around the edge.
+        return (float) -lerp(baseDensity, floorDensity, floorWeight);
     }
 }

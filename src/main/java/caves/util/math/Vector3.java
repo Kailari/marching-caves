@@ -246,6 +246,17 @@ public final class Vector3 {
     }
 
     /**
+     * Calculates the distance between this and the given other vector.
+     *
+     * @param other the other vector
+     *
+     * @return the distance
+     */
+    public float distance(final Vector3 other) {
+        return (float) Math.sqrt(this.distanceSq(other));
+    }
+
+    /**
      * Calculates the squared length of this vector.
      *
      * @return the squared length

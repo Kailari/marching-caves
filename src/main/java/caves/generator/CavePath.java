@@ -3,7 +3,10 @@ package caves.generator;
 import caves.util.math.Vector3;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public final class CavePath {
     private final List<Vector3> nodes;
@@ -30,6 +33,15 @@ public final class CavePath {
     }
 
     /**
+     * Gets all nodes on the path. The order is not guaranteed.
+     *
+     * @return all nodes on the path
+     */
+    public Collection<Vector3> getAllNodes() {
+        return this.nodes;
+    }
+
+    /**
      * Constructs a new empty path.
      */
     public CavePath() {
@@ -46,48 +58,54 @@ public final class CavePath {
     }
 
     /**
-     * Finds the point on the path that is closest to the arbitrary specified point in space.
+     * Gets all nodes within the radius. Implementation must return all nodes that are within the
+     * radius. Returning nodes outside the radius is allowed, but results in additional
+     * computational cost elsewhere.
      *
-     * @param position the arbitrary point in space
+     * @param position position around which to search
+     * @param radius   radius to search
      *
-     * @return the point on path, closest to the specified position
+     * @return indices of all nodes within the radius
      */
-    public Vector3 closestPoint(final Vector3 position) {
-        float minDistanceSq = Float.POSITIVE_INFINITY;
-        Vector3 closest = new Vector3();
-        for (var i = 0; i < this.nodes.size() - 1; ++i) {
-            final var nodeA = this.nodes.get(i);
-            final var nodeB = this.nodes.get(i + 1);
+    public Collection<Integer> getNodesWithin(final Vector3 position, final double radius) {
+        return IntStream.range(0, this.nodes.size())
+                        .boxed()
+                        .collect(Collectors.toList());
+    }
 
-            final var ab = nodeB.sub(nodeA, new Vector3()); // The segment AB
+    /**
+     * Gets the index of the given node's parent node.
+     *
+     * @param index index of the node
+     *
+     * @return the index of the previous (parent) node
+     */
+    public int getPreviousFor(final int index) {
+        return index - 1;
+    }
 
-            final var ap = position.sub(nodeA, new Vector3()); // A -> pos
-            final var bp = position.sub(nodeB, new Vector3()); // B -> pos
+    /**
+     * Gets the index of the given node's parent node.
+     *
+     * @param index index of the node
+     *
+     * @return the index of the previous (parent) node
+     */
+    public Collection<Integer> getNextFor(final int index) {
+        final var next = index == this.nodes.size() - 1
+                ? -1
+                : index + 1;
+        return List.of(next);
+    }
 
-            // We can only calculate the perpendicular distance if the projected point from pos to
-            // AB is actually on the segment. Thus, need to check here that it is not past either
-            // endpoint before calculating the distance.
-            final Vector3 closestOnSegment;
-            if (ap.dot(ab) <= 0.0) {
-                // pos is past the segment towards A, thus the closest point is A
-                closestOnSegment = nodeA;
-            } else if (bp.dot(ab) >= 0.0) {
-                // pos is past the segment towards B, thus the closest point is B
-                closestOnSegment = nodeB;
-            } else {
-                // Project the pos to the direction vector AB
-                final var d = ab.normalize(new Vector3());
-                final var t = ap.dot(d);
-                closestOnSegment = nodeA.add(d.mul(t), d);
-            }
-
-            final var distanceSq = closestOnSegment.distanceSq(position);
-            if (distanceSq < minDistanceSq) {
-                minDistanceSq = distanceSq;
-                closest = closestOnSegment;
-            }
-        }
-
-        return closest;
+    /**
+     * Gets the node associated with the given index.
+     *
+     * @param index the index of the node
+     *
+     * @return the node
+     */
+    public Vector3 get(final int index) {
+        return this.nodes.get(index);
     }
 }
