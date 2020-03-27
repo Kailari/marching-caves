@@ -1,5 +1,7 @@
 Marching Caves
 ==============
+[![codecov](https://codecov.io/gh/Kailari/marching-caves/branch/master/graph/badge.svg)](https://codecov.io/gh/Kailari/marching-caves)
+
 Simple(-ish) cave generator written as course project, using implementations of various algorithms and data structures.
 
 --------------
