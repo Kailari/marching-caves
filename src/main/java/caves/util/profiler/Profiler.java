@@ -42,7 +42,7 @@ public class Profiler {
      * @param message message to log
      * @param args    formatting arguments
      */
-    public void err(final String message, final String args) {
+    public void err(final String message, final Object... args) {
         logAtDepth(this.timestamps.size(), LOG::error, message, args);
     }
 

@@ -37,11 +37,10 @@ public final class ContributionDensityFunction implements Function<Vector3, Floa
 
     @Override
     public Float apply(final Vector3 position) {
-        // Construct all possible edges by creating a set of all nodes within the influence radius
-        // and their adjacent (previous) nodes. We only add previous (parent) nodes as this reduces
-        // the required number of set insert operations due to all nodes having at most a single
-        // parent. This way, we can then generate all edge contributions by iterating all edges to
-        // children from all nodes in the set.
+        if (true) {
+            return this.edgeDensityFunction.apply(new Vector3(), new Vector3(), position);
+        }
+
         final var nodes = this.cavePath.getNodesWithin(position, this.maxInfluenceRadius);
 
         // 1. Gather all contributions and distances to pos as pairs
@@ -73,8 +72,6 @@ public final class ContributionDensityFunction implements Function<Vector3, Floa
 
                 minDistance = distanceSq;
                 minWeight = 1.0 - Math.min(1.0, Math.sqrt(distanceSq) / this.maxInfluenceRadius);
-                minWeight *= minWeight;
-                minWeight *= minWeight;
                 minContribution = this.edgeDensityFunction.apply(node, next, position);
             }
 

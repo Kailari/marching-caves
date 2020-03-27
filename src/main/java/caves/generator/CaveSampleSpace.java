@@ -74,6 +74,15 @@ public final class CaveSampleSpace {
     }
 
     /**
+     * Gets the sample resolution per unit for this sampling space.
+     *
+     * @return samples per unit
+     */
+    public float getSamplesPerUnit() {
+        return this.samplesPerUnit;
+    }
+
+    /**
      * Initializes a new sample space. This alone performs some allocations, but the actual
      * densities for the samples are calculated lazily.
      *
@@ -185,9 +194,10 @@ public final class CaveSampleSpace {
      * @return the in-world coordinates
      */
     public Vector3 getPos(final int x, final int y, final int z) {
-        return new Vector3(this.min.getX() + x * (1.0f / this.samplesPerUnit),
-                           this.min.getY() + y * (1.0f / this.samplesPerUnit),
-                           this.min.getZ() + z * (1.0f / this.samplesPerUnit));
+        final var spaceBetweenSamples = (1.0f / this.samplesPerUnit);
+        return new Vector3(this.min.getX() + x * spaceBetweenSamples,
+                           this.min.getY() + y * spaceBetweenSamples,
+                           this.min.getZ() + z * spaceBetweenSamples);
     }
 
     private void calculateDensity(final int sampleIndex, final int x, final int y, final int z) {

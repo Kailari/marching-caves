@@ -11,8 +11,10 @@ public final class EdgeDensityFunction {
     private final double pathInfluenceRadius;
     private final double pathFloorInfluenceRadius;
     private final double floorFlatness;
-
     private final Vector3 directionUp;
+
+    private final SimplexNoiseGenerator noiseGenerator;
+    private final float noiseScale;
 
     /**
      * Creates a new density function for calculating densities for a single edge.
@@ -28,6 +30,9 @@ public final class EdgeDensityFunction {
         this.pathFloorInfluenceRadius = pathInfluenceRadius / 2.5;
         this.floorFlatness = floorFlatness;
         this.directionUp = new Vector3(0.0f, 1.0f, 0.0f);
+
+        this.noiseGenerator = new SimplexNoiseGenerator(42);
+        this.noiseScale = 0.025f;
     }
 
     private static double baseDensityCurve(final double t) {
@@ -53,18 +58,20 @@ public final class EdgeDensityFunction {
      * @return the density contribution
      */
     public float apply(final Vector3 nodeA, final Vector3 nodeB, final Vector3 pos) {
+        if (true) {
+            return this.noiseGenerator.evaluate(pos.mul(this.noiseScale, new Vector3()));
+        }
+
         final var closestPoint = LineSegment.closestPoint(nodeA, nodeB, pos);
 
         final var distanceSq = closestPoint.distanceSq(pos);
         if (distanceSq > this.pathInfluenceRadius * this.pathInfluenceRadius) {
-            //return 0.0f;
+            return 0.0f;
         }
 
         final var distance = Math.sqrt(distanceSq);
         final var clampedDistanceAlpha = Math.min(1.0, distance / this.pathInfluenceRadius);
-        final var baseDensity = baseDensityCurve(clampedDistanceAlpha);
-
-        //if (true) return (float) lerp(-1.0, 0.0, clampedDistanceAlpha);
+        final var caveDensity = baseDensityCurve(clampedDistanceAlpha);
 
         final var direction = closestPoint.sub(pos, new Vector3()).normalize();
 
@@ -90,6 +97,14 @@ public final class EdgeDensityFunction {
         final var floorDensity = floorDensityCurve(distanceToFloorAlpha);
 
         // Return as negative to "decrease the density" around the edge.
-        return (float) -lerp(baseDensity, floorDensity, floorWeight);
+        final var caveContribution = -lerp(caveDensity, floorDensity, floorWeight);
+        final var globalNoiseContribution = -getGlobalNoise(pos) * (1.0 - clampedDistanceAlpha);
+
+        final double globalNoiseCoefficient = (1.0 - floorWeight) * 0.5;
+        return (float) lerp(caveContribution, globalNoiseContribution, globalNoiseCoefficient);
+    }
+
+    private double getGlobalNoise(final Vector3 pos) {
+        return this.noiseGenerator.evaluate(pos.mul(this.noiseScale, new Vector3()));
     }
 }

@@ -16,6 +16,7 @@ import org.lwjgl.vulkan.VkPresentInfoKHR;
 import org.lwjgl.vulkan.VkSemaphoreCreateInfo;
 import org.lwjgl.vulkan.VkSubmitInfo;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Optional;
@@ -47,9 +48,9 @@ public final class Application implements AutoCloseable {
     private final long[] imagesInFlight;
     private final float lookAtDistance;
 
-    private final Mesh<PolygonVertex> caveMesh;
-    private final Mesh<LineVertex> lineMesh;
-    private final Mesh<PointVertex> pointMesh;
+    @Nullable private final Mesh<PolygonVertex> caveMesh;
+    @Nullable private final Mesh<LineVertex> lineMesh;
+    @Nullable private final Mesh<PointVertex> pointMesh;
 
     /** Indicates that framebuffers have just resized and the swapchain should be re-created. */
     private boolean framebufferResized;
@@ -62,10 +63,14 @@ public final class Application implements AutoCloseable {
     public Application(final boolean validation) {
         final var caveLength = 40;
         final var spacing = 10f;
-        final var surfaceLevel = 0.75f;
-        final var spaceBetweenSamples = 1.0f;
+        final var surfaceLevel = 0.5f;
+        final var spaceBetweenSamples = 0.5f;
         final var pathInfluenceRadius = 20.0;
         final var floorFlatness = 0.75;
+
+        final var meshVisible = true;
+        final var linesVisible = true;
+        final var pointsVisible = false;
 
         final var start = new Vector3(0.0f, 0.0f, 0.0f);
         PROFILER.start("Initialization");
@@ -98,7 +103,7 @@ public final class Application implements AutoCloseable {
         final var caveVertices = new ArrayList<Vector3>();
         final var caveIndices = new ArrayList<Integer>();
         final var caveNormals = new ArrayList<Vector3>();
-        meshGenerator.generate(caveVertices, caveNormals, caveIndices, surfaceLevel, startX, startY, startZ);
+        meshGenerator.generate(cavePath, caveVertices, caveNormals, caveIndices, surfaceLevel);
 
         PROFILER.end();
         PROFILER.end();
@@ -119,26 +124,32 @@ public final class Application implements AutoCloseable {
             final var middle = cavePath.getAveragePosition();
 
             PROFILER.start("Constructing actual vertices from Marching Cubes vectors");
-            this.caveMesh = Meshes.createCaveMesh(middle,
-                                                  caveIndices,
-                                                  caveVertices,
-                                                  caveNormals,
-                                                  deviceContext,
-                                                  commandPool);
+            this.caveMesh = meshVisible
+                    ? Meshes.createCaveMesh(middle,
+                                            caveIndices,
+                                            caveVertices,
+                                            caveNormals,
+                                            deviceContext,
+                                            commandPool)
+                    : null;
             PROFILER.next("Creating additional path-line visualization");
-            this.lineMesh = Meshes.createLineMesh(cavePath,
-                                                  middle,
-                                                  deviceContext,
-                                                  commandPool);
+            this.lineMesh = linesVisible
+                    ? Meshes.createLineMesh(cavePath,
+                                            middle,
+                                            deviceContext,
+                                            commandPool)
+                    : null;
             PROFILER.next("Creating additional point-cloud visualization");
-            this.pointMesh = Meshes.createPointMesh(surfaceLevel,
-                                                    sampleSpace,
-                                                    startX,
-                                                    startY,
-                                                    startZ,
-                                                    middle,
-                                                    deviceContext,
-                                                    commandPool);
+            this.pointMesh = pointsVisible
+                    ? Meshes.createPointMesh(surfaceLevel,
+                                             sampleSpace,
+                                             startX,
+                                             startY,
+                                             startZ,
+                                             middle,
+                                             deviceContext,
+                                             commandPool)
+                    : null;
             PROFILER.end();
 
             this.appContext.setMeshes(this.caveMesh, this.lineMesh, null/*this.pointMesh*/);
@@ -346,9 +357,15 @@ public final class Application implements AutoCloseable {
             vkDestroyFence(device, this.inFlightFences[i], null);
         }
 
-        this.caveMesh.close();
-        this.lineMesh.close();
-        this.pointMesh.close();
+        if (this.caveMesh != null) {
+            this.caveMesh.close();
+        }
+        if (this.lineMesh != null) {
+            this.lineMesh.close();
+        }
+        if (this.pointMesh != null) {
+            this.pointMesh.close();
+        }
 
         this.appContext.close();
     }

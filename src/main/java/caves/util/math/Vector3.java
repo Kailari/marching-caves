@@ -65,6 +65,15 @@ public final class Vector3 {
     }
 
     /**
+     * Copy-constructor. Initializes a new vector with values from the another vector.
+     *
+     * @param other the vector which values to copy
+     */
+    public Vector3(final IntVector3 other) {
+        this(other.getX(), other.getY(), other.getZ());
+    }
+
+    /**
      * Performs linear interpolation between the points A and B.
      *
      * @param a      point A
@@ -116,6 +125,20 @@ public final class Vector3 {
     }
 
     /**
+     * Calculates the sum of this vector and vector with the given components x, y and z. Note that
+     * this modifies the original.
+     *
+     * @param x the x-component to be added
+     * @param y the y-component to be added
+     * @param z the z-component to be added
+     *
+     * @return this vector, with the given components added
+     */
+    public Vector3 add(final float x, final float y, final float z) {
+        return add(x, y, z, this);
+    }
+
+    /**
      * Calculates the sum of this vector and the given other vector.
      *
      * @param other  the other vector to be summed
@@ -125,6 +148,18 @@ public final class Vector3 {
      */
     public Vector3 add(final Vector3 other, final Vector3 result) {
         return add(other.x, other.y, other.z, result);
+    }
+
+    /**
+     * Calculates the sum of this vector and the given other vector. Note that this modifies the
+     * original.
+     *
+     * @param other the other vector to be summed
+     *
+     * @return this vector, with the other vector added
+     */
+    public Vector3 add(final Vector3 other) {
+        return add(other, this);
     }
 
     /**
@@ -151,6 +186,32 @@ public final class Vector3 {
      */
     public Vector3 sub(final float x, final float y, final float z, final Vector3 result) {
         return result.set(this.x - x, this.y - y, this.z - z);
+    }
+
+    /**
+     * Calculates the subtraction of this vector and the given other vector. Note that this modifies
+     * the original.
+     *
+     * @param other the other vector to subtract from this
+     *
+     * @return this vector, with the other vector subtracted
+     */
+    public Vector3 sub(final Vector3 other) {
+        return sub(other.x, other.y, other.z, this);
+    }
+
+    /**
+     * Calculates the subtraction of this vector and the given components of another vector. Note
+     * that this modifies the original.
+     *
+     * @param x the x-component to be subtracted
+     * @param y the y-component to be subtracted
+     * @param z the z-component to be subtracted
+     *
+     * @return this vector, with the components subtracted
+     */
+    public Vector3 sub(final float x, final float y, final float z) {
+        return sub(x, y, z, this);
     }
 
     /**
