@@ -1,5 +1,6 @@
 package caves.generator.util;
 
+import caves.util.math.IntVector3;
 import caves.util.math.Vector3;
 import org.junit.jupiter.api.Test;
 
@@ -22,6 +23,23 @@ public class TestVector3 {
     void getZReturnsCorrectValue() {
         final var vec = new Vector3(12f, 6f, 7f);
         assertEquals(7f, vec.getZ());
+    }
+
+    @Test
+    void conversionFromIntVectorWorks() {
+        final var source = new IntVector3(3, 4, 7);
+        final var actual = new Vector3(source);
+        assertAll(() -> assertEquals(source.getX(), actual.getX()),
+                  () -> assertEquals(source.getY(), actual.getY()),
+                  () -> assertEquals(source.getZ(), actual.getZ()));
+    }
+
+    @Test
+    void absReturnsCorrectValues() {
+        final var actual = new Vector3(-1, 2, -3).abs();
+        assertAll(() -> assertEquals(1, actual.getX()),
+                  () -> assertEquals(2, actual.getY()),
+                  () -> assertEquals(3, actual.getZ()));
     }
 
     @Test
@@ -71,6 +89,13 @@ public class TestVector3 {
         final var a = new Vector3(12f, 6f, 7f);
         final var b = new Vector3(4f, 7f, 18f);
         assertEquals(186f, a.distanceSq(b));
+    }
+
+    @Test
+    void distanceGivesCorrectResults() {
+        final var a = new Vector3(12f, 6f, 7f);
+        final var b = new Vector3(4f, 7f, 18f);
+        assertEquals(13.638f, a.distance(b), 0.01f);
     }
 
     @Test
@@ -156,5 +181,58 @@ public class TestVector3 {
         final var a = new Vector3(12f, 6f, 7f);
         final var b = new Vector3(4f, 7f, 18f);
         assertEquals(216.0f, a.dot(b));
+    }
+
+    @Test
+    void lerpReturnsExpectedValue() {
+        final var expected = new Vector3(3.24f, 21.86f, 11.34f);
+        final var a = new Vector3(2f, 20f, 7f);
+        final var b = new Vector3(4f, 23f, 14f);
+        final var t = 0.62f;
+
+        final var actual = Vector3.lerp(a, b, t, new Vector3());
+        assertAll(() -> assertEquals(expected.getX(), actual.getX(), 0.001),
+                  () -> assertEquals(expected.getY(), actual.getY(), 0.001),
+                  () -> assertEquals(expected.getZ(), actual.getZ(), 0.001));
+    }
+
+    @Test
+    void mulWithoutResultArgModifiesOriginal() {
+        final var actual = new Vector3(1, 2, 3).mul(10);
+        assertAll(() -> assertEquals(10, actual.getX()),
+                  () -> assertEquals(20, actual.getY()),
+                  () -> assertEquals(30, actual.getZ()));
+    }
+
+    @Test
+    void addWithoutResultArgModifiesOriginalWithSeparateComponents() {
+        final var actual = new Vector3(1, 2, 3).add(10, 10, 10);
+        assertAll(() -> assertEquals(11, actual.getX()),
+                  () -> assertEquals(12, actual.getY()),
+                  () -> assertEquals(13, actual.getZ()));
+    }
+
+    @Test
+    void subWithoutResultArgModifiesOriginalWithSeparateComponents() {
+        final var actual = new Vector3(1, 2, 3).sub(10, 10, 10);
+        assertAll(() -> assertEquals(-9, actual.getX()),
+                  () -> assertEquals(-8, actual.getY()),
+                  () -> assertEquals(-7, actual.getZ()));
+    }
+
+    @Test
+    void addWithoutResultArgModifiesOriginalWithVectorArg() {
+        final var actual = new Vector3(1, 2, 3).add(new Vector3(10, 10, 10));
+        assertAll(() -> assertEquals(11, actual.getX()),
+                  () -> assertEquals(12, actual.getY()),
+                  () -> assertEquals(13, actual.getZ()));
+    }
+
+    @Test
+    void subWithoutResultArgModifiesOriginalWithVectorArg() {
+        final var actual = new Vector3(1, 2, 3).sub(new Vector3(10, 10, 10));
+        assertAll(() -> assertEquals(-9, actual.getX()),
+                  () -> assertEquals(-8, actual.getY()),
+                  () -> assertEquals(-7, actual.getZ()));
     }
 }

@@ -2,9 +2,9 @@ package caves.visualization;
 
 import caves.generator.CaveSampleSpace;
 import caves.generator.PathGenerator;
-import caves.generator.density.PathDensityFunction;
 import caves.generator.density.EdgeDensityFunction;
 import caves.generator.mesh.MeshGenerator;
+import caves.util.math.LineSegment;
 import caves.util.math.Vector3;
 import caves.visualization.rendering.command.CommandPool;
 import caves.visualization.rendering.mesh.Mesh;
@@ -20,6 +20,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 
 import static caves.util.profiler.Profiler.PROFILER;
@@ -82,12 +83,29 @@ public final class Application implements AutoCloseable {
         PROFILER.next("Initializing sample space");
         final var samplesPerUnit = 1.0f / spaceBetweenSamples;
         final var edgeFunc = new EdgeDensityFunction(pathInfluenceRadius, floorFlatness);
+
+        final Function<Vector3, Float> densityFunction =
+                (pos) -> {
+                    final var distance = (float) cavePath.getNodesWithin(pos, pathInfluenceRadius)
+                                                         .stream()
+                                                         .filter(i -> cavePath.getPreviousFor(i) != -1)
+                                                         .map(i -> {
+                                                             final var a = cavePath.get(i);
+                                                             final var b = cavePath.get(cavePath.getPreviousFor(i));
+                                                             return LineSegment.closestPoint(a, b, pos);
+                                                         })
+                                                         .mapToDouble(pos::distance)
+                                                         .min()
+                                                         .orElse(0.0f);
+                    return (float) Math.min(1.0f, distance / pathInfluenceRadius);
+                };
+
         final var sampleSpace = new CaveSampleSpace(cavePath,
                                                     (float) pathInfluenceRadius + spaceBetweenSamples * 4,
                                                     samplesPerUnit,
-                                                    new PathDensityFunction(cavePath,
+                                                    /*new PathDensityFunction(cavePath,
                                                                             pathInfluenceRadius,
-                                                                            edgeFunc));
+                                                                            edgeFunc)*/densityFunction);
 
         PROFILER.next("Creating isosurface mesh with Marching Cubes");
 

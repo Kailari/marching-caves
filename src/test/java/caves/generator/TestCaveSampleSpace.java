@@ -1,4 +1,4 @@
-package caves.generator.util;
+package caves.generator;
 
 import caves.generator.CavePath;
 import caves.generator.CaveSampleSpace;
