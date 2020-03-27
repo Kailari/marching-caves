@@ -63,8 +63,8 @@ public final class Application implements AutoCloseable {
     public Application(final boolean validation) {
         final var caveLength = 40;
         final var spacing = 10f;
-        final var surfaceLevel = 0.5f;
-        final var spaceBetweenSamples = 0.5f;
+        final var surfaceLevel = 0.75f;
+        final var spaceBetweenSamples = 1.0f;
         final var pathInfluenceRadius = 20.0;
         final var floorFlatness = 0.75;
 

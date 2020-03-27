@@ -37,16 +37,15 @@ public final class ContributionDensityFunction implements Function<Vector3, Floa
 
     @Override
     public Float apply(final Vector3 position) {
-        if (true) {
-            return this.edgeDensityFunction.apply(new Vector3(), new Vector3(), position);
-        }
-
         final var nodes = this.cavePath.getNodesWithin(position, this.maxInfluenceRadius);
 
         // 1. Gather all contributions and distances to pos as pairs
         // 2. The distances are now inverse weights for the contributions, thus
         //  -   The final contribution is calculated as sum of contributions multiplied by
         //      distances, which is then divided by sum of weights (weighted arithmetic mean)
+        // TODO: Could the contribution be calculated from curve?
+        //          -> just lerp between lerped previous and lerped next values!
+        //          ^^^^^^ do this, rewrite this whole mess AGAIN
         final var contributions = new ArrayList<Contribution>(nodes.size());
         var summedWeights = 0.0;
         for (final var nodeIndex : nodes) {
@@ -75,7 +74,7 @@ public final class ContributionDensityFunction implements Function<Vector3, Floa
                 minContribution = this.edgeDensityFunction.apply(node, next, position);
             }
 
-            final var maxInfluenceRadiusSq = this.maxInfluenceRadius * this.maxInfluenceRadius;
+            final var maxInfluenceRadiusSq = this.maxInfluenceRadius * this.maxInfluenceRadius * this.maxInfluenceRadius;
             if (Float.isFinite(minDistance) && minDistance < maxInfluenceRadiusSq) {
                 contributions.add(new Contribution(minWeight, minContribution));
                 summedWeights += minWeight;
@@ -95,7 +94,12 @@ public final class ContributionDensityFunction implements Function<Vector3, Floa
                 summedWeightedContribution += contribution.weight * contribution.value;
             }
         }
-        final var averageContribution = summedWeightedContribution / summedWeights;
+        // HACK:    Clamp minimum weights to at least 0.5 to prevent contributions averaging to NaN
+        //          when all weights are very small. This value could be as small as desired, but
+        //          using a relatively high value tends to smooth out the areas where this is an
+        //          issue (areas where overall noise contributions stretch the wall far away from
+        //          the actual path).
+        final var averageContribution = summedWeightedContribution / Math.max(0.5, summedWeights);
 
         return Math.max(0.0f, Math.min(1.0f, 1.0f + (float) averageContribution));
     }

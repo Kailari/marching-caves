@@ -39,6 +39,15 @@ public final class EdgeDensityFunction {
         return Math.min(1.0, lerp(1.0, 0.0, t));
     }
 
+    /**
+     * Linear interpolation.
+     *
+     * @param a first value
+     * @param b second value
+     * @param t alpha
+     *
+     * @return linearly interpolated value between a and b
+     */
     public static double lerp(final double a, final double b, final double t) {
         return (1 - t) * a + t * b;
     }
@@ -58,15 +67,13 @@ public final class EdgeDensityFunction {
      * @return the density contribution
      */
     public float apply(final Vector3 nodeA, final Vector3 nodeB, final Vector3 pos) {
-        if (true) {
-            return this.noiseGenerator.evaluate(pos.mul(this.noiseScale, new Vector3()));
-        }
-
         final var closestPoint = LineSegment.closestPoint(nodeA, nodeB, pos);
 
         final var distanceSq = closestPoint.distanceSq(pos);
-        if (distanceSq > this.pathInfluenceRadius * this.pathInfluenceRadius) {
-            return 0.0f;
+        // HACK:    Add extra margin by incrementing the exponent to 3. This allows overflow from
+        //          other sources of density. (e.g. overlaid noise functions)
+        if (distanceSq > this.pathInfluenceRadius * this.pathInfluenceRadius * this.pathInfluenceRadius) {
+            //return 0.0f;
         }
 
         final var distance = Math.sqrt(distanceSq);
@@ -75,19 +82,6 @@ public final class EdgeDensityFunction {
 
         final var direction = closestPoint.sub(pos, new Vector3()).normalize();
 
-        // Dot product can kind of be thought as to signify "how perpendicular two vectors are?"
-        // or "what is the size of the portion of these two vectors that overlaps?". Here, we
-        // are working with up axis and a direction, thus taking their dot product in this
-        // context practically means "how upwards the direction vector points".
-        //
-        // Both are unit vectors so resulting scalar has maximum absolute value of 1.0.
-        //
-        // Furthermore, for the ceiling the dot product is negative, so by clamping to zero we
-        // get a nice weight multiplier for the floor. (The resulting value is zero for walls
-        // and the ceiling).
-        //
-        // From there, just lerp between the base density and higher density (based on the base
-        // density) to get a nice flat floor.
         final var floorWeight = Math.max(0.0, direction.dot(this.directionUp) * this.floorFlatness);
         assert floorWeight >= 0.0 && floorWeight <= 1.0;
 
@@ -98,9 +92,11 @@ public final class EdgeDensityFunction {
 
         // Return as negative to "decrease the density" around the edge.
         final var caveContribution = -lerp(caveDensity, floorDensity, floorWeight);
-        final var globalNoiseContribution = -getGlobalNoise(pos) * (1.0 - clampedDistanceAlpha);
+        final var globalNoiseContribution = -getGlobalNoise(pos) * clampedDistanceAlpha;
 
-        final double globalNoiseCoefficient = (1.0 - floorWeight) * 0.5;
+        final var floorNoisiness = 0.35;
+        final var overallNoisiness = 0.35;
+        final double globalNoiseCoefficient = (1.0 - floorWeight * (1.0 - floorNoisiness)) * overallNoisiness;
         return (float) lerp(caveContribution, globalNoiseContribution, globalNoiseCoefficient);
     }
 
