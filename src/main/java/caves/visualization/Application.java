@@ -2,7 +2,7 @@ package caves.visualization;
 
 import caves.generator.CaveSampleSpace;
 import caves.generator.PathGenerator;
-import caves.generator.density.ContributionDensityFunction;
+import caves.generator.density.PathDensityFunction;
 import caves.generator.density.EdgeDensityFunction;
 import caves.generator.mesh.MeshGenerator;
 import caves.util.math.Vector3;
@@ -85,9 +85,9 @@ public final class Application implements AutoCloseable {
         final var sampleSpace = new CaveSampleSpace(cavePath,
                                                     (float) pathInfluenceRadius + spaceBetweenSamples * 4,
                                                     samplesPerUnit,
-                                                    new ContributionDensityFunction(cavePath,
-                                                                                    pathInfluenceRadius,
-                                                                                    edgeFunc));
+                                                    new PathDensityFunction(cavePath,
+                                                                            pathInfluenceRadius,
+                                                                            edgeFunc));
 
         PROFILER.next("Creating isosurface mesh with Marching Cubes");
 
