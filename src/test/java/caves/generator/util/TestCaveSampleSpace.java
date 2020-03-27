@@ -21,7 +21,7 @@ public class TestCaveSampleSpace {
 
     @Test
     void sampleSpaceHasExpectedCounts() {
-        final var space = new CaveSampleSpace(cave, 1.0f, 0.25f, (p, v) -> 1.0f);
+        final var space = new CaveSampleSpace(cave, 1.0f, 1.0f / 0.25f, (v) -> 1.0f);
         assertAll(() -> assertEquals(Math.floor((10.0f + 2.0f) / 0.25f), space.getCountX(), 0.5),
                   () -> assertEquals(Math.floor((7.276f + 2.0f) / 0.25f), space.getCountY(), 0.5),
                   () -> assertEquals(Math.floor((3.64f + 2.0f) / 0.25f), space.getCountZ(), 0.5));
@@ -31,7 +31,7 @@ public class TestCaveSampleSpace {
     void samplePositionsAreCorrect() {
         final var expected = new Vector3(-4.75f, -8.5f, 4.45f);
 
-        final var space = new CaveSampleSpace(cave, 1.0f, 0.25f, (p, v) -> 1.0f);
+        final var space = new CaveSampleSpace(cave, 1.0f, 1.0f / 0.25f, (v) -> 1.0f);
         final var pos = space.getPos(1, 2, 3);
         assertAll(() -> assertEquals(expected.getX(), pos.getX(), 0.001),
                   () -> assertEquals(expected.getY(), pos.getY(), 0.001),
@@ -40,7 +40,7 @@ public class TestCaveSampleSpace {
 
     @Test
     void sampleDensitiesAreFromTheDensityFunction() {
-        final var space = new CaveSampleSpace(cave, 1.0f, 0.25f, (p, v) -> 42.0f);
+        final var space = new CaveSampleSpace(cave, 1.0f, 1.0f / 0.25f, (v) -> 42.0f);
         assertEquals(42.0f, space.getDensity(1, 2, 3));
         assertEquals(42.0f, space.getDensity(3, 2, 1));
         assertEquals(42.0f, space.getDensity(12, 21, 32));
