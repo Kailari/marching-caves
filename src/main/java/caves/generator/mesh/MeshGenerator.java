@@ -54,21 +54,20 @@ public class MeshGenerator {
             final var caveStartSampleCoord = node.sub(this.sampleSpace.getMin(), new Vector3())
                                                  .abs()
                                                  .mul(this.sampleSpace.getSamplesPerUnit());
+
             startX = (int) caveStartSampleCoord.getX();
             startY = (int) caveStartSampleCoord.getY();
             startZ = (int) caveStartSampleCoord.getZ();
-            var anyNonSolid = false;
             for (final var offset : MarchingCubesTables.VERTEX_OFFSETS) {
                 if (this.sampleSpace.getDensity(startX + offset[X],
                                                 startY + offset[Y],
                                                 startZ + offset[Z]) < surfaceLevel) {
-                    anyNonSolid = true;
+                    startFound = true;
                     break;
                 }
             }
 
-            if (anyNonSolid) {
-                startFound = true;
+            if (startFound) {
                 break;
             }
         }

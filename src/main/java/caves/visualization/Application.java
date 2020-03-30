@@ -65,8 +65,8 @@ public final class Application implements AutoCloseable {
         final var spacing = 10f;
         final var surfaceLevel = 0.75f;
         final var spaceBetweenSamples = 1.0f;
-        final var pathInfluenceRadius = 20.0;
-        final var floorFlatness = 0.75;
+        final var caveRadius = 20.0;
+        final var floorFlatness = 0.45;
 
         final var meshVisible = true;
         final var linesVisible = true;
@@ -81,12 +81,17 @@ public final class Application implements AutoCloseable {
 
         PROFILER.next("Initializing sample space");
         final var samplesPerUnit = 1.0f / spaceBetweenSamples;
-        final var edgeFunc = new EdgeDensityFunction(pathInfluenceRadius, floorFlatness);
+        final var maxInfluenceRadius = caveRadius * 2.0;
+        final var edgeFunc = new EdgeDensityFunction(maxInfluenceRadius,
+                                                     caveRadius,
+                                                     floorFlatness);
+
+        final var margin = (float) maxInfluenceRadius + spaceBetweenSamples * 2;
         final var sampleSpace = new CaveSampleSpace(cavePath,
-                                                    (float) pathInfluenceRadius + spaceBetweenSamples * 4,
+                                                    margin,
                                                     samplesPerUnit,
                                                     new PathDensityFunction(cavePath,
-                                                                            pathInfluenceRadius,
+                                                                            maxInfluenceRadius,
                                                                             edgeFunc));
 
         PROFILER.next("Creating isosurface mesh with Marching Cubes");
@@ -165,7 +170,7 @@ public final class Application implements AutoCloseable {
         Arrays.fill(this.imagesInFlight, VK_NULL_HANDLE);
 
         this.lookAtDistance = Math.max(sampleSpace.getMin().length(),
-                                       sampleSpace.getMax().length()) + (float) pathInfluenceRadius + 1;
+                                       sampleSpace.getMax().length()) + (float) caveRadius + 1;
 
         PROFILER.end();
         PROFILER.end();

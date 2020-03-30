@@ -35,71 +35,32 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
     public Float apply(final Vector3 position) {
         final var nodes = this.cavePath.getNodesWithin(position, this.maxInfluenceRadius);
 
-        final var contributions = new ArrayList<Contribution>();
         var summedWeights = 0.0;
+        var noContributions = true;
+        final var contributions = new ArrayList<Contribution>();
         for (final var nodeIndex : nodes) {
-            final var node = this.cavePath.get(nodeIndex);
+            final var edgeAverage = new WeightedAverage();
 
-            final var previousIndex = this.cavePath.getPreviousFor(nodeIndex);
+            this.cavePath.getPreviousFor(nodeIndex).ifPresent(p -> edgeAverage.add(p, nodeIndex, position));
+            this.cavePath.getNextFor(nodeIndex).forEach(n -> edgeAverage.add(nodeIndex, n, position));
 
-            if (previousIndex == -1) {
-                continue; // TODO
-            }
-            final var previous = this.cavePath.get(previousIndex);
-            final var closestOnPrevious = LineSegment.closestPoint(previous, node, position);
-            final var distSqToPrevClosest = closestOnPrevious.distanceSq(position);
-            final var previousValue = this.edgeDensityFunction.apply(node,
-                                                                     previous,
-                                                                     position);
-
-            var minDistance = Float.POSITIVE_INFINITY;
-            var value = 0.0;
-            for (final var nextIndex : this.cavePath.getNextFor(nodeIndex)) {
-                if (nextIndex == -1) {
-                    continue; // TODO
-                }
-
-                final var next = this.cavePath.get(nextIndex);
-                final var closestOnNext = LineSegment.closestPoint(previous, node, position);
-                final var distSqToNextClosest = closestOnNext.distanceSq(position);
-                final var nextValue = this.edgeDensityFunction.apply(node,
-                                                                     next,
-                                                                     position);
-
-                final var distance = Math.min(distSqToPrevClosest, distSqToNextClosest);
-                if (distance < minDistance) {
-                    minDistance = distance;
-
-                    final var distTotal = distSqToPrevClosest + distSqToNextClosest;
-                    final var weightedPrev = distSqToPrevClosest * previousValue;
-                    final var weightedNext = distSqToNextClosest * nextValue;
-                    value = (weightedPrev + weightedNext) / distTotal;
-                    //value = Math.min(nextValue, previousValue);
-                }
-            }
-
-            final var maxInfluenceRadiusSq = this.maxInfluenceRadius * this.maxInfluenceRadius;
-            if (Float.isFinite(minDistance) && minDistance < maxInfluenceRadiusSq) {
-                final var weight = 1.0 - Math.min(1.0, Math.sqrt(minDistance) / this.maxInfluenceRadius);
-                contributions.add(new Contribution(weight, value));
+            if (edgeAverage.hasContribution) {
+                final var weight = edgeAverage.averageWeight();
                 summedWeights += weight;
+                contributions.add(new Contribution(weight, edgeAverage.calculate()));
+                noContributions = false;
             }
         }
 
-        if (contributions.size() == 0) {
+        if (noContributions) {
             return 1.0f;
         }
 
+        final double finalSummedWeights = summedWeights;
         final var weightedTotal = contributions.stream()
-                                               .mapToDouble(c -> c.weight * c.value)
+                                               .mapToDouble(c -> (finalSummedWeights - c.weight) * c.value)
                                                .sum();
-
-        // HACK:    Clamp minimum weights to at least 0.5 to prevent contributions averaging to NaN
-        //          when all weights are very small. This value could be as small as desired, but
-        //          using a relatively high value tends to smooth out the areas where this is an
-        //          issue (areas where overall noise contributions stretch the wall far away from
-        //          the actual path).
-        final var weightedAverage = weightedTotal / Math.max(0.5, summedWeights);
+        final var weightedAverage = weightedTotal / summedWeights;
         return (float) Math.max(0.0, Math.min(1.0, 1.0 + weightedAverage));
     }
 
@@ -110,6 +71,83 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
         private Contribution(final double weight, final double value) {
             this.weight = weight;
             this.value = value;
+        }
+    }
+
+    private final class WeightedAverage {
+        private double totalWeight;
+        private double weightedSum;
+        private boolean hasContribution;
+        private int n;
+
+        WeightedAverage() {
+            this.totalWeight = 0.0;
+            this.weightedSum = 0.0;
+            this.n = 0;
+            this.hasContribution = false;
+        }
+
+        void add(final int indexA, final int indexB, final Vector3 position) {
+            final var maxRadiusSq =
+                    PathDensityFunction.this.maxInfluenceRadius * PathDensityFunction.this.maxInfluenceRadius;
+
+            assert indexA != -1 || indexB != -1 : "One of the nodes must exist!";
+
+            final Vector3 nodeA;
+            final Vector3 nodeB;
+            final Vector3 closest;
+            if (indexA == -1 || indexB == -1) {
+                final var node = indexA != -1
+                        ? PathDensityFunction.this.cavePath.get(indexA)
+                        : PathDensityFunction.this.cavePath.get(indexB);
+                nodeA = node;
+                nodeB = node;
+                closest = node;
+            } else {
+                nodeA = PathDensityFunction.this.cavePath.get(indexA);
+                nodeB = PathDensityFunction.this.cavePath.get(indexB);
+                closest = LineSegment.closestPoint(nodeA, nodeB, position);
+            }
+
+            final var distanceSq = closest.distanceSq(position);
+            if (distanceSq > maxRadiusSq) {
+                return;
+            }
+
+            final var value = PathDensityFunction.this.edgeDensityFunction.apply(nodeA,
+                                                                                 nodeB,
+                                                                                 position,
+                                                                                 closest,
+                                                                                 distanceSq);
+
+            // HACK:    Avoid potentially getting very large whole number part for the weight by
+            //          rescaling the weights to 0..maxRadius. However, we do not want to calculate
+            //          square root here, so use squares of rescaled weights instead:
+            //
+            //              w   = sqrt(distance^2) / maxRadius
+            //              w^2 =      distance^2  / maxRadius^2
+            //
+            //          This works because the weighted average does not care which scale the
+            //          weights use, as long as all weights are on the same scale. As distances are
+            //          always less than max radius, we get nice weight range of 0..1, where
+            //          individual weights are on exponential (power two) curve. This gives us more
+            //          than enough accuracy to avoid visual artifacts in most cases.
+            //
+            //          Then, as the distance should be inverse measure of the contribution weight,
+            //          subtract the weight value from one to get the actual weight.
+            final var weightSq = distanceSq / maxRadiusSq;
+            this.weightedSum += weightSq * value;
+            this.totalWeight += weightSq;
+            this.n++;
+            this.hasContribution = true;
+        }
+
+        public double calculate() {
+            return this.weightedSum / this.totalWeight;
+        }
+
+        public double averageWeight() {
+            return this.totalWeight / this.n;
         }
     }
 }

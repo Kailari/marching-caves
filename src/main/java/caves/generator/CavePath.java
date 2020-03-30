@@ -5,6 +5,7 @@ import caves.util.math.Vector3;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -80,8 +81,8 @@ public final class CavePath {
      *
      * @return the index of the previous (parent) node
      */
-    public int getPreviousFor(final int index) {
-        return index - 1;
+    public Optional<Integer> getPreviousFor(final int index) {
+        return Optional.of(index - 1);
     }
 
     /**
@@ -92,10 +93,9 @@ public final class CavePath {
      * @return the index of the previous (parent) node
      */
     public Collection<Integer> getNextFor(final int index) {
-        final var next = index == this.nodes.size() - 1
-                ? -1
-                : index + 1;
-        return List.of(next);
+        return index == this.nodes.size() - 1
+                ? List.of()
+                : List.of(index + 1);
     }
 
     /**

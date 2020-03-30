@@ -1,6 +1,5 @@
 package caves.generator.density;
 
-import caves.util.math.LineSegment;
 import caves.util.math.Vector3;
 
 /**
@@ -8,31 +7,46 @@ import caves.util.math.Vector3;
  */
 @SuppressWarnings("SameParameterValue")
 public final class EdgeDensityFunction {
-    private final double pathInfluenceRadius;
+    private final double caveMainInfluenceRadius;
+    private final double maxInfluenceRadius;
     private final double pathFloorInfluenceRadius;
     private final double floorFlatness;
     private final Vector3 directionUp;
 
     private final SimplexNoiseGenerator noiseGenerator;
     private final float noiseScale;
+    private final double floorStart;
+    private final double floorGlobalNoiseFactor;
+    private final double globalNoiseFactor;
+    private final double globalNoiseMagnitude;
 
     /**
      * Creates a new density function for calculating densities for a single edge.
      *
-     * @param pathInfluenceRadius how far the path influences the sample densities
-     * @param floorFlatness       "flatness" of cave floor, lower values make the floor more round
+     * @param maxInfluenceRadius the maximum distance from the path after which the function is
+     *                           guaranteed to return zero values
+     * @param caveRadius         radius of the main cave path. This is the radius of influence
+     *                           around the path edges
+     * @param floorFlatness      "flatness" of cave floor, lower values make the floor more round
      */
     public EdgeDensityFunction(
-            final double pathInfluenceRadius,
+            final double maxInfluenceRadius,
+            final double caveRadius,
             final double floorFlatness
     ) {
-        this.pathInfluenceRadius = pathInfluenceRadius;
-        this.pathFloorInfluenceRadius = pathInfluenceRadius / 2.5;
+        this.caveMainInfluenceRadius = caveRadius;
+        this.pathFloorInfluenceRadius = caveRadius / 2.5;
+        this.maxInfluenceRadius = maxInfluenceRadius;
+
         this.floorFlatness = floorFlatness;
         this.directionUp = new Vector3(0.0f, 1.0f, 0.0f);
 
         this.noiseGenerator = new SimplexNoiseGenerator(42);
+        this.floorStart = 0.2;
         this.noiseScale = 0.025f;
+        this.globalNoiseMagnitude = 0.5;
+        this.floorGlobalNoiseFactor = 0.15;
+        this.globalNoiseFactor = 0.35;
     }
 
     private static double baseDensityCurve(final double t) {
@@ -60,47 +74,63 @@ public final class EdgeDensityFunction {
      * Calculates the density contribution for the given point from the cave path edge defined by
      * nodes A and B.
      *
-     * @param nodeA the start point of the edge
-     * @param nodeB the end point of the edge
-     * @param pos   position for which to calculate the density
+     * @param nodeA        the start point of the edge
+     * @param nodeB        the end point of the edge
+     * @param position     position for which to calculate the density
+     * @param closestPoint the point on the edge that is closest to the given position
+     * @param distanceSq   squared distance between the closest point and the position
      *
      * @return the density contribution
      */
-    public float apply(final Vector3 nodeA, final Vector3 nodeB, final Vector3 pos) {
-        final var closestPoint = LineSegment.closestPoint(nodeA, nodeB, pos);
+    public float apply(
+            final Vector3 nodeA,
+            final Vector3 nodeB,
+            final Vector3 position,
+            final Vector3 closestPoint,
+            final float distanceSq
+    ) {
+        // Optimization: Skip everything further than max influence radius away
+        final var influenceRadiusSq = this.maxInfluenceRadius * this.maxInfluenceRadius;
+        if (distanceSq > influenceRadiusSq) {
+            return 0.0f;
+        }
 
-        final var distanceSq = closestPoint.distanceSq(pos);
-        // HACK:    Add extra margin by incrementing the exponent to 3. This allows overflow from
-        //          other sources of density. (e.g. overlaid noise functions)
-        if (distanceSq > this.pathInfluenceRadius * this.pathInfluenceRadius * this.pathInfluenceRadius) {
-            //return 0.0f;
+        // Special case: The point being sampled is *exactly* on the node. This guarantees that
+        //               direction vectors are non-zero later on.
+        if (distanceSq < 0.0000001) {
+            return -1.0f;
         }
 
         final var distance = Math.sqrt(distanceSq);
-        final var clampedDistanceAlpha = Math.min(1.0, distance / this.pathInfluenceRadius);
-        final var caveDensity = baseDensityCurve(clampedDistanceAlpha);
+        final var distanceAlpha = Math.min(1.0, distance / this.caveMainInfluenceRadius);
+        final var caveDensity = baseDensityCurve(distanceAlpha);
 
-        final var direction = closestPoint.sub(pos, new Vector3()).normalize();
+        final var direction = closestPoint.sub(position, new Vector3()).normalize();
 
-        final var floorWeight = Math.max(0.0, direction.dot(this.directionUp) * this.floorFlatness);
+        final var floorWeight = Math.max(0.0, direction.dot(this.directionUp) - this.floorStart);
         assert floorWeight >= 0.0 && floorWeight <= 1.0;
 
-        final var verticalDistance = Math.abs(pos.getY() - closestPoint.getY());
+        final var verticalDistance = Math.abs(position.getY() - closestPoint.getY());
         final var distanceToFloorAlpha = Math.min(1.0, verticalDistance / this.pathFloorInfluenceRadius);
 
         final var floorDensity = floorDensityCurve(distanceToFloorAlpha);
 
         // Return as negative to "decrease the density" around the edge.
-        final var caveContribution = -lerp(caveDensity, floorDensity, floorWeight);
-        final var globalNoiseContribution = -getGlobalNoise(pos) * clampedDistanceAlpha;
+        final var caveContribution = -lerp(caveDensity, floorDensity, floorWeight * this.floorFlatness);
 
-        final var floorNoisiness = 0.35;
-        final var overallNoisiness = 0.35;
-        final double globalNoiseCoefficient = (1.0 - floorWeight * (1.0 - floorNoisiness)) * overallNoisiness;
-        return (float) lerp(caveContribution, globalNoiseContribution, globalNoiseCoefficient);
+        final var globalNoiseContribution = -getGlobalNoise(position) * distanceAlpha;
+
+        final var globalNoiseFloorFactor = (1.0 - floorWeight * (1.0 - this.floorGlobalNoiseFactor));
+        final var globalNoiseCoefficient = globalNoiseFloorFactor * this.globalNoiseFactor;
+        final var globalDensity = lerp(caveContribution, globalNoiseContribution, globalNoiseCoefficient);
+
+        final var fadeToSolidAlpha = Math.min(1.0, distance / this.maxInfluenceRadius);
+        final var clampedDensity = lerp(globalDensity, 0.0, fadeToSolidAlpha);
+
+        return (float) clampedDensity;
     }
 
     private double getGlobalNoise(final Vector3 pos) {
-        return this.noiseGenerator.evaluate(pos.mul(this.noiseScale, new Vector3()));
+        return this.noiseGenerator.evaluate(pos.mul(this.noiseScale, new Vector3())) * this.globalNoiseMagnitude;
     }
 }
