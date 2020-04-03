@@ -8,6 +8,8 @@ Simple(-ish) cave generator written as course project, using implementations of 
 Dokumentaatio
 -------------
 - [Määrittelydokumentti](./dokumentaatio/määrittely.md)
+- [Toteutusdokumentti](./dokumentaatio/toteutus.md)
+- [Testausdokumentti](./dokumentaatio/testaus.md)
 
 ### Viikkoraportit
  - [viikko 1](./dokumentaatio/viikko_1.md)
