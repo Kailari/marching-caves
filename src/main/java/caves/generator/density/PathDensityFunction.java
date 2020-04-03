@@ -4,7 +4,6 @@ import caves.generator.CavePath;
 import caves.util.math.LineSegment;
 import caves.util.math.Vector3;
 
-import java.util.ArrayList;
 import java.util.function.Function;
 
 public final class PathDensityFunction implements Function<Vector3, Float> {
@@ -33,11 +32,12 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
 
     @Override
     public Float apply(final Vector3 position) {
-        final var nodes = this.cavePath.getNodesWithin(position, this.maxInfluenceRadius);
+        final var nodes = this.cavePath.getNodesWithin(position,
+                                                       this.maxInfluenceRadius + this.cavePath.getNodeSpacing());
 
+        final var contributions = new Contribution[nodes.size() * this.cavePath.getSplittingLimit()];
         var summedWeights = 0.0;
-        var noContributions = true;
-        final var contributions = new ArrayList<Contribution>();
+        var nContributions = 0;
         for (final var nodeIndex : nodes) {
             final var edgeAverage = new WeightedAverage();
 
@@ -47,19 +47,19 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
             if (edgeAverage.hasContribution) {
                 final var weight = edgeAverage.averageWeight();
                 summedWeights += weight;
-                contributions.add(new Contribution(weight, edgeAverage.calculate()));
-                noContributions = false;
+                contributions[nContributions] = new Contribution(weight, edgeAverage.calculate());
+                nContributions++;
             }
         }
 
-        if (noContributions) {
+        if (nContributions == 0) {
             return 1.0f;
         }
 
-        final double finalSummedWeights = summedWeights;
-        final var weightedTotal = contributions.stream()
-                                               .mapToDouble(c -> (finalSummedWeights - c.weight) * c.value)
-                                               .sum();
+        var weightedTotal = 0.0;
+        for (int i = 0; i < nContributions; i++) {
+            weightedTotal += (summedWeights - contributions[i].weight) * contributions[i].value;
+        }
         final var weightedAverage = weightedTotal / summedWeights;
         return (float) Math.max(0.0, Math.min(1.0, 1.0 + weightedAverage));
     }
@@ -132,10 +132,7 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
             //          always less than max radius, we get nice weight range of 0..1, where
             //          individual weights are on exponential (power two) curve. This gives us more
             //          than enough accuracy to avoid visual artifacts in most cases.
-            //
-            //          Then, as the distance should be inverse measure of the contribution weight,
-            //          subtract the weight value from one to get the actual weight.
-            final var weightSq = distanceSq / maxRadiusSq;
+            final var weightSq = 1.0 - Math.min(1.0, distanceSq / maxRadiusSq);
             this.weightedSum += weightSq * value;
             this.totalWeight += weightSq;
             this.n++;

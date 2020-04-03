@@ -5,10 +5,12 @@
       <w>bitmask</w>
       <w>bitmasks</w>
       <w>calloc</w>
+      <w>coord</w>
       <w>glfw</w>
       <w>glsl</w>
       <w>imgv</w>
       <w>isosurface</w>
+      <w>iter</w>
       <w>lerp</w>
       <w>lwjgl</w>
       <w>multisampling</w>
@@ -17,6 +19,7 @@
       <w>octree</w>
       <w>prng</w>
       <w>scancode</w>
+      <w>sfloat</w>
       <w>shaderc</w>
       <w>spirv</w>
       <w>sqrt</w>

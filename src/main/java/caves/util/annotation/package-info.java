@@ -5,6 +5,6 @@
 @ParametersAreNonnullByDefault
 @MethodsReturnNonnullByDefault
 @FieldsAreNonnullByDefault
-package caves.visualization.util.annotation;
+package caves.util.annotation;
 
 import javax.annotation.ParametersAreNonnullByDefault;

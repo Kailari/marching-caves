@@ -1,7 +1,5 @@
 package caves.generator.mesh;
 
-import java.util.ArrayList;
-
 /**
  * Lookup tables and utilities for selecting appropriate cube based on vertex solidity.
  * <p>
@@ -364,8 +362,7 @@ public final class MarchingCubesTables {
             final float surfaceLevel,
             final float[] samples
     ) {
-        final var nExpectedSamples = 8;
-        assert samples.length == nExpectedSamples : "There must be exactly 8 samples!";
+        assert samples.length == 8 : "There must be exactly 8 samples!";
 
         int cubeIndex = 0;
         final var indexSizeInBits = 8;
@@ -440,18 +437,22 @@ public final class MarchingCubesTables {
          * @return free facings for a cube index
          */
         public static Facing[] freeForCubeIndex(final int cubeIndex) {
-            final var facings = new ArrayList<Facing>(8);
+            final var facings = new Facing[8];
+            var nFacings = 0;
             for (final var facing : values()) {
                 for (final var bitIndex : facing.bitIndices) {
                     // If any of the vertices is free, we can add the face and break the inner loop
                     if ((cubeIndex & (1 << bitIndex)) != 0) {
-                        facings.add(facing);
+                        facings[nFacings] = facing;
+                        nFacings++;
                         break;
                     }
                 }
             }
 
-            return facings.toArray(Facing[]::new);
+            final var result = new Facing[nFacings];
+            System.arraycopy(facings, 0, result, 0, nFacings);
+            return result;
         }
     }
 }

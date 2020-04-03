@@ -3,13 +3,16 @@ package caves.visualization;
 import caves.generator.CavePath;
 import caves.generator.CaveSampleSpace;
 import caves.generator.mesh.MarchingCubesTables;
+import caves.util.collections.GrowingAddOnlyList;
 import caves.util.math.Vector3;
 import caves.visualization.rendering.command.CommandPool;
 import caves.visualization.rendering.mesh.Mesh;
 import caves.visualization.window.DeviceContext;
 import org.joml.Vector3f;
 
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.Collection;
 
 @SuppressWarnings("SameParameterValue")
 final class Meshes {
@@ -21,15 +24,17 @@ final class Meshes {
     static Mesh<PolygonVertex> createCaveMesh(
             final Vector3 middle,
             final Collection<Integer> caveIndices,
-            final List<Vector3> caveVertices,
-            final List<Vector3> caveNormals,
+            final Collection<Vector3> caveVertices,
+            final Collection<Vector3> caveNormals,
             final DeviceContext deviceContext,
             final CommandPool commandPool
     ) {
         final var actualVertices = new PolygonVertex[caveVertices.size()];
+        final var vertexIter = caveVertices.iterator();
+        final var normalIter = caveNormals.iterator();
         for (var i = 0; i < actualVertices.length; ++i) {
-            final var pos = caveVertices.get(i);
-            final var normal = caveNormals.get(i);
+            final var pos = vertexIter.next();
+            final var normal = normalIter.next();
             actualVertices[i] = new PolygonVertex(new Vector3f(pos.getX() - middle.getX(),
                                                                pos.getY() - middle.getY(),
                                                                pos.getZ() - middle.getZ()),
@@ -71,7 +76,7 @@ final class Meshes {
             final DeviceContext deviceContext,
             final CommandPool commandPool
     ) {
-        final var vertices = new ArrayList<PointVertex>();
+        final var vertices = new GrowingAddOnlyList<>(PointVertex.class, 32);
 
         final var queue = new ArrayDeque<PointVertexEntry>();
         final var alreadyQueued = new boolean[sampleSpace.getTotalCount()];

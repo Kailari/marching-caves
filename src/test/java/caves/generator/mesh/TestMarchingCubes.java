@@ -19,28 +19,29 @@ public class TestMarchingCubes {
         final var spacing = 10f;
         final var surfaceLevel = 0.75f;
         final var spaceBetweenSamples = 2.0f;
-        final var pathInfluenceRadius = 20.0f;
+        final var caveRadius = 20.0f;
 
         final var start = new Vector3(0.0f, 0.0f, 0.0f);
         final var cavePath = new PathGenerator().generate(start, caveLength, spacing, 420);
         final var samplesPerUnit = 1.0f / spaceBetweenSamples;
         final Function<Vector3, Float> densityFunction =
                 (pos) -> {
-                    final var distance = (float) cavePath.getNodesWithin(pos, pathInfluenceRadius)
+                    final var distance = (float) cavePath.getNodesWithin(pos, caveRadius)
                                                          .stream()
-                                                         .filter(i -> cavePath.getPreviousFor(i) != -1)
+                                                         .filter(i -> cavePath.getPreviousFor(i).isPresent())
                                                          .map(i -> {
                                                              final var a = cavePath.get(i);
-                                                             final var b = cavePath.get(cavePath.getPreviousFor(i));
+                                                             final var b = cavePath.get(cavePath.getPreviousFor(i)
+                                                                                                .orElseThrow());
                                                              return LineSegment.closestPoint(a, b, pos);
                                                          })
                                                          .mapToDouble(pos::distance)
                                                          .min()
-                                                         .orElse(0.0f);
-                    return (float) Math.min(1.0f, distance / pathInfluenceRadius);
+                                                         .orElse(caveRadius * caveRadius);
+                    return Math.min(1.0f, distance / caveRadius);
                 };
         final var sampleSpace = new CaveSampleSpace(cavePath,
-                                                    pathInfluenceRadius + spaceBetweenSamples * 4,
+                                                    caveRadius + spaceBetweenSamples * 4,
                                                     samplesPerUnit,
                                                     densityFunction);
 
@@ -50,8 +51,8 @@ public class TestMarchingCubes {
         final var caveNormals = new ArrayList<Vector3>();
         meshGenerator.generate(cavePath, caveVertices, caveNormals, caveIndices, surfaceLevel);
 
-        assertAll(() -> assertEquals(24984, caveIndices.size()));
-        assertAll(() -> assertEquals(24984, caveVertices.size()));
+        assertAll(() -> assertEquals(24288, caveIndices.size()));
+        assertAll(() -> assertEquals(24288, caveVertices.size()));
         assertAll(() -> assertEquals(caveVertices.size(), caveNormals.size()));
     }
 }

@@ -1,7 +1,5 @@
 package caves.generator;
 
-import caves.generator.CavePath;
-import caves.generator.CaveSampleSpace;
 import caves.util.math.Vector3;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,7 +12,7 @@ public class TestCaveSampleSpace {
 
     @BeforeEach
     void beforeEach() {
-        cave = new CavePath();
+        cave = new CavePath(10.0f);
         cave.addNode(new Vector3(-4.0f, -8.0f, 4.7f));
         cave.addNode(new Vector3(6.0f, -0.724f, 8.34f));
     }

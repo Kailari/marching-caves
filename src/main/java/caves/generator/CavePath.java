@@ -1,16 +1,33 @@
 package caves.generator;
 
+import caves.util.collections.GrowingAddOnlyList;
 import caves.util.math.Vector3;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 public final class CavePath {
     private final List<Vector3> nodes;
+    private final double nodeSpacing;
+
+    /**
+     * How many branches can start from a single node? 1 means no branching.
+     *
+     * @return branching limit per node
+     */
+    public int getSplittingLimit() {
+        return 1;
+    }
+
+    /**
+     * Gets the distance between nodes on the path.
+     *
+     * @return distance between nodes
+     */
+    public double getNodeSpacing() {
+        return this.nodeSpacing;
+    }
 
     /**
      * Gets all nodes on the path, ordered from path start to the end.
@@ -27,10 +44,18 @@ public final class CavePath {
      * @return the average position
      */
     public Vector3 getAveragePosition() {
-        return this.nodes.stream()
-                         .reduce((a, b) -> a.add(b, new Vector3()))
-                         .map(sum -> sum.mul(1.0f / this.nodes.size(), sum))
-                         .orElseThrow();
+        final Vector3 sum = new Vector3(0.0f, 0.0f, 0.0f);
+        if (this.nodes.isEmpty()) {
+            return sum;
+        }
+
+        for (final var node : this.nodes) {
+            sum.add(node);
+        }
+
+        return sum.set(sum.getX() / this.nodes.size(),
+                       sum.getY() / this.nodes.size(),
+                       sum.getZ() / this.nodes.size());
     }
 
     /**
@@ -44,9 +69,12 @@ public final class CavePath {
 
     /**
      * Constructs a new empty path.
+     *
+     * @param nodeSpacing distance between nodes
      */
-    public CavePath() {
-        this.nodes = new ArrayList<>();
+    public CavePath(final double nodeSpacing) {
+        this.nodeSpacing = nodeSpacing;
+        this.nodes = new GrowingAddOnlyList<>(Vector3.class, 32);
     }
 
     /**
@@ -69,9 +97,15 @@ public final class CavePath {
      * @return indices of all nodes within the radius
      */
     public Collection<Integer> getNodesWithin(final Vector3 position, final double radius) {
-        return IntStream.range(0, this.nodes.size())
-                        .boxed()
-                        .collect(Collectors.toList());
+        final var radiusSq = radius * radius;
+
+        final var nodes = new GrowingAddOnlyList<>(Integer.class, this.nodes.size());
+        for (int i = 0; i < this.nodes.size(); i++) {
+            if (this.nodes.get(i).distanceSq(position) < radiusSq) {
+                nodes.add(i);
+            }
+        }
+        return nodes;
     }
 
     /**
@@ -82,7 +116,9 @@ public final class CavePath {
      * @return the index of the previous (parent) node
      */
     public Optional<Integer> getPreviousFor(final int index) {
-        return Optional.of(index - 1);
+        return index > 0
+                ? Optional.of(index - 1)
+                : Optional.empty();
     }
 
     /**

@@ -1,10 +1,10 @@
 /**
- * Utilities for profiling performance.
+ * Custom data-structure implementations.
  */
 @ParametersAreNonnullByDefault
 @MethodsReturnNonnullByDefault
 @FieldsAreNonnullByDefault
-package caves.util.profiler;
+package caves.util.collections;
 
 import caves.util.annotation.FieldsAreNonnullByDefault;
 import caves.util.annotation.MethodsReturnNonnullByDefault;

@@ -5,22 +5,19 @@ import caves.generator.PathGenerator;
 import caves.generator.density.EdgeDensityFunction;
 import caves.generator.density.PathDensityFunction;
 import caves.generator.mesh.MeshGenerator;
+import caves.util.collections.GrowingAddOnlyList;
 import caves.util.math.Vector3;
 import caves.visualization.rendering.command.CommandPool;
 import caves.visualization.rendering.mesh.Mesh;
 import caves.visualization.window.ApplicationContext;
 import caves.visualization.window.DeviceContext;
-import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VkFenceCreateInfo;
 import org.lwjgl.vulkan.VkPresentInfoKHR;
 import org.lwjgl.vulkan.VkSemaphoreCreateInfo;
 import org.lwjgl.vulkan.VkSubmitInfo;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Optional;
-import java.util.stream.IntStream;
 
 import static caves.util.profiler.Profiler.PROFILER;
 import static caves.visualization.window.VKUtil.translateVulkanResult;
@@ -105,9 +102,9 @@ public final class Application implements AutoCloseable {
         final var startZ = (int) caveStartSampleCoord.getZ();
 
         final var meshGenerator = new MeshGenerator(sampleSpace);
-        final var caveVertices = new ArrayList<Vector3>();
-        final var caveIndices = new ArrayList<Integer>();
-        final var caveNormals = new ArrayList<Vector3>();
+        final var caveVertices = new GrowingAddOnlyList<>(Vector3.class);
+        final var caveNormals = new GrowingAddOnlyList<>(Vector3.class);
+        final var caveIndices = new GrowingAddOnlyList<>(Integer.class);
         meshGenerator.generate(cavePath, caveVertices, caveNormals, caveIndices, surfaceLevel);
 
         PROFILER.end();
@@ -157,7 +154,7 @@ public final class Application implements AutoCloseable {
                     : null;
             PROFILER.end();
 
-            this.appContext.setMeshes(this.caveMesh, this.lineMesh, null/*this.pointMesh*/);
+            this.appContext.setMeshes(this.caveMesh, this.lineMesh, this.pointMesh);
             PROFILER.end();
         }
 
@@ -167,7 +164,11 @@ public final class Application implements AutoCloseable {
         this.renderFinishedSemaphores = createSemaphores(MAX_FRAMES_IN_FLIGHT, deviceContext);
         this.inFlightFences = createFences(MAX_FRAMES_IN_FLIGHT, deviceContext);
         this.imagesInFlight = new long[renderContext.getSwapChainImageCount()];
-        Arrays.fill(this.imagesInFlight, VK_NULL_HANDLE);
+
+        //noinspection ExplicitArrayFilling
+        for (var i = 0; i < this.imagesInFlight.length; ++i) {
+            this.imagesInFlight[i] = VK_NULL_HANDLE;
+        }
 
         this.lookAtDistance = Math.max(sampleSpace.getMin().length(),
                                        sampleSpace.getMax().length()) + (float) caveRadius + 1;
@@ -177,53 +178,51 @@ public final class Application implements AutoCloseable {
     }
 
     private static long[] createFences(final int count, final DeviceContext deviceContext) {
+        final var fences = new long[count];
         try (var stack = stackPush()) {
-            return IntStream.range(0, count)
-                            .mapToLong(i -> createFence(stack, deviceContext))
-                            .toArray();
-        }
-    }
+            for (var i = 0; i < count; ++i) {
+                // NOTE: Create as signaled to prevent starvation during first frames (flags)
+                final var fenceInfo = VkFenceCreateInfo
+                        .callocStack(stack)
+                        .sType(VK_STRUCTURE_TYPE_FENCE_CREATE_INFO)
+                        .flags(VK_FENCE_CREATE_SIGNALED_BIT);
 
-    private static long createFence(final MemoryStack stack, final DeviceContext deviceContext) {
-        final var fenceInfo = VkFenceCreateInfo
-                .callocStack(stack)
-                .sType(VK_STRUCTURE_TYPE_FENCE_CREATE_INFO)
-                .flags(VK_FENCE_CREATE_SIGNALED_BIT); // Create as signaled to prevent issues during first frames
+                final var pFence = memAllocLong(1);
+                final var result = vkCreateFence(deviceContext.getDeviceHandle(), fenceInfo, null, pFence);
+                if (result != VK_SUCCESS) {
+                    throw new IllegalStateException("Creating fence failed: "
+                                                            + translateVulkanResult(result));
+                }
 
-        final var pFence = memAllocLong(1);
-        final var result = vkCreateFence(deviceContext.getDeviceHandle(), fenceInfo, null, pFence);
-        if (result != VK_SUCCESS) {
-            throw new IllegalStateException("Creating fence failed: "
-                                                    + translateVulkanResult(result));
+                fences[i] = pFence.get(0);
+            }
         }
-        return pFence.get(0);
+
+        return fences;
     }
 
     private static long[] createSemaphores(final int count, final DeviceContext deviceContext) {
+        final var semaphores = new long[count];
         try (var stack = stackPush()) {
-            return IntStream.range(0, count)
-                            .mapToLong(i -> createSemaphore(stack, deviceContext))
-                            .toArray();
-        }
-    }
+            for (var i = 0; i < count; ++i) {
+                final var semaphoreInfo = VkSemaphoreCreateInfo.callocStack(stack)
+                                                               .sType(VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO);
 
-    private static long createSemaphore(
-            final MemoryStack stack,
-            final DeviceContext deviceContext
-    ) {
-        final var semaphoreInfo = VkSemaphoreCreateInfo.callocStack(stack)
-                                                       .sType(VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO);
+                final var pSemaphore = memAllocLong(1);
+                final var error = vkCreateSemaphore(deviceContext.getDeviceHandle(),
+                                                    semaphoreInfo,
+                                                    null,
+                                                    pSemaphore);
+                if (error != VK_SUCCESS) {
+                    throw new IllegalStateException("Creating semaphore failed: "
+                                                            + translateVulkanResult(error));
+                }
 
-        final var pSemaphore = memAllocLong(1);
-        final var error = vkCreateSemaphore(deviceContext.getDeviceHandle(),
-                                            semaphoreInfo,
-                                            null,
-                                            pSemaphore);
-        if (error != VK_SUCCESS) {
-            throw new IllegalStateException("Creating semaphore failed: "
-                                                    + translateVulkanResult(error));
+                semaphores[i] = pSemaphore.get(0);
+            }
         }
-        return pSemaphore.get(0);
+
+        return semaphores;
     }
 
     /**

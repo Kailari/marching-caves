@@ -24,7 +24,7 @@ public final class PathGenerator {
             final long seed
     ) {
         PROFILER.log("-> With {} steps.", length);
-        final var path = new CavePath();
+        final var path = new CavePath(nodeSpacing);
 
         final var random = new Random(seed);
 

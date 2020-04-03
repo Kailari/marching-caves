@@ -102,18 +102,13 @@ public final class CaveSampleSpace {
         this.densityFunction = densityFunction;
 
         final var nodes = cavePath.getAllNodes();
-        this.min = nodes.stream()
-                        .reduce(new Vector3(Float.POSITIVE_INFINITY,
-                                            Float.POSITIVE_INFINITY,
-                                            Float.POSITIVE_INFINITY),
-                                (acc, b) -> acc.min(b, acc))
-                        .sub(margin, margin, margin, new Vector3());
-        this.max = nodes.stream()
-                        .reduce(new Vector3(Float.NEGATIVE_INFINITY,
-                                            Float.NEGATIVE_INFINITY,
-                                            Float.NEGATIVE_INFINITY),
-                                (acc, b) -> acc.max(b, acc))
-                        .add(margin, margin, margin, new Vector3());
+        final var min = new Vector3(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY);
+        nodes.forEach(node -> min.min(node, min));
+        this.min = min.sub(margin, margin, margin);
+
+        final var max = new Vector3(Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY);
+        nodes.forEach(node -> max.max(node, max));
+        this.max = max.add(margin, margin, margin);
 
         final var sizeX = Math.abs(this.max.getX() - this.min.getX());
         final var sizeY = Math.abs(this.max.getY() - this.min.getY());
