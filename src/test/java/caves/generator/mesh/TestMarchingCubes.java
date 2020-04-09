@@ -22,7 +22,8 @@ public class TestMarchingCubes {
         final var caveRadius = 20.0f;
 
         final var start = new Vector3(0.0f, 0.0f, 0.0f);
-        final var cavePath = new PathGenerator().generate(start, caveLength, spacing, 420);
+        final var maxInfluenceRadius = caveRadius + spaceBetweenSamples * 4;
+        final var cavePath = new PathGenerator().generate(start, caveLength, spacing, maxInfluenceRadius, 420);
         final var samplesPerUnit = 1.0f / spaceBetweenSamples;
         final Function<Vector3, Float> densityFunction =
                 (pos) -> {
@@ -41,7 +42,7 @@ public class TestMarchingCubes {
                     return Math.min(1.0f, distance / caveRadius);
                 };
         final var sampleSpace = new CaveSampleSpace(cavePath,
-                                                    caveRadius + spaceBetweenSamples * 4,
+                                                    maxInfluenceRadius,
                                                     samplesPerUnit,
                                                     densityFunction);
 

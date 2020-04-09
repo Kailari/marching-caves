@@ -58,10 +58,10 @@ public final class Application implements AutoCloseable {
      * @param validation should validation/debug features be enabled.
      */
     public Application(final boolean validation) {
-        final var caveLength = 40;
+        final var caveLength = 800;
         final var spacing = 10f;
         final var surfaceLevel = 0.75f;
-        final var spaceBetweenSamples = 1.0f;
+        final var spaceBetweenSamples = 4.0f;
         final var caveRadius = 20.0;
         final var floorFlatness = 0.45;
 
@@ -74,11 +74,16 @@ public final class Application implements AutoCloseable {
         PROFILER.start("Generation step (The interesting part of the algorithm)");
 
         PROFILER.start("Generating path");
-        final var cavePath = new PathGenerator().generate(start, caveLength, spacing, 420);
+        final var maxInfluenceRadius = caveRadius * 2.0;
+        final var cavePath = new PathGenerator().generate(start,
+                                                          caveLength,
+                                                          spacing,
+                                                          (float) maxInfluenceRadius,
+                                                          420
+        );
 
         PROFILER.next("Initializing sample space");
         final var samplesPerUnit = 1.0f / spaceBetweenSamples;
-        final var maxInfluenceRadius = caveRadius * 2.0;
         final var edgeFunc = new EdgeDensityFunction(maxInfluenceRadius,
                                                      caveRadius,
                                                      floorFlatness);
@@ -113,6 +118,8 @@ public final class Application implements AutoCloseable {
         if (caveVertices.size() == 0) {
             throw new IllegalStateException("No vertices were generated!");
         }
+
+        PROFILER.log("Generated {} vertices.", caveVertices.size());
 
         PROFILER.start("Initializing the visualization");
         this.appContext = new ApplicationContext(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT, validation);

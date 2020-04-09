@@ -1,5 +1,6 @@
 package caves.generator;
 
+import caves.generator.spatial.SpatialPathIndex;
 import caves.util.collections.GrowingAddOnlyList;
 import caves.util.math.Vector3;
 
@@ -9,6 +10,7 @@ import java.util.Optional;
 
 public final class CavePath {
     private final List<Vector3> nodes;
+    private final SpatialPathIndex spatialPathIndex;
     private final double nodeSpacing;
 
     /**
@@ -70,11 +72,13 @@ public final class CavePath {
     /**
      * Constructs a new empty path.
      *
-     * @param nodeSpacing distance between nodes
+     * @param nodeSpacing        distance between nodes
+     * @param maxInfluenceRadius maximum density influence radius of a node
      */
-    public CavePath(final double nodeSpacing) {
+    public CavePath(final double nodeSpacing, final float maxInfluenceRadius) {
         this.nodeSpacing = nodeSpacing;
         this.nodes = new GrowingAddOnlyList<>(Vector3.class, 32);
+        this.spatialPathIndex = new SpatialPathIndex((float) (maxInfluenceRadius + nodeSpacing));
     }
 
     /**
@@ -83,7 +87,9 @@ public final class CavePath {
      * @param node the node to append
      */
     public void addNode(final Vector3 node) {
+        final var index = this.nodes.size();
         this.nodes.add(node);
+        this.spatialPathIndex.insert(node, index);
     }
 
     /**
@@ -97,6 +103,10 @@ public final class CavePath {
      * @return indices of all nodes within the radius
      */
     public Collection<Integer> getNodesWithin(final Vector3 position, final double radius) {
+        if (true) {
+            return this.spatialPathIndex.getIndicesWithin(this::get, position, radius);
+        }
+
         final var radiusSq = radius * radius;
 
         final var nodes = new GrowingAddOnlyList<>(Integer.class, this.nodes.size());

@@ -10,21 +10,22 @@ public final class PathGenerator {
     /**
      * Generates a new path using simple Random Walk.
      *
-     * @param start       starting point
-     * @param length      number of steps
-     * @param nodeSpacing length of a single step
-     * @param seed        generation PRNG seed
+     * @param start              starting point
+     * @param length             number of steps
+     * @param nodeSpacing        length of a single step
+     * @param maxInfluenceRadius the maximum density influence radius of a node
      *
+     * @param seed               generation PRNG seed
      * @return a generated cave path
      */
     public CavePath generate(
             final Vector3 start,
             final int length,
             final float nodeSpacing,
-            final long seed
+            final float maxInfluenceRadius, final long seed
     ) {
         PROFILER.log("-> With {} steps.", length);
-        final var path = new CavePath(nodeSpacing);
+        final var path = new CavePath(nodeSpacing, maxInfluenceRadius);
 
         final var random = new Random(seed);
 

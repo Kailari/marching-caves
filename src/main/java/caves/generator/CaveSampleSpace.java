@@ -1,5 +1,6 @@
 package caves.generator;
 
+import caves.util.math.BoundingBox;
 import caves.util.math.Vector3;
 
 import java.util.function.Function;
@@ -12,8 +13,7 @@ public final class CaveSampleSpace {
     private final int countZ;
     private final float[] samples;
     private final float samplesPerUnit;
-    private final Vector3 min;
-    private final Vector3 max;
+    private final BoundingBox bounds;
     private final Function<Vector3, Float> densityFunction;
 
     /**
@@ -60,7 +60,7 @@ public final class CaveSampleSpace {
      * @return the starting in-world coordinate for this sample space
      */
     public Vector3 getMin() {
-        return this.min;
+        return this.bounds.getMin();
     }
 
     /**
@@ -70,7 +70,7 @@ public final class CaveSampleSpace {
      * @return the maximum in-world coordinate for this sample space
      */
     public Vector3 getMax() {
-        return this.max;
+        return this.bounds.getMax();
     }
 
     /**
@@ -100,19 +100,11 @@ public final class CaveSampleSpace {
     ) {
         this.samplesPerUnit = samplesPerUnit;
         this.densityFunction = densityFunction;
+        this.bounds = new BoundingBox(cavePath.getAllNodes(), margin);
 
-        final var nodes = cavePath.getAllNodes();
-        final var min = new Vector3(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY);
-        nodes.forEach(node -> min.min(node, min));
-        this.min = min.sub(margin, margin, margin);
-
-        final var max = new Vector3(Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY);
-        nodes.forEach(node -> max.max(node, max));
-        this.max = max.add(margin, margin, margin);
-
-        final var sizeX = Math.abs(this.max.getX() - this.min.getX());
-        final var sizeY = Math.abs(this.max.getY() - this.min.getY());
-        final var sizeZ = Math.abs(this.max.getZ() - this.min.getZ());
+        final var sizeX = Math.abs(getMax().getX() - getMin().getX());
+        final var sizeY = Math.abs(getMax().getY() - getMin().getY());
+        final var sizeZ = Math.abs(getMax().getZ() - getMin().getZ());
 
         this.countX = (int) (sizeX * samplesPerUnit);
         this.countY = (int) (sizeY * samplesPerUnit);
@@ -190,9 +182,9 @@ public final class CaveSampleSpace {
      */
     public Vector3 getPos(final int x, final int y, final int z) {
         final var spaceBetweenSamples = (1.0f / this.samplesPerUnit);
-        return new Vector3(this.min.getX() + x * spaceBetweenSamples,
-                           this.min.getY() + y * spaceBetweenSamples,
-                           this.min.getZ() + z * spaceBetweenSamples);
+        return new Vector3(this.bounds.getMin().getX() + x * spaceBetweenSamples,
+                           this.bounds.getMin().getY() + y * spaceBetweenSamples,
+                           this.bounds.getMin().getZ() + z * spaceBetweenSamples);
     }
 
     private void calculateDensity(final int sampleIndex, final int x, final int y, final int z) {

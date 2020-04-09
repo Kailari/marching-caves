@@ -124,6 +124,9 @@ public final class GrowingAddOnlyList<T> implements List<T> {
 
     @Override
     public boolean addAll(final Collection<? extends T> c) {
+        if (c == this) {
+            throw new IllegalStateException("Other collection cannot be this!");
+        }
         for (final var e : c) {
             this.add(e);
         }
