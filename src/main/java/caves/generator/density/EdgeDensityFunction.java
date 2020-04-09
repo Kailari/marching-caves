@@ -16,7 +16,6 @@ public final class EdgeDensityFunction {
     private final SimplexNoiseGenerator noiseGenerator;
     private final float noiseScale;
     private final double floorStart;
-    private final double floorGlobalNoiseFactor;
     private final double globalNoiseFactor;
     private final double globalNoiseMagnitude;
 
@@ -44,9 +43,8 @@ public final class EdgeDensityFunction {
         this.noiseGenerator = new SimplexNoiseGenerator(42);
         this.floorStart = 0.2;
         this.noiseScale = 0.025f;
-        this.globalNoiseMagnitude = 0.5;
-        this.floorGlobalNoiseFactor = 0.15;
-        this.globalNoiseFactor = 0.35;
+        this.globalNoiseMagnitude = 1.0;
+        this.globalNoiseFactor = 0.75;
     }
 
     private static double baseDensityCurve(final double t) {
@@ -107,8 +105,9 @@ public final class EdgeDensityFunction {
 
         final var direction = closestPoint.sub(position, new Vector3()).normalize();
 
-        final var floorWeight = Math.max(0.0, direction.dot(this.directionUp) - this.floorStart);
+        var floorWeight = Math.max(0.0, direction.dot(this.directionUp) - this.floorStart);
         assert floorWeight >= 0.0 && floorWeight <= 1.0;
+        floorWeight *= floorWeight;
 
         final var verticalDistance = Math.abs(position.getY() - closestPoint.getY());
         final var distanceToFloorAlpha = Math.min(1.0, verticalDistance / this.pathFloorInfluenceRadius);
@@ -119,10 +118,9 @@ public final class EdgeDensityFunction {
         final var caveContribution = -lerp(caveDensity, floorDensity, floorWeight * this.floorFlatness);
 
         final var globalNoiseContribution = -getGlobalNoise(position) * distanceAlpha;
-
-        final var globalNoiseFloorFactor = (1.0 - floorWeight * (1.0 - this.floorGlobalNoiseFactor));
-        final var globalNoiseCoefficient = globalNoiseFloorFactor * this.globalNoiseFactor;
-        final var globalDensity = lerp(caveContribution, globalNoiseContribution, globalNoiseCoefficient);
+        final var globalDensity = lerp(caveContribution,
+                                       globalNoiseContribution,
+                                       this.globalNoiseFactor * distanceToFloorAlpha);
 
         final var fadeToSolidAlpha = Math.min(1.0, distance / this.maxInfluenceRadius);
         final var clampedDensity = lerp(globalDensity, 0.0, fadeToSolidAlpha);

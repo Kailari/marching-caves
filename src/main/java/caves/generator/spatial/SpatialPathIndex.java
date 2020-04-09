@@ -310,26 +310,26 @@ public class SpatialPathIndex {
                 final Vector3 position,
                 final double maxInfluenceRadius
         ) {
-            float d = 0.0f;
+            float d = square((float) maxInfluenceRadius);
             if (position.getX() < getMin().getX()) {
-                d += square(position.getX() - getMin().getX());
+                d -= square(position.getX() - getMin().getX());
             } else if (position.getX() > getMax().getX()) {
-                d += square(position.getX() - getMax().getX());
+                d -= square(position.getX() - getMax().getX());
             }
 
             if (position.getY() < getMin().getY()) {
-                d += square(position.getY() - getMin().getY());
+                d -= square(position.getY() - getMin().getY());
             } else if (position.getY() > getMax().getY()) {
-                d += square(position.getY() - getMax().getY());
+                d -= square(position.getY() - getMax().getY());
             }
 
             if (position.getZ() < getMin().getZ()) {
-                d += square(position.getZ() - getMin().getZ());
+                d -= square(position.getZ() - getMin().getZ());
             } else if (position.getZ() > getMax().getZ()) {
-                d += square(position.getZ() - getMax().getZ());
+                d -= square(position.getZ() - getMax().getZ());
             }
 
-            return d <= square((float) maxInfluenceRadius);
+            return d > 0;
         }
 
         private float square(final float v) {

@@ -6,7 +6,6 @@ import caves.util.math.Vector3;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 
 public final class CavePath {
     private final List<Vector3> nodes;
@@ -114,9 +113,7 @@ public final class CavePath {
      * @return the index of the previous (parent) node
      */
     public int getPreviousFor(final int index) {
-        return index > 0
-                ? index - 1
-                : -1;
+        return index > 0 ? index - 1 : -1;
     }
 
     /**

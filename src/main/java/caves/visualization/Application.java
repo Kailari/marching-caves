@@ -58,12 +58,15 @@ public final class Application implements AutoCloseable {
      * @param validation should validation/debug features be enabled.
      */
     public Application(final boolean validation) {
-        final var caveLength = 16000;
+        final var caveLength = 200;
         final var spacing = 10f;
-        final var surfaceLevel = 0.75f;
-        final var spaceBetweenSamples = 4.0f;
-        final var caveRadius = 20.0;
+
+        final var surfaceLevel = 0.85f;
+        final var spaceBetweenSamples = 2.0f;
+
         final var floorFlatness = 0.45;
+        final var caveRadius = 20.0;
+        final var maxInfluenceRadius = caveRadius * 1.25;
 
         final var meshVisible = true;
         final var linesVisible = true;
@@ -74,7 +77,6 @@ public final class Application implements AutoCloseable {
         PROFILER.start("Generation step (The interesting part of the algorithm)");
 
         PROFILER.start("Generating path");
-        final var maxInfluenceRadius = caveRadius * 2.0;
         final var cavePath = new PathGenerator().generate(start,
                                                           caveLength,
                                                           spacing,
