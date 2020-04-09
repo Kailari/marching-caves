@@ -7,6 +7,7 @@ import caves.util.math.Vector3;
 import java.util.function.Function;
 
 public final class PathDensityFunction implements Function<Vector3, Float> {
+    private static final Vector3 tmpClosest = new Vector3();
     private final CavePath cavePath;
     private final double maxInfluenceRadius;
     private final EdgeDensityFunction edgeDensityFunction;
@@ -39,10 +40,15 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
         var summedWeights = 0.0;
         var nContributions = 0;
         for (final var nodeIndex : nodes) {
-            final var edgeAverage = new WeightedAverage();
+            final var edgeAverage = new WeightedAverage((float) this.maxInfluenceRadius);
 
-            this.cavePath.getPreviousFor(nodeIndex).ifPresent(p -> edgeAverage.add(p, nodeIndex, position));
-            this.cavePath.getNextFor(nodeIndex).forEach(n -> edgeAverage.add(nodeIndex, n, position));
+            final var previous = this.cavePath.getPreviousFor(nodeIndex);
+            if (previous != -1) {
+                edgeAverage.add(previous, nodeIndex, position);
+            }
+            for (final int n : this.cavePath.getNextFor(nodeIndex)) {
+                edgeAverage.add(nodeIndex, n, position);
+            }
 
             if (edgeAverage.hasContribution) {
                 final var weight = edgeAverage.averageWeight();
@@ -75,42 +81,30 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
     }
 
     private final class WeightedAverage {
+        private final float maxRadiusSq;
+
         private double totalWeight;
         private double weightedSum;
         private boolean hasContribution;
         private int n;
 
-        WeightedAverage() {
+        WeightedAverage(final float maxInfluenceRadius) {
             this.totalWeight = 0.0;
             this.weightedSum = 0.0;
             this.n = 0;
             this.hasContribution = false;
+            this.maxRadiusSq = maxInfluenceRadius * maxInfluenceRadius;
         }
 
         void add(final int indexA, final int indexB, final Vector3 position) {
-            final var maxRadiusSq =
-                    PathDensityFunction.this.maxInfluenceRadius * PathDensityFunction.this.maxInfluenceRadius;
-
             assert indexA != -1 || indexB != -1 : "One of the nodes must exist!";
 
-            final Vector3 nodeA;
-            final Vector3 nodeB;
-            final Vector3 closest;
-            if (indexA == -1 || indexB == -1) {
-                final var node = indexA != -1
-                        ? PathDensityFunction.this.cavePath.get(indexA)
-                        : PathDensityFunction.this.cavePath.get(indexB);
-                nodeA = node;
-                nodeB = node;
-                closest = node;
-            } else {
-                nodeA = PathDensityFunction.this.cavePath.get(indexA);
-                nodeB = PathDensityFunction.this.cavePath.get(indexB);
-                closest = LineSegment.closestPoint(nodeA, nodeB, position);
-            }
+            final var nodeA = PathDensityFunction.this.cavePath.get(indexA);
+            final var nodeB = PathDensityFunction.this.cavePath.get(indexB);
+            final var closest = LineSegment.closestPoint(nodeA, nodeB, position, tmpClosest);
 
             final var distanceSq = closest.distanceSq(position);
-            if (distanceSq > maxRadiusSq) {
+            if (distanceSq > this.maxRadiusSq) {
                 return;
             }
 
@@ -132,7 +126,8 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
             //          always less than max radius, we get nice weight range of 0..1, where
             //          individual weights are on exponential (power two) curve. This gives us more
             //          than enough accuracy to avoid visual artifacts in most cases.
-            final var weightSq = 1.0 - Math.min(1.0, distanceSq / maxRadiusSq);
+            final var scaledWeight = distanceSq;
+            final var weightSq = scaledWeight > 1.0 ? 1.0 : scaledWeight;
             this.weightedSum += weightSq * value;
             this.totalWeight += weightSq;
             this.n++;

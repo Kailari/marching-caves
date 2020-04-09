@@ -34,7 +34,7 @@ public class TestMarchingCubes {
                                                              final var a = cavePath.get(i);
                                                              final var b = cavePath.get(cavePath.getPreviousFor(i)
                                                                                                 .orElseThrow());
-                                                             return LineSegment.closestPoint(a, b, pos);
+                                                             return LineSegment.closestPoint(a, b, pos, new Vector3());
                                                          })
                                                          .mapToDouble(pos::distance)
                                                          .min()

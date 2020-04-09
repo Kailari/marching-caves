@@ -103,7 +103,7 @@ public final class CavePath {
      * @return indices of all nodes within the radius
      */
     public Collection<Integer> getNodesWithin(final Vector3 position, final double radius) {
-        return this.spatialPathIndex.getIndicesWithin(this::get, position, radius);
+        return this.spatialPathIndex.getIndicesWithin(position, radius);
     }
 
     /**
@@ -113,10 +113,10 @@ public final class CavePath {
      *
      * @return the index of the previous (parent) node
      */
-    public Optional<Integer> getPreviousFor(final int index) {
+    public int getPreviousFor(final int index) {
         return index > 0
-                ? Optional.of(index - 1)
-                : Optional.empty();
+                ? index - 1
+                : -1;
     }
 
     /**

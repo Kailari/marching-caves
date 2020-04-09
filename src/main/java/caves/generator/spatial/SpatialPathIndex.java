@@ -7,7 +7,6 @@ import caves.util.math.Vector3;
 import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Function;
 
 /**
  * Implements an inverted octree as spatial index to the cave path. The idea is as follows:
@@ -126,16 +125,16 @@ public class SpatialPathIndex {
     }
 
     /**
-     * Gets all indices that are inside the given radius from the given position.
+     * Gets all indices that are inside the given radius from the given position. This is a rough
+     * estimate with errors up to <code>maxInfluenceRadius</code> in worst case. A lot better than
+     * iterating O(n) through all nodes, though.
      *
-     * @param positionMapper function for mapping the indices to positions
-     * @param position       position to query from
-     * @param radius         maximum distance to any given point
+     * @param position position to query from
+     * @param radius   maximum distance to any given point
      *
      * @return all indices of points within the given radius
      */
     public Collection<Integer> getIndicesWithin(
-            final Function<Integer, Vector3> positionMapper,
             final Vector3 position,
             final double radius
     ) {
@@ -143,7 +142,7 @@ public class SpatialPathIndex {
             return List.of();
         }
 
-        return this.rootNode.getInfluencingPoints(positionMapper, position, radius);
+        return this.rootNode.getInfluencingPoints(position, radius);
     }
 
     /**
@@ -273,25 +272,22 @@ public class SpatialPathIndex {
         }
 
         public Collection<Integer> getInfluencingPoints(
-                final Function<Integer, Vector3> positionMapper,
                 final Vector3 position,
                 final double maxInfluenceRadius
         ) {
-            return getInfluencingPoints(positionMapper,
-                                        position,
+            return getInfluencingPoints(position,
                                         maxInfluenceRadius,
                                         new GrowingAddOnlyList<>(Integer.class, 40));
         }
 
         public Collection<Integer> getInfluencingPoints(
-                final Function<Integer, Vector3> positionMapper,
                 final Vector3 position,
                 final double maxInfluenceRadius,
                 final Collection<Integer> result
         ) {
             if (this.depth == 0) {
                 assert this.items != null;
-                // FIXME: Filter by actual distance to the position?
+                // XXX: We do not actually filter by position here as *we only know the index*
                 result.addAll(this.items);
                 return result;
             }
@@ -303,7 +299,7 @@ public class SpatialPathIndex {
                 }
 
                 if (child.intersectsSphere(position, maxInfluenceRadius)) {
-                    child.getInfluencingPoints(positionMapper, position, maxInfluenceRadius, result);
+                    child.getInfluencingPoints(position, maxInfluenceRadius, result);
                 }
             }
 

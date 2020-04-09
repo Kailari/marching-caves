@@ -171,7 +171,10 @@ public final class Vector3 {
      * @return vector holding the result
      */
     public Vector3 sub(final Vector3 other, final Vector3 result) {
-        return sub(other.x, other.y, other.z, result);
+        result.x = this.x - other.x;
+        result.y = this.y - other.y;
+        result.z = this.z - other.z;
+        return result;
     }
 
     /**
@@ -185,7 +188,10 @@ public final class Vector3 {
      * @return vector holding the result
      */
     public Vector3 sub(final float x, final float y, final float z, final Vector3 result) {
-        return result.set(this.x - x, this.y - y, this.z - z);
+        result.x = this.x - x;
+        result.y = this.y - y;
+        result.z = this.z - z;
+        return result;
     }
 
     /**
@@ -197,7 +203,10 @@ public final class Vector3 {
      * @return this vector, with the other vector subtracted
      */
     public Vector3 sub(final Vector3 other) {
-        return sub(other.x, other.y, other.z, this);
+        this.x -= other.x;
+        this.y -= other.y;
+        this.z -= other.z;
+        return this;
     }
 
     /**
@@ -211,7 +220,10 @@ public final class Vector3 {
      * @return this vector, with the components subtracted
      */
     public Vector3 sub(final float x, final float y, final float z) {
-        return sub(x, y, z, this);
+        this.x -= x;
+        this.y -= y;
+        this.z -= z;
+        return this;
     }
 
     /**
@@ -223,7 +235,10 @@ public final class Vector3 {
      * @return vector holding the result
      */
     public Vector3 mul(final float scalar, final Vector3 result) {
-        return result.set(this.x * scalar, this.y * scalar, this.z * scalar);
+        result.x = this.x * scalar;
+        result.y = this.y * scalar;
+        result.z = this.z * scalar;
+        return result;
     }
 
     /**
@@ -235,7 +250,10 @@ public final class Vector3 {
      * @return this vector, multiplied by the scalar
      */
     public Vector3 mul(final float scalar) {
-        return mul(scalar, this);
+        this.x *= scalar;
+        this.y *= scalar;
+        this.z *= scalar;
+        return this;
     }
 
     /**
