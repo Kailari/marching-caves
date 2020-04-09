@@ -1,21 +1,20 @@
 package caves.generator.density;
 
-import caves.util.math.IntVector3;
 import caves.util.math.Vector3;
 
 public final class SimplexNoiseGenerator {
     private static final float STRETCH = 1.0f / 3.0f;    // (    sqrt(3 + 1) - 1) / 3    = 1 / 3
     private static final float SQUISH = 1.0f / 6.0f;     // (1 / sqrt(3 + 1) - 1) / 3    = 1 / 6
-    private static final Vector3[] GRADIENTS = {
-            new Vector3(1, 1, 0), new Vector3(-1, 1, 0), new Vector3(1, -1, 0), new Vector3(-1, -1, 0),
-            new Vector3(1, 0, 1), new Vector3(-1, 0, 1), new Vector3(1, 0, -1), new Vector3(-1, 0, -1),
-            new Vector3(0, 1, 1), new Vector3(0, -1, 1), new Vector3(0, 1, -1), new Vector3(0, -1, -1)
+    private static final float[][] GRADIENTS = {
+            {1, 1, 0}, {-1, 1, 0}, {1, -1, 0}, {-1, -1, 0},
+            {1, 0, 1}, {-1, 0, 1}, {1, 0, -1}, {-1, 0, -1},
+            {0, 1, 1}, {0, -1, 1}, {0, 1, -1}, {0, -1, -1}
     };
 
-    private static final Vector3 D1_SQUISH = new Vector3(SQUISH, SQUISH, SQUISH);
-    private static final Vector3 D2_SQUISH = new Vector3(SQUISH, SQUISH, SQUISH).mul(2.0f);
-    private static final Vector3 D3_SQUISH = new Vector3(SQUISH, SQUISH, SQUISH).mul(3.0f)
-                                                                                .sub(1, 1, 1);
+    private static final float D1_SQUISH = SQUISH;
+    private static final float D2_SQUISH = SQUISH * 2.0f;
+    private static final float D3_SQUISH = SQUISH * 3.0f - 1;
+
     /** Permutations. */
     private final int[] p = new int[512];
     /** Permutations modulo 12. */
@@ -54,15 +53,15 @@ public final class SimplexNoiseGenerator {
         }
     }
 
-    private static float contribution(final int gi, final Vector3 pos) {
-        final var xx = pos.getX() * pos.getX();
-        final var yy = pos.getY() * pos.getY();
-        final var zz = pos.getZ() * pos.getZ();
+    private static float contribution(final int gi, final float x, final float y, final float z) {
+        final var xx = x * x;
+        final var yy = y * y;
+        final var zz = z * z;
         final var t = 0.6f - xx - yy - zz;
         final var tt = t * t;
         return t < 0
                 ? 0.0f
-                : tt * tt * GRADIENTS[gi].dot(pos);
+                : tt * tt * (GRADIENTS[gi][0] * x + GRADIENTS[gi][1] * y + GRADIENTS[gi][2] * z);
     }
 
     private static int fastFloor(final float x) {
@@ -71,88 +70,130 @@ public final class SimplexNoiseGenerator {
     }
 
     /**
-     * Evaluates noise value for the given position.
+     * Evaluates noise value for the given position. Does not use vector utility classes to avoid
+     * all unnecessary method calls.
      *
      * @param position position to evaluate noise for
      *
      * @return noise value
      */
     public float evaluate(final Vector3 position) {
+        final float x = position.getX();
+        final float y = position.getY();
+        final float z = position.getZ();
         // Skew the input space to determine which simplex we are in
-        final var skewOffset = (position.getX() + position.getY() + position.getZ()) * STRETCH;
+        final float skewOffset = (x + y + z) * STRETCH;
         // Note:    Values can be negative, so we cannot just cut the decimals by casting to int.
         //          Trying to do so produces odd looking artifacts. On the other hand, `Math.floor`
         //          is horrendously slow as it has to be well behaved in all weird edge-cases. Thus,
         //          use "simplified" custom floor implementation.
-        final var skewedOrigin = new IntVector3(fastFloor(position.getX() + skewOffset),
-                                                fastFloor(position.getY() + skewOffset),
-                                                fastFloor(position.getZ() + skewOffset));
+        final int skewedOriginX = fastFloor(x + skewOffset);
+        final int skewedOriginY = fastFloor(y + skewOffset);
+        final int skewedOriginZ = fastFloor(z + skewOffset);
 
         // Squish (Un-skew) simplex origin back to regular coordinate space for easier distance calculations
-        final var squishOffset = (skewedOrigin.getX() + skewedOrigin.getY() + skewedOrigin.getZ()) * SQUISH;
-        final var simplexOrigin = new Vector3(skewedOrigin).sub(squishOffset, squishOffset, squishOffset);
+        final float squishOffset = (skewedOriginX + skewedOriginY + skewedOriginZ) * SQUISH;
+        final float simplexOriginX = skewedOriginX - squishOffset;
+        final float simplexOriginY = skewedOriginY - squishOffset;
+        final float simplexOriginZ = skewedOriginZ - squishOffset;
 
         // Per-component distances from simplex cell origin
-        final var d0 = position.sub(simplexOrigin, new Vector3());
+        final float d0X = x - simplexOriginX;
+        final float d0Y = y - simplexOriginY;
+        final float d0Z = z - simplexOriginZ;
 
         // The Simplex shape is a slightly irregular tetrahedron. Determine which simplex we are in
         // and set offsets for second and third corners. The last corner can always be calculated
         // from the origin using a constant offset (1, 1, 1).
-        final var offs1 = new IntVector3();
-        final var offs2 = new IntVector3();
-        if (d0.getX() >= d0.getY()) {
-            if (d0.getY() >= d0.getZ()) {
+        final int offs1X;
+        final int offs1Y;
+        final int offs1Z;
+        final int offs2X;
+        final int offs2Y;
+        final int offs2Z;
+        if (d0X >= d0Y) {
+            if (d0Y >= d0Z) {
                 // X > Y > Z
-                offs1.set(1, 0, 0);
-                offs2.set(1, 1, 0);
-            } else if (d0.getX() >= d0.getZ()) {
+                offs1X = 1;
+                offs1Y = 0;
+                offs1Z = 0;
+                offs2X = 1;
+                offs2Y = 1;
+                offs2Z = 0;
+            } else if (d0X >= d0Z) {
                 // X > Z > Y
-                offs1.set(1, 0, 0);
-                offs2.set(1, 0, 1);
+                offs1X = 1;
+                offs1Y = 0;
+                offs1Z = 0;
+                offs2X = 1;
+                offs2Y = 0;
+                offs2Z = 1;
             } else {
                 // Z > X > Y
-                offs1.set(0, 0, 1);
-                offs2.set(1, 0, 1);
+                offs1X = 0;
+                offs1Y = 0;
+                offs1Z = 1;
+                offs2X = 1;
+                offs2Y = 0;
+                offs2Z = 1;
             }
         } else {
             // X < Y
-            if (d0.getY() < d0.getZ()) {
+            if (d0Y < d0Z) {
                 // Z > Y > X
-                offs1.set(0, 0, 1);
-                offs2.set(0, 1, 1);
-            } else if (d0.getX() < d0.getZ()) {
+                offs1X = 0;
+                offs1Y = 0;
+                offs1Z = 1;
+                offs2X = 0;
+                offs2Y = 1;
+                offs2Z = 1;
+            } else if (d0X < d0Z) {
                 // Y > Z > X
-                offs1.set(0, 1, 0);
-                offs2.set(0, 1, 1);
+                offs1X = 0;
+                offs1Y = 1;
+                offs1Z = 0;
+                offs2X = 0;
+                offs2Y = 1;
+                offs2Z = 1;
             } else {
                 // Y > X > Z
-                offs1.set(0, 1, 0);
-                offs2.set(1, 1, 0);
+                offs1X = 0;
+                offs1Y = 1;
+                offs1Z = 0;
+                offs2X = 1;
+                offs2Y = 1;
+                offs2Z = 0;
             }
         }
 
         // Calculate distances for the other three corners.
-        final var d1 = d0.add(D1_SQUISH, new Vector3()).sub(offs1.getX(), offs1.getY(), offs1.getZ());
-        final var d2 = d0.add(D2_SQUISH, new Vector3()).sub(offs2.getX(), offs2.getY(), offs2.getZ());
-        final var d3 = d0.add(D3_SQUISH, new Vector3());
+        final float d1X = d0X + D1_SQUISH - offs1X;
+        final float d1Y = d0Y + D1_SQUISH - offs1Y;
+        final float d1Z = d0Z + D1_SQUISH - offs1Z;
+        final float d2X = d0X + D2_SQUISH - offs2X;
+        final float d2Y = d0Y + D2_SQUISH - offs2Y;
+        final float d2Z = d0Z + D2_SQUISH - offs2Z;
+        final float d3X = d0X + D3_SQUISH;
+        final float d3Y = d0Y + D3_SQUISH;
+        final float d3Z = d0Z + D3_SQUISH;
 
         // Calculate hashed gradient indices for the corners
-        final int wrapX = skewedOrigin.getX() & 255;
-        final int wrapY = skewedOrigin.getY() & 255;
-        final int wrapZ = skewedOrigin.getZ() & 255;
-        final var index0 = wrapX + this.p[wrapY + this.p[wrapZ]];
-        final var index1 = wrapX + offs1.getX() + this.p[wrapY + offs1.getY() + this.p[wrapZ + offs1.getZ()]];
-        final var index2 = wrapX + offs2.getX() + this.p[wrapY + offs2.getY() + this.p[wrapZ + offs2.getZ()]];
-        final var index3 = wrapX + 1 + this.p[wrapY + 1 + this.p[wrapZ + 1]];
+        final int wrapX = skewedOriginX & 255;
+        final int wrapY = skewedOriginY & 255;
+        final int wrapZ = skewedOriginZ & 255;
+        final int index0 = wrapX + this.p[wrapY + this.p[wrapZ]];
+        final int index1 = wrapX + offs1X + this.p[wrapY + offs1Y + this.p[wrapZ + offs1Z]];
+        final int index2 = wrapX + offs2X + this.p[wrapY + offs2Y + this.p[wrapZ + offs2Z]];
+        final int index3 = wrapX + 1 + this.p[wrapY + 1 + this.p[wrapZ + 1]];
         final int gradientIndex0 = this.pMod12[index0];
         final int gradientIndex1 = this.pMod12[index1];
         final int gradientIndex2 = this.pMod12[index2];
         final int gradientIndex3 = this.pMod12[index3];
 
-        final var contribution0 = contribution(gradientIndex0, d0);
-        final var contribution1 = contribution(gradientIndex1, d1);
-        final var contribution2 = contribution(gradientIndex2, d2);
-        final var contribution3 = contribution(gradientIndex3, d3);
+        final float contribution0 = contribution(gradientIndex0, d0X, d0Y, d0Z);
+        final float contribution1 = contribution(gradientIndex1, d1X, d1Y, d1Z);
+        final float contribution2 = contribution(gradientIndex2, d2X, d2Y, d2Z);
+        final float contribution3 = contribution(gradientIndex3, d3X, d3Y, d3Z);
 
         return 32.0f * (contribution0 + contribution1 + contribution2 + contribution3);
     }

@@ -3,6 +3,7 @@ package caves.generator;
 import caves.util.math.BoundingBox;
 import caves.util.math.Vector3;
 
+import java.util.Arrays;
 import java.util.function.Function;
 
 import static caves.util.profiler.Profiler.PROFILER;
@@ -109,12 +110,14 @@ public final class CaveSampleSpace {
         this.countX = (int) (sizeX * samplesPerUnit);
         this.countY = (int) (sizeY * samplesPerUnit);
         this.countZ = (int) (sizeZ * samplesPerUnit);
-        this.samples = new float[this.countX * this.countY * this.countZ];
-
+        final var sampleCount = this.countX * this.countY * this.countZ;
         PROFILER.log("-> boundaries {}", String.format("(%.3f, %.3f, %.3f)", sizeX, sizeY, sizeZ));
         PROFILER.log("-> maximum count of {} samples {}.",
                      getTotalCount(),
                      String.format("(%d x %d x %d)", this.countX, this.countY, this.countZ));
+
+        this.samples = new float[sampleCount];
+        Arrays.fill(this.samples, Float.NaN);
     }
 
     /**
@@ -144,7 +147,7 @@ public final class CaveSampleSpace {
      * @return the density of the sample
      */
     public float getDensity(final int sampleIndex, final int x, final int y, final int z) {
-        if (this.samples[sampleIndex] == 0.0f) {
+        if (Float.isNaN(this.samples[sampleIndex])) {
             calculateDensity(sampleIndex, x, y, z);
         }
 
@@ -164,7 +167,7 @@ public final class CaveSampleSpace {
      */
     public float getDensity(final int x, final int y, final int z) {
         final var sampleIndex = getSampleIndex(x, y, z);
-        if (this.samples[sampleIndex] == 0.0f) {
+        if (Float.isNaN(this.samples[sampleIndex])) {
             calculateDensity(sampleIndex, x, y, z);
         }
 
