@@ -47,21 +47,30 @@ public class MeshGenerator {
                      String.format("%.3f", surfaceLevel));
 
         var startFound = false;
-        int startX = -1;
-        int startY = -1;
-        int startZ = -1;
-        for (final var node : cavePath.getAllNodes()) {
-            final var caveStartSampleCoord = node.sub(this.sampleSpace.getMin(), new Vector3())
-                                                 .abs()
-                                                 .mul(this.sampleSpace.getSamplesPerUnit());
+        final var startNode = cavePath.get(0);
+        final var caveStartSampleCoord = startNode.sub(this.sampleSpace.getMin(), new Vector3())
+                                                  .abs()
+                                                  .mul(this.sampleSpace.getSamplesPerUnit());
 
-            startX = (int) caveStartSampleCoord.getX();
-            startY = (int) caveStartSampleCoord.getY();
-            startZ = (int) caveStartSampleCoord.getZ();
+        int startX = (int) caveStartSampleCoord.getX();
+        final int startY = (int) caveStartSampleCoord.getY();
+        final int startZ = (int) caveStartSampleCoord.getZ();
+        // Move on the x axis until we find a wall
+        for (var i = 0; startX + i < this.sampleSpace.getCountX() - 2; ++i) {
+            var solidFound = false;
+            var nonSolidFound = false;
             for (final var offset : MarchingCubesTables.VERTEX_OFFSETS) {
-                if (this.sampleSpace.getDensity(startX + offset[X],
-                                                startY + offset[Y],
-                                                startZ + offset[Z]) < surfaceLevel) {
+                final var density = this.sampleSpace.getDensity(startX + offset[X] + i,
+                                                                startY + offset[Y],
+                                                                startZ + offset[Z]);
+                if (density < surfaceLevel) {
+                    nonSolidFound = true;
+                } else {
+                    solidFound = true;
+                }
+
+                if (nonSolidFound && solidFound) {
+                    startX += i;
                     startFound = true;
                     break;
                 }

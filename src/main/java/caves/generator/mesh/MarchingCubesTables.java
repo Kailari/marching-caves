@@ -336,6 +336,7 @@ public final class MarchingCubesTables {
      * the whole sample space at once.
      */
     public static final Facing[][] FREE_CUBE_FACES = new Facing[256][];
+    private static final boolean MARCH_EMPTY_SPACE = false;
 
     static {
         for (var cubeIndex = 0; cubeIndex <= 0xFF; ++cubeIndex) {
@@ -440,13 +441,16 @@ public final class MarchingCubesTables {
             final var facings = new Facing[8];
             var nFacings = 0;
             for (final var facing : values()) {
+                // If any but not all of the vertices are free, we can add the face
+                int nFree = 0;
                 for (final var bitIndex : facing.bitIndices) {
-                    // If any of the vertices is free, we can add the face and break the inner loop
                     if ((cubeIndex & (1 << bitIndex)) != 0) {
-                        facings[nFacings] = facing;
-                        nFacings++;
-                        break;
+                        nFree++;
                     }
+                }
+                if (nFree > 0 && nFree < 4) {
+                    facings[nFacings] = facing;
+                    nFacings++;
                 }
             }
 

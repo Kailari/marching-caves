@@ -103,19 +103,7 @@ public final class CavePath {
      * @return indices of all nodes within the radius
      */
     public Collection<Integer> getNodesWithin(final Vector3 position, final double radius) {
-        if (true) {
-            return this.spatialPathIndex.getIndicesWithin(this::get, position, radius);
-        }
-
-        final var radiusSq = radius * radius;
-
-        final var nodes = new GrowingAddOnlyList<>(Integer.class, this.nodes.size());
-        for (int i = 0; i < this.nodes.size(); i++) {
-            if (this.nodes.get(i).distanceSq(position) < radiusSq) {
-                nodes.add(i);
-            }
-        }
-        return nodes;
+        return this.spatialPathIndex.getIndicesWithin(this::get, position, radius);
     }
 
     /**
