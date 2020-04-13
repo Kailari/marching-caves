@@ -153,7 +153,30 @@ public final class SpatialPathIndex {
             return List.of();
         }
 
-        return this.rootNode.getInfluencingPoints(position, radius);
+        final var result = new GrowingAddOnlyList<>(Integer.class);
+
+        // XXX: This blows up if there are more than 32 nodes per bucket
+        final var nodeQueue = new OctreeNode[32];
+        var queuePointer = 0;
+        nodeQueue[queuePointer] = this.rootNode;
+        while (queuePointer >= 0) {
+            final var next = nodeQueue[queuePointer];
+            queuePointer--;
+
+            if (next.depth == 0) {
+                result.addAll(next.items);
+            } else {
+                assert next.children != null;
+                for (final var child : next.children) {
+                    if (child != null && child.intersectsSphere(position, radius)) {
+                        queuePointer++;
+                        nodeQueue[queuePointer] = child;
+                    }
+                }
+            }
+        }
+
+        return result;
     }
 
     /**
@@ -166,6 +189,11 @@ public final class SpatialPathIndex {
         @Nullable private final Collection<Integer> items;
         @Nullable private final OctreeNode[] children;
 
+        /**
+         * Gets the depth of this node. Value of zero means this node is a leaf.
+         *
+         * @return the node depth
+         */
         public int getDepth() {
             return this.depth;
         }
@@ -192,7 +220,7 @@ public final class SpatialPathIndex {
             this.children = children;
         }
 
-        public static OctreeNode initialRoot(
+        private static OctreeNode initialRoot(
                 final Vector3 position,
                 final float margin
         ) {
@@ -202,7 +230,7 @@ public final class SpatialPathIndex {
                                   null);
         }
 
-        public static OctreeNode expandRoot(
+        private static OctreeNode expandRoot(
                 final int depth,
                 final OctreeNode[] children,
                 final Vector3 min,
@@ -211,6 +239,26 @@ public final class SpatialPathIndex {
             return new OctreeNode(depth, min, max, children);
         }
 
+        /**
+         * Gets the child with index. Indexing follows component-wise min first, in order X-Z-Y, Y
+         * incrementing the index by 4, Z by 2 and X by 1. This makes e.g. indices 0-4 the bottom
+         * layer and the indices 5-8 the top layer.
+         *
+         * @param childIndex index of the child
+         *
+         * @return thi child with given index
+         */
+        public OctreeNode getChild(final int childIndex) {
+            assert this.children != null;
+            return this.children[childIndex];
+        }
+
+        /**
+         * Inserts a new point to this node. Recursively proceeds down to child nodes if non-leaf.
+         *
+         * @param position position to add
+         * @param index    index of the point to be added
+         */
         public void insert(final Vector3 position, final int index) {
             // As the tree is always immediately split to max depth on node creation, there are only
             // two options we might want to do here:
@@ -226,7 +274,7 @@ public final class SpatialPathIndex {
             }
         }
 
-        public OctreeNode getOrCreateChildAt(final Vector3 position) {
+        private OctreeNode getOrCreateChildAt(final Vector3 position) {
             assert position.getY() >= getMin().getY();
             assert position.getY() <= getMax().getY();
             assert position.getZ() >= getMin().getZ();
@@ -276,7 +324,7 @@ public final class SpatialPathIndex {
             return getOrCreateChild(childIndex, minY, maxY, minZ, maxZ, minX, maxX);
         }
 
-        public OctreeNode getOrCreateChild(
+        private OctreeNode getOrCreateChild(
                 final int childIndex,
                 final float minY,
                 final float maxY,
@@ -296,41 +344,6 @@ public final class SpatialPathIndex {
             }
 
             return this.children[childIndex];
-        }
-
-        public Collection<Integer> getInfluencingPoints(
-                final Vector3 position,
-                final double maxInfluenceRadius
-        ) {
-            return getInfluencingPoints(position,
-                                        maxInfluenceRadius,
-                                        new GrowingAddOnlyList<>(Integer.class, 40));
-        }
-
-        public Collection<Integer> getInfluencingPoints(
-                final Vector3 position,
-                final double maxInfluenceRadius,
-                final Collection<Integer> result
-        ) {
-            if (this.depth == 0) {
-                assert this.items != null;
-                // XXX: We do not actually filter by position here as *we only know the index*
-                result.addAll(this.items);
-                return result;
-            }
-
-            assert this.children != null;
-            for (final var child : this.children) {
-                if (child == null) {
-                    continue;
-                }
-
-                if (child.intersectsSphere(position, maxInfluenceRadius)) {
-                    child.getInfluencingPoints(position, maxInfluenceRadius, result);
-                }
-            }
-
-            return result;
         }
 
         private boolean intersectsSphere(
@@ -361,20 +374,6 @@ public final class SpatialPathIndex {
 
         private double square(final double v) {
             return v * v;
-        }
-
-        /**
-         * Gets the child with index. Indexing follows component-wise min first, in order X-Z-Y, Y
-         * incrementing the index by 4, Z by 2 and X by 1. This makes e.g. indices 0-4 the bottom
-         * layer and the indices 5-8 the top layer.
-         *
-         * @param childIndex index of the child
-         *
-         * @return thi child with given index
-         */
-        public OctreeNode getChild(final int childIndex) {
-            assert this.children != null;
-            return this.children[childIndex];
         }
     }
 }

@@ -117,9 +117,11 @@ public final class EdgeDensityFunction {
         // Return as negative to "decrease the density" around the edge.
         final var caveContribution = -lerp(caveDensity, floorDensity, floorWeight * this.floorFlatness);
 
-        final var globalNoiseContribution = -getGlobalNoise(position) * distanceAlpha * (1.0 - floorWeight);
-        final var globalDensity = lerp(caveContribution,
-                                       globalNoiseContribution,
+        final var globalNoiseMultiplier = distanceAlpha * (1.0 - floorWeight);
+        final var globalNoise = globalNoiseMultiplier > 0
+                ? -getGlobalNoise(position) * globalNoiseMultiplier
+                : 0.0;
+        final var globalDensity = lerp(caveContribution, globalNoise,
                                        this.globalNoiseFactor * distanceToFloorAlpha);
 
         // Ensures that walls are solid after max radius
