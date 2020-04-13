@@ -38,7 +38,7 @@ public class BoundingBox {
      * @return the size on the x axis
      */
     public float getSizeX() {
-        return this.max.getX() - this.min.getX();
+        return Math.abs(this.max.getX() - this.min.getX());
     }
 
     /**
@@ -47,7 +47,7 @@ public class BoundingBox {
      * @return the size on the y axis
      */
     public float getSizeY() {
-        return this.max.getY() - this.min.getY();
+        return Math.abs(this.max.getY() - this.min.getY());
     }
 
     /**
@@ -56,7 +56,7 @@ public class BoundingBox {
      * @return the size on the z axis
      */
     public float getSizeZ() {
-        return this.max.getZ() - this.min.getZ();
+        return Math.abs(this.max.getZ() - this.min.getZ());
     }
 
     /**

@@ -58,15 +58,15 @@ public final class Application implements AutoCloseable {
      * @param validation should validation/debug features be enabled.
      */
     public Application(final boolean validation) {
-        final var caveLength = 200;
+        final var caveLength = 8000;
         final var spacing = 10f;
 
         final var surfaceLevel = 0.85f;
-        final var spaceBetweenSamples = 2.0f;
+        final var spaceBetweenSamples = 4.0f;
 
         final var floorFlatness = 0.45;
-        final var caveRadius = 20.0;
-        final var maxInfluenceRadius = caveRadius * 1.25;
+        final var caveRadius = 40.0;
+        final var maxInfluenceRadius = caveRadius + 20;
 
         final var meshVisible = true;
         final var linesVisible = true;
@@ -81,8 +81,7 @@ public final class Application implements AutoCloseable {
                                                           caveLength,
                                                           spacing,
                                                           (float) maxInfluenceRadius,
-                                                          420
-        );
+                                                          420);
 
         PROFILER.next("Initializing sample space");
         final var samplesPerUnit = 1.0f / spaceBetweenSamples;

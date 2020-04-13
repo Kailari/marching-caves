@@ -34,8 +34,7 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
 
     @Override
     public Float apply(final Vector3 position) {
-        final var nodes = this.cavePath.getNodesWithin(position,
-                                                       this.maxInfluenceRadius + this.cavePath.getNodeSpacing());
+        final var nodes = this.cavePath.getNodesWithin(position, this.maxInfluenceRadius);
 
         final var contributions = new double[nodes.size() * this.cavePath.getSplittingLimit()];
         final var weights = new double[nodes.size() * this.cavePath.getSplittingLimit()];

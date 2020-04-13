@@ -77,7 +77,7 @@ public final class CavePath {
     public CavePath(final double nodeSpacing, final float maxInfluenceRadius) {
         this.nodeSpacing = nodeSpacing;
         this.nodes = new GrowingAddOnlyList<>(Vector3.class, 32);
-        this.spatialPathIndex = new SpatialPathIndex((float) (maxInfluenceRadius + nodeSpacing));
+        this.spatialPathIndex = new SpatialPathIndex(maxInfluenceRadius);
     }
 
     /**

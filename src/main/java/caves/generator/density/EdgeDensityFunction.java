@@ -42,7 +42,7 @@ public final class EdgeDensityFunction {
 
         this.noiseGenerator = new SimplexNoiseGenerator(42);
         this.floorStart = 0.2;
-        this.noiseScale = 0.025f;
+        this.noiseScale = 0.0125f;
         this.globalNoiseMagnitude = 1.0;
         this.globalNoiseFactor = 0.75;
     }
@@ -117,13 +117,17 @@ public final class EdgeDensityFunction {
         // Return as negative to "decrease the density" around the edge.
         final var caveContribution = -lerp(caveDensity, floorDensity, floorWeight * this.floorFlatness);
 
-        final var globalNoiseContribution = -getGlobalNoise(position) * distanceAlpha;
+        final var globalNoiseContribution = -getGlobalNoise(position) * distanceAlpha * (1.0 - floorWeight);
         final var globalDensity = lerp(caveContribution,
                                        globalNoiseContribution,
                                        this.globalNoiseFactor * distanceToFloorAlpha);
 
+        // Ensures that walls are solid after max radius
         final var fadeToSolidAlpha = Math.min(1.0, distance / this.maxInfluenceRadius);
-        final var clampedDensity = lerp(globalDensity, 0.0, fadeToSolidAlpha);
+        // Ensures that there is at least narrow empty space around the path
+        final var fadeToEmptyAlpha = 1.0 - Math.min(1.0, distance / (this.caveMainInfluenceRadius / 4.0));
+
+        final var clampedDensity = lerp(lerp(globalDensity, 0.0, fadeToSolidAlpha), -1.0, fadeToEmptyAlpha);
 
         return (float) clampedDensity;
     }

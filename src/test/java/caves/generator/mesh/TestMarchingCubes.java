@@ -29,11 +29,10 @@ public class TestMarchingCubes {
                 (pos) -> {
                     final var distance = (float) cavePath.getNodesWithin(pos, caveRadius)
                                                          .stream()
-                                                         .filter(i -> cavePath.getPreviousFor(i).isPresent())
+                                                         .filter(i -> cavePath.getPreviousFor(i) != -1)
                                                          .map(i -> {
                                                              final var a = cavePath.get(i);
-                                                             final var b = cavePath.get(cavePath.getPreviousFor(i)
-                                                                                                .orElseThrow());
+                                                             final var b = cavePath.get(cavePath.getPreviousFor(i));
                                                              return LineSegment.closestPoint(a, b, pos, new Vector3());
                                                          })
                                                          .mapToDouble(pos::distance)
@@ -52,8 +51,8 @@ public class TestMarchingCubes {
         final var caveNormals = new ArrayList<Vector3>();
         meshGenerator.generate(cavePath, caveVertices, caveNormals, caveIndices, surfaceLevel);
 
-        assertAll(() -> assertEquals(24288, caveIndices.size()));
-        assertAll(() -> assertEquals(24288, caveVertices.size()));
+        assertAll(() -> assertEquals(24984, caveIndices.size()));
+        assertAll(() -> assertEquals(24984, caveVertices.size()));
         assertAll(() -> assertEquals(caveVertices.size(), caveNormals.size()));
     }
 }

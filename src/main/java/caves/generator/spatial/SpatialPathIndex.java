@@ -39,11 +39,21 @@ import java.util.List;
  * store positions, the tree is immediately split to maximum depth on insert. This imposes some
  * additional tree walking on read, but simplifies the implementation and reduces memory footprint.
  */
-public class SpatialPathIndex {
+public final class SpatialPathIndex {
     private final float maxInfluenceRadius;
 
     @Nullable
     private OctreeNode rootNode;
+
+    /**
+     * Gets the current root node for this index.
+     *
+     * @return the root node
+     */
+    public OctreeNode getRootNode() {
+        assert this.rootNode != null : "getRootNode called before inserting the first point!";
+        return this.rootNode;
+    }
 
     /**
      * Constructs a new spatial index for fast node queries.
@@ -65,9 +75,10 @@ public class SpatialPathIndex {
             this.rootNode = OctreeNode.initialRoot(position, this.maxInfluenceRadius);
         }
 
-        if (!this.rootNode.contains(position)) {
+        while (!this.rootNode.contains(position)) {
             expandTowards(position);
         }
+        assert this.rootNode.contains(position);
 
         this.rootNode.insert(position, index);
     }
@@ -83,10 +94,10 @@ public class SpatialPathIndex {
         final float maxY;
         final var center = this.rootNode.getCenter();
         if (position.getY() >= center.getY()) {
-            index += 4;
             minY = this.rootNode.getMin().getY();
             maxY = this.rootNode.getMax().getY() + this.rootNode.getSizeY();
         } else {
+            index += 4;
             minY = this.rootNode.getMin().getY() - this.rootNode.getSizeY();
             maxY = this.rootNode.getMax().getY();
         }
@@ -94,10 +105,10 @@ public class SpatialPathIndex {
         final float minZ;
         final float maxZ;
         if (position.getZ() >= center.getZ()) {
-            index += 2;
             minZ = this.rootNode.getMin().getZ();
             maxZ = this.rootNode.getMax().getZ() + this.rootNode.getSizeZ();
         } else {
+            index += 2;
             minZ = this.rootNode.getMin().getZ() - this.rootNode.getSizeZ();
             maxZ = this.rootNode.getMax().getZ();
         }
@@ -105,10 +116,10 @@ public class SpatialPathIndex {
         final float minX;
         final float maxX;
         if (position.getX() >= center.getX()) {
-            index += 1;
             minX = this.rootNode.getMin().getX();
             maxX = this.rootNode.getMax().getX() + this.rootNode.getSizeX();
         } else {
+            index += 1;
             minX = this.rootNode.getMin().getX() - this.rootNode.getSizeX();
             maxX = this.rootNode.getMax().getX();
         }
@@ -149,7 +160,7 @@ public class SpatialPathIndex {
      * Represents a collection of data points with defined boundaries in space. A single node in the
      * octree.
      */
-    private static final class OctreeNode extends BoundingBox {
+    public static final class OctreeNode extends BoundingBox {
         private final int depth;
 
         @Nullable private final Collection<Integer> items;
@@ -157,6 +168,16 @@ public class SpatialPathIndex {
 
         public int getDepth() {
             return this.depth;
+        }
+
+        /**
+         * Gets the children of this node. Might be null if this is a leaf node.
+         *
+         * @return the children
+         */
+        @Nullable
+        public OctreeNode[] getChildren() {
+            return this.children;
         }
 
         private OctreeNode(
@@ -206,6 +227,12 @@ public class SpatialPathIndex {
         }
 
         public OctreeNode getOrCreateChildAt(final Vector3 position) {
+            assert position.getY() >= getMin().getY();
+            assert position.getY() <= getMax().getY();
+            assert position.getZ() >= getMin().getZ();
+            assert position.getZ() <= getMax().getZ();
+            assert position.getX() >= getMin().getX();
+            assert position.getX() <= getMax().getX();
             assert this.children != null;
             assert this.depth > 0;
 
@@ -310,7 +337,7 @@ public class SpatialPathIndex {
                 final Vector3 position,
                 final double maxInfluenceRadius
         ) {
-            float d = square((float) maxInfluenceRadius);
+            double d = square(maxInfluenceRadius);
             if (position.getX() < getMin().getX()) {
                 d -= square(position.getX() - getMin().getX());
             } else if (position.getX() > getMax().getX()) {
@@ -332,8 +359,22 @@ public class SpatialPathIndex {
             return d > 0;
         }
 
-        private float square(final float v) {
+        private double square(final double v) {
             return v * v;
+        }
+
+        /**
+         * Gets the child with index. Indexing follows component-wise min first, in order X-Z-Y, Y
+         * incrementing the index by 4, Z by 2 and X by 1. This makes e.g. indices 0-4 the bottom
+         * layer and the indices 5-8 the top layer.
+         *
+         * @param childIndex index of the child
+         *
+         * @return thi child with given index
+         */
+        public OctreeNode getChild(final int childIndex) {
+            assert this.children != null;
+            return this.children[childIndex];
         }
     }
 }
