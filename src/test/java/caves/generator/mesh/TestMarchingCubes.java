@@ -7,6 +7,7 @@ import caves.util.math.Vector3;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
@@ -27,17 +28,16 @@ public class TestMarchingCubes {
         final var samplesPerUnit = 1.0f / spaceBetweenSamples;
         final Function<Vector3, Float> densityFunction =
                 (pos) -> {
-                    final var distance = (float) cavePath.getNodesWithin(pos, caveRadius)
-                                                         .stream()
-                                                         .filter(i -> cavePath.getPreviousFor(i) != -1)
-                                                         .map(i -> {
-                                                             final var a = cavePath.get(i);
-                                                             final var b = cavePath.get(cavePath.getPreviousFor(i));
-                                                             return LineSegment.closestPoint(a, b, pos, new Vector3());
-                                                         })
-                                                         .mapToDouble(pos::distance)
-                                                         .min()
-                                                         .orElse(caveRadius * caveRadius);
+                    final var distance = (float) Arrays.stream(cavePath.getNodesWithin(pos, caveRadius))
+                                                       .filter(i -> cavePath.getPreviousFor(i) != -1)
+                                                       .mapToObj(i -> {
+                                                           final var a = cavePath.get(i);
+                                                           final var b = cavePath.get(cavePath.getPreviousFor(i));
+                                                           return LineSegment.closestPoint(a, b, pos, new Vector3());
+                                                       })
+                                                       .mapToDouble(pos::distance)
+                                                       .min()
+                                                       .orElse(caveRadius * caveRadius);
                     return Math.min(1.0f, distance / caveRadius);
                 };
         final var sampleSpace = new CaveSampleSpace(cavePath,

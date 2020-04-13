@@ -12,7 +12,7 @@ public class TestCaveSampleSpace {
 
     @BeforeEach
     void beforeEach() {
-        cave = new CavePath(10.0f, 1000.0f);
+        cave = new CavePath(2, 1000.0f);
         cave.addNode(new Vector3(-4.0f, -8.0f, 4.7f));
         cave.addNode(new Vector3(6.0f, -0.724f, 8.34f));
     }

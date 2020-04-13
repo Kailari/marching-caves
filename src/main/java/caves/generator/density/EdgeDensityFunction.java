@@ -47,10 +47,6 @@ public final class EdgeDensityFunction {
         this.globalNoiseFactor = 0.75;
     }
 
-    private static double baseDensityCurve(final double t) {
-        return Math.min(1.0, lerp(1.0, 0.0, t));
-    }
-
     /**
      * Linear interpolation.
      *
@@ -64,16 +60,10 @@ public final class EdgeDensityFunction {
         return (1 - t) * a + t * b;
     }
 
-    private double floorDensityCurve(final double t) {
-        return baseDensityCurve(t);
-    }
-
     /**
      * Calculates the density contribution for the given point from the cave path edge defined by
      * nodes A and B.
      *
-     * @param nodeA        the start point of the edge
-     * @param nodeB        the end point of the edge
      * @param position     position for which to calculate the density
      * @param closestPoint the point on the edge that is closest to the given position
      * @param distanceSq   squared distance between the closest point and the position
@@ -81,8 +71,6 @@ public final class EdgeDensityFunction {
      * @return the density contribution
      */
     public float apply(
-            final Vector3 nodeA,
-            final Vector3 nodeB,
             final Vector3 position,
             final Vector3 closestPoint,
             final float distanceSq
@@ -101,36 +89,39 @@ public final class EdgeDensityFunction {
 
         final var distance = Math.sqrt(distanceSq);
         final var distanceAlpha = Math.min(1.0, distance / this.caveMainInfluenceRadius);
-        final var caveDensity = baseDensityCurve(distanceAlpha);
+        final var caveDensity = lerp(1.0, 0.0, distanceAlpha);
 
-        final var direction = closestPoint.sub(position, new Vector3()).normalize();
+        final var verticalDistance = closestPoint.getY() - position.getY();
+        final double caveContribution;
+        double floorWeight;
+        // If we are below the path
+        if (verticalDistance > 0) {
+            final var direction = closestPoint.sub(position, new Vector3()).normalize();
 
-        var floorWeight = Math.max(0.0, direction.dot(this.directionUp) - this.floorStart);
-        assert floorWeight >= 0.0 && floorWeight <= 1.0;
-        floorWeight *= floorWeight;
+            floorWeight = Math.max(0.0, direction.dot(this.directionUp) - this.floorStart);
+            assert floorWeight >= 0.0 && floorWeight <= 1.0;
+            floorWeight *= floorWeight;
 
-        final var verticalDistance = Math.abs(position.getY() - closestPoint.getY());
-        final var distanceToFloorAlpha = Math.min(1.0, verticalDistance / this.pathFloorInfluenceRadius);
+            final var distanceToFloorAlpha = Math.min(1.0, verticalDistance / this.pathFloorInfluenceRadius);
 
-        final var floorDensity = floorDensityCurve(distanceToFloorAlpha);
+            final var floorDensity = lerp(1.0, 0.0, distanceToFloorAlpha);
 
-        // Return as negative to "decrease the density" around the edge.
-        final var caveContribution = -lerp(caveDensity, floorDensity, floorWeight * this.floorFlatness);
+            // Return as negative to "decrease the density" around the edge.
+            caveContribution = -lerp(caveDensity, floorDensity, floorWeight * this.floorFlatness);
+        } else {
+            // Above path, guaranteed to not be floor
+            caveContribution = -caveDensity;
+            floorWeight = 0.0;
+        }
 
         final var globalNoiseMultiplier = distanceAlpha * (1.0 - floorWeight);
-        final var globalNoise = globalNoiseMultiplier > 0
-                ? -getGlobalNoise(position) * globalNoiseMultiplier
-                : 0.0;
+        final var globalNoise = -getGlobalNoise(position) * globalNoiseMultiplier;
         final var globalDensity = lerp(caveContribution, globalNoise,
-                                       this.globalNoiseFactor * distanceToFloorAlpha);
+                                       this.globalNoiseFactor * distanceAlpha);
 
         // Ensures that walls are solid after max radius
         final var fadeToSolidAlpha = Math.min(1.0, distance / this.maxInfluenceRadius);
-        // Ensures that there is at least narrow empty space around the path
-        final var fadeToEmptyAlpha = 1.0 - Math.min(1.0, distance / (this.caveMainInfluenceRadius / 4.0));
-
-        final var clampedDensity = lerp(lerp(globalDensity, 0.0, fadeToSolidAlpha), -1.0, fadeToEmptyAlpha);
-
+        final var clampedDensity = lerp(globalDensity, 0.0, fadeToSolidAlpha);
         return (float) clampedDensity;
     }
 

@@ -62,7 +62,7 @@ public final class Application implements AutoCloseable {
         final var spacing = 10f;
 
         final var surfaceLevel = 0.85f;
-        final var spaceBetweenSamples = 4.0f;
+        final var spaceBetweenSamples = 2.0f;
 
         final var floorFlatness = 0.45;
         final var caveRadius = 40.0;

@@ -14,8 +14,8 @@ public final class PathGenerator {
      * @param length             number of steps
      * @param nodeSpacing        length of a single step
      * @param maxInfluenceRadius the maximum density influence radius of a node
-     *
      * @param seed               generation PRNG seed
+     *
      * @return a generated cave path
      */
     public CavePath generate(
@@ -25,7 +25,7 @@ public final class PathGenerator {
             final float maxInfluenceRadius, final long seed
     ) {
         PROFILER.log("-> With {} steps.", length);
-        final var path = new CavePath(nodeSpacing, maxInfluenceRadius);
+        final var path = new CavePath(length, maxInfluenceRadius);
 
         final var random = new Random(seed);
 

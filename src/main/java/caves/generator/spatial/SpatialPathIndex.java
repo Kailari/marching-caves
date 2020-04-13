@@ -6,7 +6,6 @@ import caves.util.math.Vector3;
 
 import javax.annotation.Nullable;
 import java.util.Collection;
-import java.util.List;
 
 /**
  * Implements an inverted octree as spatial index to the cave path. The idea is as follows:
@@ -145,15 +144,17 @@ public final class SpatialPathIndex {
      *
      * @return all indices of points within the given radius
      */
-    public Collection<Integer> getIndicesWithin(
+    public int[] getIndicesWithin(
             final Vector3 position,
             final double radius
     ) {
         if (this.rootNode == null) {
-            return List.of();
+            return new int[0];
         }
 
-        final var result = new GrowingAddOnlyList<>(Integer.class);
+        // XXX: This blows up if there are more than 512 influencing points
+        final var foundItems = new int[2048];
+        var resultPointer = 0;
 
         // XXX: This blows up if there are more than 32 nodes per bucket
         final var nodeQueue = new OctreeNode[32];
@@ -164,7 +165,10 @@ public final class SpatialPathIndex {
             queuePointer--;
 
             if (next.depth == 0) {
-                result.addAll(next.items);
+                for (final int item : next.items) {
+                    foundItems[resultPointer] = item;
+                    resultPointer++;
+                }
             } else {
                 assert next.children != null;
                 for (final var child : next.children) {
@@ -176,6 +180,8 @@ public final class SpatialPathIndex {
             }
         }
 
+        final var result = new int[resultPointer];
+        System.arraycopy(foundItems, 0, result, 0, resultPointer);
         return result;
     }
 

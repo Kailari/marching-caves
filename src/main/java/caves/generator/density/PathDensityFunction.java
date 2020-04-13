@@ -7,6 +7,9 @@ import caves.util.math.Vector3;
 import java.util.function.Function;
 
 public final class PathDensityFunction implements Function<Vector3, Float> {
+    private static final double WEIGHT_EPSILON = 0.0001;
+    private static final double WEIGHT_EPSILON_SQ = WEIGHT_EPSILON * WEIGHT_EPSILON;
+
     private final CavePath cavePath;
     private final double maxInfluenceRadius;
     private final EdgeDensityFunction edgeDensityFunction;
@@ -36,10 +39,9 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
     public Float apply(final Vector3 position) {
         final var nodes = this.cavePath.getNodesWithin(position, this.maxInfluenceRadius);
 
-        final var contributions = new double[nodes.size() * this.cavePath.getSplittingLimit()];
-        final var weights = new double[nodes.size() * this.cavePath.getSplittingLimit()];
         var summedWeights = 0.0;
         var nContributions = 0;
+        var weightedTotal = 0.0;
         final var edgeAverage = new WeightedAverage();
         for (final var nodeIndex : nodes) {
             edgeAverage.totalWeight = 0.0;
@@ -57,8 +59,7 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
 
             if (edgeAverage.hasContribution) {
                 final var weight = edgeAverage.maximumWeight;
-                contributions[nContributions] = edgeAverage.calculate();
-                weights[nContributions] = weight;
+                weightedTotal += weight * edgeAverage.calculate();
                 summedWeights += weight;
                 nContributions++;
             }
@@ -68,10 +69,6 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
             return 1.0f;
         }
 
-        var weightedTotal = 0.0;
-        for (int i = 0; i < nContributions; ++i) {
-            weightedTotal += weights[i] * contributions[i];
-        }
         final var weightedAverage = weightedTotal / summedWeights;
         return (float) Math.max(0.0, Math.min(1.0, 1.0 + weightedAverage));
     }
@@ -84,8 +81,6 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
     ) {
         final var maxRadiusSq = this.maxInfluenceRadius * this.maxInfluenceRadius;
 
-        assert indexA != -1 || indexB != -1 : "One of the nodes must exist!";
-
         final var nodeA = PathDensityFunction.this.cavePath.get(indexA);
         final var nodeB = PathDensityFunction.this.cavePath.get(indexB);
         final var closest = LineSegment.closestPoint(nodeA, nodeB, position, this.tmpResult);
@@ -94,12 +89,6 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
         if (distanceSq > maxRadiusSq) {
             return;
         }
-
-        final var value = this.edgeDensityFunction.apply(nodeA,
-                                                         nodeB,
-                                                         position,
-                                                         closest,
-                                                         distanceSq);
 
         // HACK:    Avoid potentially getting very large whole number part for the weight by
         //          rescaling the weights to 0..maxRadius. However, we do not want to calculate
@@ -121,6 +110,14 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
         weightSq *= weightSq;
         weightSq *= weightSq;
         weightSq *= weightSq;
+
+        if (weightSq < WEIGHT_EPSILON_SQ) {
+            return;
+        }
+
+        final var value = this.edgeDensityFunction.apply(position,
+                                                         closest,
+                                                         distanceSq);
 
         avg.weightedSum += weightSq * value;
         avg.totalWeight += weightSq;

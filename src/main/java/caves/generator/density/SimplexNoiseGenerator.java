@@ -16,9 +16,9 @@ public final class SimplexNoiseGenerator {
     private static final float D3_SQUISH = SQUISH * 3.0f - 1;
 
     /** Permutations. */
-    private final int[] p = new int[512];
+    private final int[] p = new int[256];
     /** Permutations modulo 12. */
-    private final int[] pMod12 = new int[512]; // Optimization: Avoid calculating lots of "x % 12"
+    private final int[] pMod12 = new int[256]; // Optimization: Avoid calculating lots of "x % 12"
 
     /**
      * Creates and seeds a new simplex noise generator.
@@ -45,11 +45,6 @@ public final class SimplexNoiseGenerator {
             this.p[i] = source[r];
             this.pMod12[i] = (this.p[i] % 12);
             source[r] = source[i];
-        }
-
-        for (var i = 256; i < 512; i++) {
-            this.p[i] = this.p[i - 256];
-            this.pMod12[i] = (this.p[i] % 12);
         }
     }
 
@@ -178,17 +173,17 @@ public final class SimplexNoiseGenerator {
         final float d3Z = d0Z + D3_SQUISH;
 
         // Calculate hashed gradient indices for the corners
-        final int wrapX = skewedOriginX & 255;
-        final int wrapY = skewedOriginY & 255;
-        final int wrapZ = skewedOriginZ & 255;
-        final int index0 = wrapX + this.p[wrapY + this.p[wrapZ]];
-        final int index1 = wrapX + offs1X + this.p[wrapY + offs1Y + this.p[wrapZ + offs1Z]];
-        final int index2 = wrapX + offs2X + this.p[wrapY + offs2Y + this.p[wrapZ + offs2Z]];
-        final int index3 = wrapX + 1 + this.p[wrapY + 1 + this.p[wrapZ + 1]];
-        final int gradientIndex0 = this.pMod12[index0];
-        final int gradientIndex1 = this.pMod12[index1];
-        final int gradientIndex2 = this.pMod12[index2];
-        final int gradientIndex3 = this.pMod12[index3];
+        final int wrapX = skewedOriginX & 0xFF;
+        final int wrapY = skewedOriginY & 0xFF;
+        final int wrapZ = skewedOriginZ & 0xFF;
+        final int index0 = wrapX + this.p[(wrapY + this.p[wrapZ & 0xFF]) & 0xFF];
+        final int index1 = wrapX + offs1X + this.p[(wrapY + offs1Y + this.p[(wrapZ + offs1Z) & 0xFF]) & 0xFF];
+        final int index2 = wrapX + offs2X + this.p[(wrapY + offs2Y + this.p[(wrapZ + offs2Z) & 0xFF]) & 0xFF];
+        final int index3 = wrapX + 1 + this.p[(wrapY + 1 + this.p[(wrapZ + 1) & 0xFF]) & 0xFF];
+        final int gradientIndex0 = this.pMod12[index0 & 0xFF];
+        final int gradientIndex1 = this.pMod12[index1 & 0xFF];
+        final int gradientIndex2 = this.pMod12[index2 & 0xFF];
+        final int gradientIndex3 = this.pMod12[index3 & 0xFF];
 
         final float contribution0 = contribution(gradientIndex0, d0X, d0Y, d0Z);
         final float contribution1 = contribution(gradientIndex1, d1X, d1Y, d1Z);

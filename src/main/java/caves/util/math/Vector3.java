@@ -4,9 +4,9 @@ import java.util.Objects;
 
 @SuppressWarnings({"unused", "UnusedReturnValue"})
 public final class Vector3 {
-    private float x;
-    private float y;
-    private float z;
+    public float x;
+    public float y;
+    public float z;
 
     /**
      * Gets the value of the x-component of this vector.
