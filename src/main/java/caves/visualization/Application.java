@@ -63,7 +63,7 @@ public final class Application implements AutoCloseable {
         final var surfaceLevel = 0.85f;
         final var spaceBetweenSamples = 4.0f;
 
-        final var floorFlatness = 0.45;
+        final var floorFlatness = 0.65;
         final var caveRadius = 40.0;
         final var maxInfluenceRadius = caveRadius + 20;
 
@@ -80,8 +80,7 @@ public final class Application implements AutoCloseable {
                                                           spacing,
                                                           (float) maxInfluenceRadius,
                                                           420);
-
-        PROFILER.next("Initializing sample space");
+        PROFILER.next("Creating isosurface mesh with Marching Cubes");
         final var samplesPerUnit = 1.0f / spaceBetweenSamples;
         final var edgeFunc = new EdgeDensityFunction(maxInfluenceRadius,
                                                      caveRadius,
@@ -90,10 +89,10 @@ public final class Application implements AutoCloseable {
         final var sampleSpace = new ChunkCaveSampleSpace(
                 samplesPerUnit,
                 new PathDensityFunction(cavePath,
-                                                                                 maxInfluenceRadius,
-                                                                                 edgeFunc));
+                                        caveRadius,
+                                        maxInfluenceRadius,
+                                        edgeFunc));
 
-        PROFILER.next("Creating isosurface mesh with Marching Cubes");
 
         final var meshGenerator = new MeshGenerator(sampleSpace);
         final var caveVertices = new GrowingAddOnlyList<>(Vector3.class);

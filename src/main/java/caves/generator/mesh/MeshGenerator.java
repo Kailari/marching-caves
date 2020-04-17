@@ -52,7 +52,7 @@ public class MeshGenerator {
         final var startNode = cavePath.get(0);
         final var caveStartSampleCoord = startNode.mul(this.sampleSpace.getSamplesPerUnit());
 
-        PROFILER.log("-> Sample coord: ({}, {}, {})",
+        PROFILER.log("-> Searching starting sample from near: ({}, {}, {})",
                      caveStartSampleCoord.x,
                      caveStartSampleCoord.y,
                      caveStartSampleCoord.z);

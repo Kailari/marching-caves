@@ -6,33 +6,48 @@ import caves.util.math.Vector3;
 
 import java.util.function.Function;
 
+import static caves.generator.density.EdgeDensityFunction.lerp;
+
 public final class PathDensityFunction implements Function<Vector3, Float> {
     private static final double WEIGHT_EPSILON = 0.0001;
     private static final double WEIGHT_EPSILON_SQ = WEIGHT_EPSILON * WEIGHT_EPSILON;
 
     private final CavePath cavePath;
     private final double maxInfluenceRadius;
+    private final double caveMainInfluenceRadius;
     private final EdgeDensityFunction edgeDensityFunction;
 
     private final Vector3 tmpResult = new Vector3();
+
+    private final SimplexNoiseGenerator noiseGenerator;
+    private final float noiseScale;
+    private final double globalNoiseFactor;
+    private final double globalNoiseMagnitude;
 
     /**
      * Creates a new density function for a cave path. The function calculates point densities as
      * sum of nearby path edges' densities.
      *
      * @param cavePath            contributing path
-     * @param maxInfluenceRadius  maximum node influence radius
+     * @param caveRadius          radius of the main cave
+     * @param maxInfluenceRadius  maximum node influence radius after noise is applied
      * @param edgeDensityFunction the density function to use for calculating edge density
-     *                            contributions
      */
     public PathDensityFunction(
             final CavePath cavePath,
+            final double caveRadius,
             final double maxInfluenceRadius,
             final EdgeDensityFunction edgeDensityFunction
     ) {
         this.cavePath = cavePath;
+        this.caveMainInfluenceRadius = caveRadius;
         this.maxInfluenceRadius = maxInfluenceRadius;
         this.edgeDensityFunction = edgeDensityFunction;
+
+        this.noiseGenerator = new SimplexNoiseGenerator(42);
+        this.noiseScale = 0.01f;
+        this.globalNoiseMagnitude = 1.0;
+        this.globalNoiseFactor = 1.00;
     }
 
     @Override
@@ -42,24 +57,29 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
         var summedWeights = 0.0;
         var nContributions = 0;
         var weightedTotal = 0.0;
-        final var edgeAverage = new WeightedAverage();
+        var minDistance = Double.MAX_VALUE;
+        var summedFloorness = 0.0;
+        final var edgeResult = new NodeContribution();
         for (final var nodeIndex : nodes) {
-            edgeAverage.totalWeight = 0.0;
-            edgeAverage.weightedSum = 0.0;
-            edgeAverage.maximumWeight = 0.0;
-            edgeAverage.hasContribution = false;
+            edgeResult.value = 0.0;
+            edgeResult.weight = 0.0;
+            edgeResult.floorness = 0.0;
+            edgeResult.hasContribution = false;
 
             final int previous = this.cavePath.getPreviousFor(nodeIndex);
             if (previous != -1) {
-                add(edgeAverage, previous, nodeIndex, position);
+                calculateEdge(edgeResult, previous, nodeIndex, position);
             }
             for (final int n : this.cavePath.getNextFor(nodeIndex)) {
-                add(edgeAverage, nodeIndex, n, position);
+                calculateEdge(edgeResult, nodeIndex, n, position);
             }
 
-            if (edgeAverage.hasContribution) {
-                final var weight = edgeAverage.maximumWeight;
-                weightedTotal += weight * edgeAverage.calculate();
+            if (edgeResult.hasContribution) {
+                final var weight = edgeResult.weight;
+                weightedTotal += weight * edgeResult.value;
+                summedFloorness += weight * edgeResult.floorness;
+                minDistance = Math.min(minDistance, edgeResult.distance);
+
                 summedWeights += weight;
                 nContributions++;
             }
@@ -70,11 +90,25 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
         }
 
         final var weightedAverage = weightedTotal / summedWeights;
-        return (float) Math.max(0.0, Math.min(1.0, 1.0 + weightedAverage));
+        final var floorness = summedFloorness / summedWeights;
+
+        final var distanceAlpha = Math.min(1.0, minDistance / this.caveMainInfluenceRadius);
+        final var globalNoiseMultiplier = distanceAlpha * (1.0 - floorness);
+        final var globalNoise = -getGlobalNoise(position) * globalNoiseMultiplier;
+        final var globalDensity = lerp(weightedAverage, globalNoise, this.globalNoiseFactor * distanceAlpha);
+
+        // Ensures that walls are solid after max radius
+        final var fadeToSolidAlpha = Math.min(1.0, minDistance / this.maxInfluenceRadius);
+        final var clampedDensity = lerp(globalDensity, 0.0, fadeToSolidAlpha);
+        return (float) Math.max(0.0, Math.min(1.0, 1.0 + clampedDensity));
     }
 
-    void add(
-            final WeightedAverage avg,
+    private double getGlobalNoise(final Vector3 pos) {
+        return this.noiseGenerator.evaluate(pos.mul(this.noiseScale, new Vector3())) * this.globalNoiseMagnitude;
+    }
+
+    private void calculateEdge(
+            final NodeContribution result,
             final int indexA,
             final int indexB,
             final Vector3 position
@@ -102,45 +136,19 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
         //          always less than max radius, we get nice weight range of 0..1, where
         //          individual weights are on exponential (power two) curve. This gives us more
         //          than enough accuracy to avoid visual artifacts in most cases.
-        var weightSq = 1.0 - Math.min(1.0, distanceSq / maxRadiusSq);
-
-        // HACK:    Increase the exponent to *very high* value to reduce the further away
-        //          contributors' weights to zero.
-        weightSq *= weightSq;
-        weightSq *= weightSq;
-        weightSq *= weightSq;
-        weightSq *= weightSq;
+        final var weightSq = 1.0 - Math.min(1.0, distanceSq / maxRadiusSq);
 
         if (weightSq < WEIGHT_EPSILON_SQ) {
             return;
         }
 
-        final var value = this.edgeDensityFunction.apply(position,
-                                                         closest,
-                                                         distanceSq);
-
-        avg.weightedSum += weightSq * value;
-        avg.totalWeight += weightSq;
-        avg.maximumWeight = Math.max(weightSq, avg.maximumWeight);
-        avg.hasContribution = true;
-    }
-
-    private static final class WeightedAverage {
-        private double totalWeight;
-        private double weightedSum;
-        private double maximumWeight;
-
-        private boolean hasContribution;
-
-        WeightedAverage() {
-            this.totalWeight = 0.0;
-            this.weightedSum = 0.0;
-            this.maximumWeight = 0.0;
-            this.hasContribution = false;
-        }
-
-        public double calculate() {
-            return this.weightedSum / this.totalWeight;
+        final var contribution = this.edgeDensityFunction.apply(position, closest, distanceSq);
+        if (contribution.hasContribution) {
+            result.value = Math.min(result.value, contribution.value);
+            result.weight = Math.max(result.weight, weightSq);
+            result.distance = Math.min(result.distance, contribution.distance);
+            result.floorness = Math.min(result.floorness, contribution.floorness);
+            result.hasContribution = true;
         }
     }
 }

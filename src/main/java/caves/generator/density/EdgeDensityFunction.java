@@ -9,15 +9,12 @@ import caves.util.math.Vector3;
 public final class EdgeDensityFunction {
     private final double caveMainInfluenceRadius;
     private final double maxInfluenceRadius;
+
     private final double pathFloorInfluenceRadius;
     private final double floorFlatness;
-    private final Vector3 directionUp;
-
-    private final SimplexNoiseGenerator noiseGenerator;
-    private final float noiseScale;
     private final double floorStart;
-    private final double globalNoiseFactor;
-    private final double globalNoiseMagnitude;
+
+    private final Vector3 directionUp;
 
     /**
      * Creates a new density function for calculating densities for a single edge.
@@ -37,14 +34,9 @@ public final class EdgeDensityFunction {
         this.pathFloorInfluenceRadius = caveRadius / 2.5;
         this.maxInfluenceRadius = maxInfluenceRadius;
 
+        this.floorStart = 0.2;
         this.floorFlatness = floorFlatness;
         this.directionUp = new Vector3(0.0f, 1.0f, 0.0f);
-
-        this.noiseGenerator = new SimplexNoiseGenerator(42);
-        this.floorStart = 0.2;
-        this.noiseScale = 0.0125f;
-        this.globalNoiseMagnitude = 1.0;
-        this.globalNoiseFactor = 0.75;
     }
 
     /**
@@ -70,7 +62,7 @@ public final class EdgeDensityFunction {
      *
      * @return the density contribution
      */
-    public float apply(
+    public NodeContribution apply(
             final Vector3 position,
             final Vector3 closestPoint,
             final float distanceSq
@@ -78,13 +70,19 @@ public final class EdgeDensityFunction {
         // Optimization: Skip everything further than max influence radius away
         final var influenceRadiusSq = this.maxInfluenceRadius * this.maxInfluenceRadius;
         if (distanceSq > influenceRadiusSq) {
-            return 0.0f;
+            return new NodeContribution();
         }
 
         // Special case: The point being sampled is *exactly* on the node. This guarantees that
         //               direction vectors are non-zero later on.
         if (distanceSq < 0.0000001) {
-            return -1.0f;
+            final var contribution = new NodeContribution();
+            contribution.value = -1.0f;
+            contribution.floorness = 0.0f;
+            contribution.weight = 1.0f;
+            contribution.distance = 0.0;
+            contribution.hasContribution = true;
+            return contribution;
         }
 
         final var distance = Math.sqrt(distanceSq);
@@ -114,18 +112,12 @@ public final class EdgeDensityFunction {
             floorWeight = 0.0;
         }
 
-        final var globalNoiseMultiplier = distanceAlpha * (1.0 - floorWeight);
-        final var globalNoise = -getGlobalNoise(position) * globalNoiseMultiplier;
-        final var globalDensity = lerp(caveContribution, globalNoise,
-                                       this.globalNoiseFactor * distanceAlpha);
-
-        // Ensures that walls are solid after max radius
-        final var fadeToSolidAlpha = Math.min(1.0, distance / this.maxInfluenceRadius);
-        final var clampedDensity = lerp(globalDensity, 0.0, fadeToSolidAlpha);
-        return (float) clampedDensity;
-    }
-
-    private double getGlobalNoise(final Vector3 pos) {
-        return this.noiseGenerator.evaluate(pos.mul(this.noiseScale, new Vector3())) * this.globalNoiseMagnitude;
+        final var contribution = new NodeContribution();
+        contribution.floorness = floorWeight;
+        contribution.value = caveContribution;
+        contribution.distance = distance;
+        contribution.weight = distanceAlpha;
+        contribution.hasContribution = true;
+        return contribution;
     }
 }

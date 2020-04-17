@@ -1,6 +1,6 @@
 package caves.generator.mesh;
 
-import caves.generator.CaveSampleSpace;
+import caves.generator.ChunkCaveSampleSpace;
 import caves.generator.PathGenerator;
 import caves.util.math.LineSegment;
 import caves.util.math.Vector3;
@@ -40,10 +40,7 @@ public class TestMarchingCubes {
                                                        .orElse(caveRadius * caveRadius);
                     return Math.min(1.0f, distance / caveRadius);
                 };
-        final var sampleSpace = new CaveSampleSpace(cavePath,
-                                                    maxInfluenceRadius,
-                                                    samplesPerUnit,
-                                                    densityFunction);
+        final var sampleSpace = new ChunkCaveSampleSpace(samplesPerUnit, densityFunction);
 
         final var meshGenerator = new MeshGenerator(sampleSpace);
         final var caveVertices = new ArrayList<Vector3>();
@@ -51,8 +48,8 @@ public class TestMarchingCubes {
         final var caveNormals = new ArrayList<Vector3>();
         meshGenerator.generate(cavePath, caveVertices, caveNormals, caveIndices, surfaceLevel);
 
-        assertAll(() -> assertEquals(24984, caveIndices.size()));
-        assertAll(() -> assertEquals(24984, caveVertices.size()));
+        assertAll(() -> assertEquals(24942, caveIndices.size()));
+        assertAll(() -> assertEquals(24942, caveVertices.size()));
         assertAll(() -> assertEquals(caveVertices.size(), caveNormals.size()));
     }
 }

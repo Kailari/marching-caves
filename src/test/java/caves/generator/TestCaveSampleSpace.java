@@ -1,46 +1,53 @@
 package caves.generator;
 
-import caves.util.math.Vector3;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertAll;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class TestCaveSampleSpace {
-    CavePath cave;
+    ChunkCaveSampleSpace sampleSpace;
 
     @BeforeEach
     void beforeEach() {
-        cave = new CavePath(2, 1000.0f);
-        cave.addNode(new Vector3(-4.0f, -8.0f, 4.7f));
-        cave.addNode(new Vector3(6.0f, -0.724f, 8.34f));
+        sampleSpace = new ChunkCaveSampleSpace(1.0f, (v) -> v.x + v.y + v.z);
     }
 
     @Test
-    void sampleSpaceHasExpectedCounts() {
-        final var space = new CaveSampleSpace(cave, 1.0f, 1.0f / 0.25f, (v) -> 1.0f);
-        assertAll(() -> assertEquals(Math.floor((10.0f + 2.0f) / 0.25f), space.getCountX(), 0.5),
-                  () -> assertEquals(Math.floor((7.276f + 2.0f) / 0.25f), space.getCountY(), 0.5),
-                  () -> assertEquals(Math.floor((3.64f + 2.0f) / 0.25f), space.getCountZ(), 0.5));
+    void correctSamplesPerUnitIsStored() {
+        assertEquals(4.2f, new ChunkCaveSampleSpace(4.2f, v -> 0.0f).getSamplesPerUnit());
     }
 
     @Test
-    void samplePositionsAreCorrect() {
-        final var expected = new Vector3(-4.75f, -8.5f, 4.45f);
-
-        final var space = new CaveSampleSpace(cave, 1.0f, 1.0f / 0.25f, (v) -> 1.0f);
-        final var pos = space.getPos(1, 2, 3);
-        assertAll(() -> assertEquals(expected.getX(), pos.getX(), 0.001),
-                  () -> assertEquals(expected.getY(), pos.getY(), 0.001),
-                  () -> assertEquals(expected.getZ(), pos.getZ(), 0.001));
+    void gettingDensityForPositiveCoordinatesWorks() {
+        assertEquals(1 + 2 + 3, sampleSpace.getDensity(1, 2, 3));
     }
 
     @Test
-    void sampleDensitiesAreFromTheDensityFunction() {
-        final var space = new CaveSampleSpace(cave, 1.0f, 1.0f / 0.25f, (v) -> 42.0f);
-        assertEquals(42.0f, space.getDensity(1, 2, 3));
-        assertEquals(42.0f, space.getDensity(3, 2, 1));
-        assertEquals(42.0f, space.getDensity(12, 21, 32));
+    void gettingDensityForNegativeCoordinatesWorks() {
+        assertEquals(-1 - 2 - 3, sampleSpace.getDensity(-1, -2, -3));
+    }
+
+    @Test
+    void gettingDensityForLargePositiveCoordinatesWorks() {
+        assertEquals(1000 + 2000 + 3000, sampleSpace.getDensity(1000, 2000, 3000));
+    }
+
+    @Test
+    void gettingDensityForLargeNegativeCoordinatesWorks() {
+        assertEquals(-1000 - 2000 - 3000, sampleSpace.getDensity(-1000, -2000, -3000));
+    }
+
+    @Test
+    void markQueueReturnsTrueOnFirstCall() {
+        assertTrue(sampleSpace.markQueued(1, 2, 3));
+    }
+
+    @Test
+    void markQueueMayReturnTrueOnlyOnFirstAndFalseFromThenOn() {
+        sampleSpace.markQueued(1, 2, 3);
+        for (int i = 0; i < 10; i++) {
+            assertFalse(sampleSpace.markQueued(1, 2, 3));
+        }
     }
 }

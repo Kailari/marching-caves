@@ -7,7 +7,6 @@ import java.util.Arrays;
 import java.util.function.Supplier;
 
 import static caves.generator.ChunkCaveSampleSpace.CHUNK_SIZE;
-import static caves.util.profiler.Profiler.PROFILER;
 
 public final class CaveSampleSpace {
     private final float[] samples;
@@ -37,10 +36,10 @@ public final class CaveSampleSpace {
     /**
      * Creates a new sample space for the given region of space.
      *
-     * @param startX         start x-coordinate of the region
-     * @param startY         start y-coordinate of the region
-     * @param startZ         start z-coordinate of the region
-     * @param size           size on the x-axis (in units)
+     * @param startX start x-coordinate of the region
+     * @param startY start y-coordinate of the region
+     * @param startZ start z-coordinate of the region
+     * @param size   size on the x-axis (in units)
      */
     public CaveSampleSpace(
             final float startX,
