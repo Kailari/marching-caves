@@ -1,6 +1,7 @@
 package caves.generator.mesh;
 
 import caves.generator.CaveSampleSpace;
+import caves.generator.ChunkCaveSampleSpace;
 import caves.util.math.Vector3;
 
 import java.util.Collection;
@@ -36,27 +37,15 @@ public final class MarchingCubes {
             final Collection<Vector3> outVertices,
             final Collection<Vector3> outNormals,
             final Collection<Integer> outIndices,
-            final CaveSampleSpace sampleSpace,
+            final ChunkCaveSampleSpace sampleSpace,
             final int x,
             final int y,
             final int z,
             final float surfaceLevel
     ) {
-        assert x > 1 && x < sampleSpace.getCountX() - 2 : "Sample x must be within [2, size(x) - 2 (=" + sampleSpace.getCountX() + ")], was " + x;
-        assert y > 1 && y < sampleSpace.getCountY() - 2 : "Sample y must be within [2, size(y) - 2 (=" + sampleSpace.getCountY() + ")], was " + y;
-        assert z > 1 && z < sampleSpace.getCountZ() - 2 : "Sample z must be within [2, size(z) - 2 (=" + sampleSpace.getCountZ() + ")], was " + z;
-
-        final int[] index = new int[NUM_CUBE_VERTS];
-        for (var i = 0; i < NUM_CUBE_VERTS; ++i) {
-            index[i] = sampleSpace.getSampleIndex(x + MarchingCubesTables.VERTEX_OFFSETS[i][X],
-                                                  y + MarchingCubesTables.VERTEX_OFFSETS[i][Y],
-                                                  z + MarchingCubesTables.VERTEX_OFFSETS[i][Z]);
-        }
-
         final float[] density = new float[NUM_CUBE_VERTS];
         for (int i = 0; i < NUM_CUBE_VERTS; ++i) {
-            density[i] = sampleSpace.getDensity(index[i],
-                                                x + MarchingCubesTables.VERTEX_OFFSETS[i][X],
+            density[i] = sampleSpace.getDensity(x + MarchingCubesTables.VERTEX_OFFSETS[i][X],
                                                 y + MarchingCubesTables.VERTEX_OFFSETS[i][Y],
                                                 z + MarchingCubesTables.VERTEX_OFFSETS[i][Z]);
         }
@@ -160,7 +149,7 @@ public final class MarchingCubes {
     }
 
     private static Vector3 calculateGradientVector(
-            final CaveSampleSpace samples,
+            final ChunkCaveSampleSpace samples,
             final int x,
             final int y,
             final int z

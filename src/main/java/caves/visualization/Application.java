@@ -1,6 +1,6 @@
 package caves.visualization;
 
-import caves.generator.CaveSampleSpace;
+import caves.generator.ChunkCaveSampleSpace;
 import caves.generator.PathGenerator;
 import caves.generator.density.EdgeDensityFunction;
 import caves.generator.density.PathDensityFunction;
@@ -47,7 +47,6 @@ public final class Application implements AutoCloseable {
 
     @Nullable private final Mesh<PolygonVertex> caveMesh;
     @Nullable private final Mesh<LineVertex> lineMesh;
-    @Nullable private final Mesh<PointVertex> pointMesh;
 
     /** Indicates that framebuffers have just resized and the swapchain should be re-created. */
     private boolean framebufferResized;
@@ -58,11 +57,11 @@ public final class Application implements AutoCloseable {
      * @param validation should validation/debug features be enabled.
      */
     public Application(final boolean validation) {
-        final var caveLength = 200;
+        final var caveLength = 16000;
         final var spacing = 10f;
 
         final var surfaceLevel = 0.85f;
-        final var spaceBetweenSamples = 2.0f;
+        final var spaceBetweenSamples = 4.0f;
 
         final var floorFlatness = 0.45;
         final var caveRadius = 40.0;
@@ -70,7 +69,6 @@ public final class Application implements AutoCloseable {
 
         final var meshVisible = true;
         final var linesVisible = true;
-        final var pointsVisible = false;
 
         final var start = new Vector3(0.0f, 0.0f, 0.0f);
         PROFILER.start("Initialization");
@@ -89,23 +87,13 @@ public final class Application implements AutoCloseable {
                                                      caveRadius,
                                                      floorFlatness);
 
-        final var margin = (float) maxInfluenceRadius + spaceBetweenSamples * 2;
-        final var sampleSpace = new CaveSampleSpace(cavePath,
-                                                    margin,
-                                                    samplesPerUnit,
-                                                    new PathDensityFunction(cavePath,
-                                                                            maxInfluenceRadius,
-                                                                            edgeFunc));
+        final var sampleSpace = new ChunkCaveSampleSpace(
+                samplesPerUnit,
+                new PathDensityFunction(cavePath,
+                                                                                 maxInfluenceRadius,
+                                                                                 edgeFunc));
 
         PROFILER.next("Creating isosurface mesh with Marching Cubes");
-
-        final var floodStartPos = cavePath.get(caveLength / 2);
-        final var caveStartSampleCoord = floodStartPos.sub(sampleSpace.getMin(), new Vector3())
-                                                      .abs()
-                                                      .mul(samplesPerUnit);
-        final var startX = (int) caveStartSampleCoord.getX();
-        final var startY = (int) caveStartSampleCoord.getY();
-        final var startZ = (int) caveStartSampleCoord.getZ();
 
         final var meshGenerator = new MeshGenerator(sampleSpace);
         final var caveVertices = new GrowingAddOnlyList<>(Vector3.class);
@@ -149,20 +137,9 @@ public final class Application implements AutoCloseable {
                                             deviceContext,
                                             commandPool)
                     : null;
-            PROFILER.next("Creating additional point-cloud visualization");
-            this.pointMesh = pointsVisible
-                    ? Meshes.createPointMesh(surfaceLevel,
-                                             sampleSpace,
-                                             startX,
-                                             startY,
-                                             startZ,
-                                             middle,
-                                             deviceContext,
-                                             commandPool)
-                    : null;
             PROFILER.end();
 
-            this.appContext.setMeshes(this.caveMesh, this.lineMesh, this.pointMesh);
+            this.appContext.setMeshes(this.caveMesh, this.lineMesh);
             PROFILER.end();
         }
 
@@ -374,9 +351,6 @@ public final class Application implements AutoCloseable {
         }
         if (this.lineMesh != null) {
             this.lineMesh.close();
-        }
-        if (this.pointMesh != null) {
-            this.pointMesh.close();
         }
 
         this.appContext.close();

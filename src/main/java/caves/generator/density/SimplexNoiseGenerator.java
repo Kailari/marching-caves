@@ -1,5 +1,6 @@
 package caves.generator.density;
 
+import caves.util.math.MathUtil;
 import caves.util.math.Vector3;
 
 public final class SimplexNoiseGenerator {
@@ -59,11 +60,6 @@ public final class SimplexNoiseGenerator {
                 : tt * tt * (GRADIENTS[gi][0] * x + GRADIENTS[gi][1] * y + GRADIENTS[gi][2] * z);
     }
 
-    private static int fastFloor(final float x) {
-        final int xi = (int) x;
-        return x < xi ? xi - 1 : xi;
-    }
-
     /**
      * Evaluates noise value for the given position. Does not use vector utility classes to avoid
      * all unnecessary method calls.
@@ -82,9 +78,9 @@ public final class SimplexNoiseGenerator {
         //          Trying to do so produces odd looking artifacts. On the other hand, `Math.floor`
         //          is horrendously slow as it has to be well behaved in all weird edge-cases. Thus,
         //          use "simplified" custom floor implementation.
-        final int skewedOriginX = fastFloor(x + skewOffset);
-        final int skewedOriginY = fastFloor(y + skewOffset);
-        final int skewedOriginZ = fastFloor(z + skewOffset);
+        final int skewedOriginX = MathUtil.fastFloor(x + skewOffset);
+        final int skewedOriginY = MathUtil.fastFloor(y + skewOffset);
+        final int skewedOriginZ = MathUtil.fastFloor(z + skewOffset);
 
         // Squish (Un-skew) simplex origin back to regular coordinate space for easier distance calculations
         final float squishOffset = (skewedOriginX + skewedOriginY + skewedOriginZ) * SQUISH;

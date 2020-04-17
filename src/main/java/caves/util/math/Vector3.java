@@ -325,6 +325,22 @@ public final class Vector3 {
     }
 
     /**
+     * Calculates the squared distance between this and the given other vector.
+     *
+     * @param x the x coordinate of the other vector
+     * @param y the y coordinate of the other vector
+     * @param z the z coordinate of the other vector
+     *
+     * @return the distance squared
+     */
+    public float distanceSq(final float x, final float y, final float z) {
+        final var dx = this.x - x;
+        final var dy = this.y - y;
+        final var dz = this.z - z;
+        return dx * dx + dy * dy + dz * dz;
+    }
+
+    /**
      * Calculates the distance between this and the given other vector.
      *
      * @param other the other vector

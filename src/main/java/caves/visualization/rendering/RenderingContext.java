@@ -241,15 +241,13 @@ public final class RenderingContext implements AutoCloseable {
      *
      * @param caveMesh  polygon mesh
      * @param lineMesh  line mesh
-     * @param pointMesh point mesh
      */
     public void setMeshes(
             @Nullable final Mesh<PolygonVertex> caveMesh,
-            @Nullable final Mesh<LineVertex> lineMesh,
-            @Nullable final Mesh<PointVertex> pointMesh
+            @Nullable final Mesh<LineVertex> lineMesh
     ) {
         this.renderCommandBuffers.cleanup();
-        this.renderCommandBuffers.setMeshes(caveMesh, lineMesh, pointMesh);
+        this.renderCommandBuffers.setMeshes(caveMesh, lineMesh);
         this.renderCommandBuffers.recreate();
     }
 }

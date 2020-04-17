@@ -146,15 +146,12 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
      *
      * @param caveMesh  polygon mesh
      * @param lineMesh  line mesh
-     * @param pointMesh point mesh
      */
     public void setMeshes(
             final Mesh<PolygonVertex> caveMesh,
-            final Mesh<LineVertex> lineMesh,
-            final Mesh<PointVertex> pointMesh
+            final Mesh<LineVertex> lineMesh
     ) {
         this.polygonMesh = caveMesh;
-        this.pointMesh = pointMesh;
         this.lineMesh = lineMesh;
     }
 }

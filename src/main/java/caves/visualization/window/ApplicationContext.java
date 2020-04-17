@@ -117,13 +117,11 @@ public final class ApplicationContext implements AutoCloseable {
      *
      * @param caveMesh  polygon mesh
      * @param lineMesh  line mesh
-     * @param pointMesh point mesh
      */
     public void setMeshes(
             @Nullable final Mesh<PolygonVertex> caveMesh,
-            @Nullable final Mesh<LineVertex> lineMesh,
-            @Nullable final Mesh<PointVertex> pointMesh
+            @Nullable final Mesh<LineVertex> lineMesh
     ) {
-        this.renderContext.setMeshes(caveMesh, lineMesh, pointMesh);
+        this.renderContext.setMeshes(caveMesh, lineMesh);
     }
 }

@@ -4,55 +4,15 @@ import caves.util.math.BoundingBox;
 import caves.util.math.Vector3;
 
 import java.util.Arrays;
-import java.util.function.Function;
+import java.util.function.Supplier;
 
+import static caves.generator.ChunkCaveSampleSpace.CHUNK_SIZE;
 import static caves.util.profiler.Profiler.PROFILER;
 
 public final class CaveSampleSpace {
-    private final int countX;
-    private final int countY;
-    private final int countZ;
     private final float[] samples;
-    private final float samplesPerUnit;
     private final BoundingBox bounds;
-    private final Function<Vector3, Float> densityFunction;
-
-    /**
-     * Gets the number of samples on the x-axis.
-     *
-     * @return the sample count
-     */
-    public int getCountX() {
-        return this.countX;
-    }
-
-    /**
-     * Gets the number of samples on the y-axis.
-     *
-     * @return the sample count
-     */
-    public int getCountY() {
-        return this.countY;
-    }
-
-    /**
-     * Gets the number of samples on the z-axis.
-     *
-     * @return the sample count
-     */
-    public int getCountZ() {
-        return this.countZ;
-    }
-
-    /**
-     * Gets the maximum total number of samples that can potentially fit into this sample space.
-     * Equal to per-axis counts multiplied by each other.
-     *
-     * @return the maximum potential sample count
-     */
-    public int getTotalCount() {
-        return this.countX * this.countY * this.countZ;
-    }
+    private final boolean[] queued;
 
     /**
      * Gets the component-wise minimum possible world-coordinates for this sample space. This is the
@@ -75,48 +35,25 @@ public final class CaveSampleSpace {
     }
 
     /**
-     * Gets the sample resolution per unit for this sampling space.
+     * Creates a new sample space for the given region of space.
      *
-     * @return samples per unit
-     */
-    public float getSamplesPerUnit() {
-        return this.samplesPerUnit;
-    }
-
-    /**
-     * Initializes a new sample space. This alone performs some allocations, but the actual
-     * densities for the samples are calculated lazily.
-     *
-     * @param cavePath        path for influencing the sample density
-     * @param margin          margin size around the path. This generally should be greater than or
-     *                        equal to the maximum influence radius of a single path node
-     * @param samplesPerUnit  how many samples to fit per one unit of space
-     * @param densityFunction the density function for calculating sample density
+     * @param startX         start x-coordinate of the region
+     * @param startY         start y-coordinate of the region
+     * @param startZ         start z-coordinate of the region
+     * @param size           size on the x-axis (in units)
      */
     public CaveSampleSpace(
-            final CavePath cavePath,
-            final float margin,
-            final float samplesPerUnit,
-            final Function<Vector3, Float> densityFunction
+            final float startX,
+            final float startY,
+            final float startZ,
+            final float size
     ) {
-        this.samplesPerUnit = samplesPerUnit;
-        this.densityFunction = densityFunction;
-        this.bounds = new BoundingBox(cavePath.getAllNodes(), margin);
+        this.bounds = new BoundingBox(new Vector3(startX, startY, startZ),
+                                      new Vector3(startX + size, startY + size, startZ + size));
 
-        final var sizeX = Math.abs(getMax().getX() - getMin().getX());
-        final var sizeY = Math.abs(getMax().getY() - getMin().getY());
-        final var sizeZ = Math.abs(getMax().getZ() - getMin().getZ());
-
-        this.countX = (int) (sizeX * samplesPerUnit);
-        this.countY = (int) (sizeY * samplesPerUnit);
-        this.countZ = (int) (sizeZ * samplesPerUnit);
-        final var sampleCount = this.countX * this.countY * this.countZ;
-        PROFILER.log("-> boundaries {}", String.format("(%.3f, %.3f, %.3f)", sizeX, sizeY, sizeZ));
-        PROFILER.log("-> maximum count of {} samples {}.",
-                     getTotalCount(),
-                     String.format("(%d x %d x %d)", this.countX, this.countY, this.countZ));
-
+        final var sampleCount = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
         this.samples = new float[sampleCount];
+        this.queued = new boolean[sampleCount];
         Arrays.fill(this.samples, Float.NaN);
     }
 
@@ -130,34 +67,14 @@ public final class CaveSampleSpace {
      * @return the sample index
      */
     public int getSampleIndex(final int x, final int y, final int z) {
-        return x + (z * this.countX) + (y * this.countX * this.countZ);
+        final var localX = Math.abs(x % CHUNK_SIZE);
+        final var localY = Math.abs(y % CHUNK_SIZE);
+        final var localZ = Math.abs(z % CHUNK_SIZE);
+        return localX + localZ * CHUNK_SIZE + localY * CHUNK_SIZE * CHUNK_SIZE;
     }
 
     /**
-     * Calculates the density for the sample at given per-axis sample indices. Overload for {@link
-     * #getDensity(int, int, int)} for situations where sample index is already known. The given
-     * sample index must equal to one returned by {@link #getSampleIndex(int, int, int)} for the
-     * per-axis indices <code>(x, y, z)</code>.
-     *
-     * @param sampleIndex the sample index
-     * @param x           index of the sample on the x-axis
-     * @param y           index of the sample on the y-axis
-     * @param z           index of the sample on the z-axis
-     *
-     * @return the density of the sample
-     */
-    public float getDensity(final int sampleIndex, final int x, final int y, final int z) {
-        if (Float.isNaN(this.samples[sampleIndex])) {
-            calculateDensity(sampleIndex, x, y, z);
-        }
-
-        return this.samples[sampleIndex];
-    }
-
-    /**
-     * Calculates density for the sample at given per-axis sample indices. Overload for {@link
-     * #getDensity(int, int, int, int)} for situations where sample index is not yet known.
-     * Internally calculates the sample index.
+     * Calculates density for the sample at given per-axis sample indices.
      *
      * @param x index of the sample on the x-axis
      * @param y index of the sample on the y-axis
@@ -165,32 +82,28 @@ public final class CaveSampleSpace {
      *
      * @return the density of the sample
      */
-    public float getDensity(final int x, final int y, final int z) {
+    public float getDensity(
+            final int x,
+            final int y,
+            final int z,
+            final Supplier<Float> densityFunction
+    ) {
         final var sampleIndex = getSampleIndex(x, y, z);
         if (Float.isNaN(this.samples[sampleIndex])) {
-            calculateDensity(sampleIndex, x, y, z);
+            this.samples[sampleIndex] = densityFunction.get();
         }
 
         return this.samples[sampleIndex];
     }
 
-    /**
-     * Gets the in-world coordinates for a given per-axis sample indices.
-     *
-     * @param x index of the sample on the x-axis
-     * @param y index of the sample on the y-axis
-     * @param z index of the sample on the z-axis
-     *
-     * @return the in-world coordinates
-     */
-    public Vector3 getPos(final int x, final int y, final int z) {
-        final var spaceBetweenSamples = (1.0f / this.samplesPerUnit);
-        return new Vector3(this.bounds.getMin().getX() + x * spaceBetweenSamples,
-                           this.bounds.getMin().getY() + y * spaceBetweenSamples,
-                           this.bounds.getMin().getZ() + z * spaceBetweenSamples);
-    }
+    public boolean markQueued(final int x, final int y, final int z) {
+        final var sampleIndex = getSampleIndex(x, y, z);
 
-    private void calculateDensity(final int sampleIndex, final int x, final int y, final int z) {
-        this.samples[sampleIndex] = this.densityFunction.apply(getPos(x, y, z));
+        if (this.queued[sampleIndex]) {
+            return false;
+        }
+
+        this.queued[sampleIndex] = true;
+        return true;
     }
 }

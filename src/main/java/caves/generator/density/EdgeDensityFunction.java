@@ -94,8 +94,8 @@ public final class EdgeDensityFunction {
         final var verticalDistance = closestPoint.getY() - position.getY();
         final double caveContribution;
         double floorWeight;
-        // If we are below the path
         if (verticalDistance > 0) {
+            // Calculate floor bias if we are below the path
             final var direction = closestPoint.sub(position, new Vector3()).normalize();
 
             floorWeight = Math.max(0.0, direction.dot(this.directionUp) - this.floorStart);
