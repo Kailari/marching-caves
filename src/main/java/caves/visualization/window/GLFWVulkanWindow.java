@@ -18,7 +18,7 @@ public final class GLFWVulkanWindow implements AutoCloseable {
     private final GLFWKeyCallback keyCallback;
     private final long surfaceHandle;
 
-    private final Collection<ResizeCallback> resizeCallbacks = new GrowingAddOnlyList<>(ResizeCallback.class, 1);
+    private final Collection<ResizeCallback> resizeCallbacks = new GrowingAddOnlyList<>(1);
 
     /**
      * Gets a handle for the rendering surface.

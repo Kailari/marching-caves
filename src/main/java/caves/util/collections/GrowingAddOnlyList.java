@@ -10,9 +10,8 @@ import java.util.*;
  */
 @SuppressWarnings("unchecked")
 public final class GrowingAddOnlyList<T> implements List<T> {
-    private final Class<T> elementClass;
     private int count;
-    private T[] elements;
+    private Object[] elements;
 
     @Override
     public boolean isEmpty() {
@@ -21,22 +20,18 @@ public final class GrowingAddOnlyList<T> implements List<T> {
 
     /**
      * Creates a new collection with the given element type.
-     *
-     * @param elementClass type for the elements
      */
-    public GrowingAddOnlyList(final Class<T> elementClass) {
-        this(elementClass, 32);
+    public GrowingAddOnlyList() {
+        this(32);
     }
 
     /**
      * Creates a new collection with the given element type and initial capacity.
      *
-     * @param elementClass type for the elements
-     * @param capacity     initial capacity to allocate for the collection
+     * @param capacity initial capacity to allocate for the collection
      */
-    public GrowingAddOnlyList(final Class<T> elementClass, final int capacity) {
-        this.elementClass = elementClass;
-        this.elements = (T[]) Array.newInstance(this.elementClass, capacity);
+    public GrowingAddOnlyList(final int capacity) {
+        this.elements = new Object[capacity];
     }
 
     @Override
@@ -72,7 +67,7 @@ public final class GrowingAddOnlyList<T> implements List<T> {
                     throw new NoSuchElementException();
                 }
 
-                return GrowingAddOnlyList.this.elements[this.index];
+                return (T) GrowingAddOnlyList.this.elements[this.index];
             }
         };
     }
@@ -97,7 +92,7 @@ public final class GrowingAddOnlyList<T> implements List<T> {
     public boolean add(final T t) {
         if (this.count == this.elements.length) {
             final var newLength = this.elements.length > 0 ? this.elements.length * 2 : 1;
-            final var newElements = (T[]) Array.newInstance(this.elementClass, newLength);
+            final var newElements = new Object[newLength];
             System.arraycopy(this.elements, 0, newElements, 0, this.elements.length);
             this.elements = newElements;
         }
@@ -151,7 +146,7 @@ public final class GrowingAddOnlyList<T> implements List<T> {
 
         final int originalSize = this.size();
 
-        final var newElements = (T[]) Array.newInstance(this.elementClass, this.count);
+        final var newElements = new Object[this.count];
         var nNewElements = 0;
         for (final var e : this) {
             if (c.contains(e)) {
@@ -162,9 +157,8 @@ public final class GrowingAddOnlyList<T> implements List<T> {
         }
 
         this.clear();
-        //noinspection ManualArrayToCollectionCopy
         for (int i = 0; i < nNewElements; ++i) {
-            this.add(newElements[i]);
+            this.add((T) newElements[i]);
         }
 
         return this.size() != originalSize;
@@ -180,14 +174,14 @@ public final class GrowingAddOnlyList<T> implements List<T> {
         if (index < 0 || index > this.count) {
             throw new IndexOutOfBoundsException(String.format("Index %d is out of bounds!", index));
         }
-        return this.elements[index];
+        return (T) this.elements[index];
     }
 
     @Override
     public T set(final int index, final T element) {
         final var old = this.elements[index];
         this.elements[index] = element;
-        return old;
+        return (T) old;
     }
 
     @Override

@@ -64,7 +64,7 @@ public final class SampleSpaceChunk {
      */
     public Collection<Vector3> getOrCreateVertices() {
         if (this.vertices == null) {
-            this.vertices = new GrowingAddOnlyList<>(Vector3.class, INITIAL_VERTEX_CAPACITY);
+            this.vertices = new GrowingAddOnlyList<>(INITIAL_VERTEX_CAPACITY);
         }
 
         return this.vertices;
@@ -78,7 +78,7 @@ public final class SampleSpaceChunk {
      */
     public Collection<Vector3> getOrCreateNormals() {
         if (this.normals == null) {
-            this.normals = new GrowingAddOnlyList<>(Vector3.class, INITIAL_VERTEX_CAPACITY);
+            this.normals = new GrowingAddOnlyList<>(INITIAL_VERTEX_CAPACITY);
         }
 
         return this.normals;
@@ -92,7 +92,7 @@ public final class SampleSpaceChunk {
      */
     public Collection<Integer> getOrCreateIndices() {
         if (this.indices == null) {
-            this.indices = new GrowingAddOnlyList<>(Integer.class, INITIAL_VERTEX_CAPACITY);
+            this.indices = new GrowingAddOnlyList<>(INITIAL_VERTEX_CAPACITY);
         }
 
         return this.indices;

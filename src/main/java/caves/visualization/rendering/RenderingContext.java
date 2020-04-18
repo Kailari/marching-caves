@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
+import java.util.Collection;
 
 import static org.lwjgl.glfw.GLFW.glfwGetFramebufferSize;
 import static org.lwjgl.glfw.GLFW.glfwWaitEvents;
@@ -65,7 +66,7 @@ public final class RenderingContext implements AutoCloseable {
      *
      * @param pointMesh     mesh to be rendered as points
      * @param lineMesh      mesh to be rendered as lines
-     * @param polygonMesh   mesh to be rendered as polygons
+     * @param polygonMeshes mesh to be rendered as polygons
      * @param deviceContext device context information to use for creating the swapchain
      * @param surface       surface to create the chain for
      * @param windowHandle  handle to the window
@@ -73,7 +74,7 @@ public final class RenderingContext implements AutoCloseable {
     public RenderingContext(
             @Nullable final Mesh<PointVertex> pointMesh,
             @Nullable final Mesh<LineVertex> lineMesh,
-            @Nullable final Mesh<PolygonVertex> polygonMesh,
+            @Nullable final Collection<Mesh<PolygonVertex>> polygonMeshes,
             final DeviceContext deviceContext,
             final long surface,
             final long windowHandle
@@ -126,7 +127,7 @@ public final class RenderingContext implements AutoCloseable {
                                                              this.renderPass,
                                                              pointMesh,
                                                              lineMesh,
-                                                             polygonMesh
+                                                             polygonMeshes
         );
     }
 
@@ -239,15 +240,15 @@ public final class RenderingContext implements AutoCloseable {
     /**
      * Updates the rendered meshes.
      *
-     * @param caveMesh  polygon mesh
-     * @param lineMesh  line mesh
+     * @param caveMeshes polygon mesh
+     * @param lineMesh   line mesh
      */
     public void setMeshes(
-            @Nullable final Mesh<PolygonVertex> caveMesh,
+            @Nullable final Collection<Mesh<PolygonVertex>> caveMeshes,
             @Nullable final Mesh<LineVertex> lineMesh
     ) {
         this.renderCommandBuffers.cleanup();
-        this.renderCommandBuffers.setMeshes(caveMesh, lineMesh);
+        this.renderCommandBuffers.setMeshes(caveMeshes, lineMesh);
         this.renderCommandBuffers.recreate();
     }
 }

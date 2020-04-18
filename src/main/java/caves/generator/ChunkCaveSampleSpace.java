@@ -47,6 +47,18 @@ public class ChunkCaveSampleSpace {
         return this.chunks.values();
     }
 
+    public int getTotalVertices() {
+        var count = 0;
+        for (final var chunk : getChunks()) {
+            final var vertices = chunk.getVertices();
+            if (vertices != null) {
+                count += vertices.size();
+            }
+        }
+
+        return count;
+    }
+
     public ChunkCaveSampleSpace(
             final float samplesPerUnit,
             final Function<Vector3, Float> densityFunction

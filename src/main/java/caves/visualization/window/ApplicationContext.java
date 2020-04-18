@@ -9,6 +9,8 @@ import org.lwjgl.PointerBuffer;
 
 import javax.annotation.Nullable;
 
+import java.util.Collection;
+
 import static org.lwjgl.glfw.GLFW.glfwInit;
 import static org.lwjgl.glfw.GLFWVulkan.glfwGetRequiredInstanceExtensions;
 import static org.lwjgl.glfw.GLFWVulkan.glfwVulkanSupported;
@@ -115,13 +117,13 @@ public final class ApplicationContext implements AutoCloseable {
     /**
      * Updates the rendered meshes.
      *
-     * @param caveMesh  polygon mesh
+     * @param caveMeshes  polygon mesh
      * @param lineMesh  line mesh
      */
     public void setMeshes(
-            @Nullable final Mesh<PolygonVertex> caveMesh,
+            @Nullable final Collection<Mesh<PolygonVertex>> caveMeshes,
             @Nullable final Mesh<LineVertex> lineMesh
     ) {
-        this.renderContext.setMeshes(caveMesh, lineMesh);
+        this.renderContext.setMeshes(caveMeshes, lineMesh);
     }
 }

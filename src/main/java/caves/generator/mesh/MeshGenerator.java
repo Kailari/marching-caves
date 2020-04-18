@@ -3,10 +3,8 @@ package caves.generator.mesh;
 import caves.generator.CavePath;
 import caves.generator.ChunkCaveSampleSpace;
 import caves.generator.SampleSpaceChunk;
-import caves.util.math.Vector3;
 
 import java.util.ArrayDeque;
-import java.util.Collection;
 
 import static caves.util.profiler.Profiler.PROFILER;
 
@@ -29,20 +27,14 @@ public class MeshGenerator {
     }
 
     /**
-     * Generates a mesh for the sample space. Goes through the whole sample space in flood-fill
-     * manner, starting from the given position.
+     * Generates chunk meshes for the sample space. Goes through the whole sample space in
+     * flood-fill manner. Start position is somewhere along the path.
      *
      * @param cavePath     cave path to iterate for potential starting positions
-     * @param outVertices  vertices of the mesh
-     * @param outNormals   vertex normals of the mesh
-     * @param outIndices   indices of the mesh
      * @param surfaceLevel surface level, any sample density below this is considered empty space
      */
     public void generate(
             final CavePath cavePath,
-            final Collection<Vector3> outVertices,
-            final Collection<Vector3> outNormals,
-            final Collection<Integer> outIndices,
             final float surfaceLevel
     ) {
         PROFILER.log("-> Using surface level of {}",
@@ -131,53 +123,6 @@ public class MeshGenerator {
         }
 
         PROFILER.log("-> Flood-filling the cave finished in {} steps ", iterations);
-
-        PROFILER.start("Iterating through chunks and joining the vertex data");
-        var skipCount = 0;
-        var totalSkipped = 0;
-        var totalVertexCount = 0;
-        var maxVertexCount = 0;
-        var totalChunksWithVerts = 0;
-        for (final var chunk : this.sampleSpace.getChunks()) {
-            final var vertices = chunk.getVertices();
-            final var normals = chunk.getNormals();
-            final var indices = chunk.getIndices();
-            if (vertices == null || indices == null || normals == null) {
-                ++skipCount;
-                ++totalSkipped;
-                continue;
-            }
-
-            if (skipCount > 0) {
-                PROFILER.log("-> Skipped {} empty chunk{}",
-                             skipCount,
-                             skipCount > 1 ? "s" : "");
-            }
-
-            assert vertices.size() == normals.size() && vertices.size() == indices.size()
-                    : "There should be equal number of vertices, normals and indices within a chunk!";
-
-            skipCount = 0;
-            totalVertexCount += vertices.size();
-            maxVertexCount = Math.max(maxVertexCount, vertices.size());
-            ++totalChunksWithVerts;
-
-            final var baseIndex = outVertices.size();
-            PROFILER.log("-> Adding {} vertices, starting at index {}",
-                         vertices.size(),
-                         baseIndex);
-
-            outVertices.addAll(vertices);
-            outNormals.addAll(normals);
-            indices.forEach(index -> outIndices.add(baseIndex + index));
-        }
-
-        final var averageVertexCount = totalVertexCount / (double) totalChunksWithVerts;
-        PROFILER.log("-> There are {} vertices per chunk (average in chunks with vertices)",
-                     String.format("%.2f", averageVertexCount));
-        PROFILER.log("-> The maximum per-chunk vertex count is {}", maxVertexCount);
-        PROFILER.log("-> There were {} empty chunks", totalSkipped);
-        PROFILER.end();
     }
 
     private static final class FloodFillEntry {

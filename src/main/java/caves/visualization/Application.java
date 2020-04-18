@@ -17,6 +17,7 @@ import org.lwjgl.vulkan.VkSemaphoreCreateInfo;
 import org.lwjgl.vulkan.VkSubmitInfo;
 
 import javax.annotation.Nullable;
+import java.util.Collection;
 import java.util.Optional;
 
 import static caves.generator.ChunkCaveSampleSpace.CHUNK_SIZE;
@@ -46,7 +47,7 @@ public final class Application implements AutoCloseable {
     private final long[] imagesInFlight;
     private final float lookAtDistance;
 
-    @Nullable private final Mesh<PolygonVertex> caveMesh;
+    @Nullable private final Collection<Mesh<PolygonVertex>> caveMeshes;
     @Nullable private final Mesh<LineVertex> lineMesh;
 
     /** Indicates that framebuffers have just resized and the swapchain should be re-created. */
@@ -62,7 +63,7 @@ public final class Application implements AutoCloseable {
         final var spacing = 10f;
 
         final var surfaceLevel = 0.85f;
-        final var spaceBetweenSamples = 4.0f;
+        final var spaceBetweenSamples = 2.0f;
 
         final var floorFlatness = 0.65;
         final var caveRadius = 40.0;
@@ -96,19 +97,12 @@ public final class Application implements AutoCloseable {
 
 
         final var meshGenerator = new MeshGenerator(sampleSpace);
-        final var caveVertices = new GrowingAddOnlyList<>(Vector3.class);
-        final var caveNormals = new GrowingAddOnlyList<>(Vector3.class);
-        final var caveIndices = new GrowingAddOnlyList<>(Integer.class);
-        meshGenerator.generate(cavePath, caveVertices, caveNormals, caveIndices, surfaceLevel);
+        meshGenerator.generate(cavePath, surfaceLevel);
 
         PROFILER.end();
         PROFILER.end();
 
-        if (caveVertices.size() == 0) {
-            throw new IllegalStateException("No vertices were generated!");
-        }
-
-        PROFILER.log("Generated {} vertices.", caveVertices.size());
+        PROFILER.log("Generated {} vertices.", sampleSpace.getTotalVertices());
         PROFILER.log("Sample space is split into {} chunks.", sampleSpace.getChunkCount());
         PROFILER.log("\t-> (Chunk size is {}x{}x{} = {} samples).",
                      CHUNK_SIZE, CHUNK_SIZE, CHUNK_SIZE,
@@ -125,15 +119,11 @@ public final class Application implements AutoCloseable {
             PROFILER.start("Constructing meshes");
             final var middle = cavePath.getAveragePosition();
 
-            PROFILER.start("Constructing actual vertices from Marching Cubes vectors");
-            this.caveMesh = meshVisible
-                    ? Meshes.createCaveMesh(middle,
-                                            caveIndices,
-                                            caveVertices,
-                                            caveNormals,
-                                            deviceContext,
-                                            commandPool)
+            PROFILER.start("Uploading chunk data to GPU");
+            this.caveMeshes = meshVisible
+                    ? Meshes.createCaveMeshes(middle, sampleSpace, deviceContext, commandPool)
                     : null;
+
             PROFILER.next("Creating additional path-line visualization");
             this.lineMesh = linesVisible
                     ? Meshes.createLineMesh(cavePath,
@@ -143,7 +133,7 @@ public final class Application implements AutoCloseable {
                     : null;
             PROFILER.end();
 
-            this.appContext.setMeshes(this.caveMesh, this.lineMesh);
+            this.appContext.setMeshes(this.caveMeshes, this.lineMesh);
             PROFILER.end();
         }
 
@@ -350,8 +340,10 @@ public final class Application implements AutoCloseable {
             vkDestroyFence(device, this.inFlightFences[i], null);
         }
 
-        if (this.caveMesh != null) {
-            this.caveMesh.close();
+        if (this.caveMeshes != null) {
+            for (final var mesh : this.caveMeshes) {
+                mesh.close();
+            }
         }
         if (this.lineMesh != null) {
             this.lineMesh.close();

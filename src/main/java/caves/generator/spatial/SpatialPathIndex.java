@@ -222,7 +222,7 @@ public final class SpatialPathIndex {
         ) {
             super(min, max);
             this.depth = depth;
-            this.items = this.depth == 0 ? new GrowingAddOnlyList<>(Integer.class, 1) : null;
+            this.items = this.depth == 0 ? new GrowingAddOnlyList<>(1) : null;
             this.children = children;
         }
 

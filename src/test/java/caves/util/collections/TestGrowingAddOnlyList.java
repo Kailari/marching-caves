@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class TestGrowingAddOnlyList {
     @Test
     void unsupportedOPsAreUnsupported() {
-        final var list = new GrowingAddOnlyList<>(Object.class, 0);
+        final var list = new GrowingAddOnlyList<>(0);
         assertThrows(UnsupportedOperationException.class, () -> list.remove(new Object()));
         assertThrows(UnsupportedOperationException.class, () -> list.remove(0));
         assertThrows(UnsupportedOperationException.class, () -> list.removeAll(List.of()));
@@ -24,13 +24,13 @@ public class TestGrowingAddOnlyList {
 
     @Test
     void emptyListIsEmpty() {
-        final var list = new GrowingAddOnlyList<>(Object.class, 0);
+        final var list = new GrowingAddOnlyList<>(0);
         assertTrue(list.isEmpty());
     }
 
     @Test
     void addingWorks() {
-        final var list = new GrowingAddOnlyList<>(Object.class, 1);
+        final var list = new GrowingAddOnlyList<>(1);
         final var expected = new Object();
         list.add(expected);
 
@@ -40,7 +40,7 @@ public class TestGrowingAddOnlyList {
 
     @Test
     void addingWorksWhenCapacityIsZero() {
-        final var list = new GrowingAddOnlyList<>(Object.class, 0);
+        final var list = new GrowingAddOnlyList<>(0);
         final var expected = new Object();
         list.add(expected);
 
@@ -50,7 +50,7 @@ public class TestGrowingAddOnlyList {
 
     @Test
     void addingWorksWhenResizeOccurs() {
-        final var list = new GrowingAddOnlyList<>(Object.class, 10);
+        final var list = new GrowingAddOnlyList<>(10);
         final var expected = new Object[100];
         for (int i = 0; i < 100; i++) {
             expected[i] = new Object();
@@ -63,20 +63,20 @@ public class TestGrowingAddOnlyList {
 
     @Test
     void nonEmptyListIsNotEmpty() {
-        final var list = new GrowingAddOnlyList<>(Object.class, 1);
+        final var list = new GrowingAddOnlyList<>(1);
         list.add(new Object());
         assertFalse(list.isEmpty());
     }
 
     @Test
     void emptyListWithCapacityIsEmpty() {
-        final var list = new GrowingAddOnlyList<>(Object.class, 32);
+        final var list = new GrowingAddOnlyList<>(32);
         assertTrue(list.isEmpty());
     }
 
     @Test
     void gettingOutOfBoundsIndexThrows() {
-        final var list = new GrowingAddOnlyList<>(Object.class);
+        final var list = new GrowingAddOnlyList<>();
         list.add(new Object());
         list.add(new Object());
         list.add(new Object());
@@ -89,14 +89,14 @@ public class TestGrowingAddOnlyList {
 
     @Test
     void gettingOutOfBoundsIndexThrows_emptyList() {
-        final var list = new GrowingAddOnlyList<>(Object.class);
+        final var list = new GrowingAddOnlyList<>();
         assertThrows(IndexOutOfBoundsException.class, () -> list.get(10));
         assertThrows(IndexOutOfBoundsException.class, () -> list.get(-5));
     }
 
     @Test
     void containsReturnsTrueIfElementIsInTheCollection() {
-        final var list = new GrowingAddOnlyList<>(Object.class);
+        final var list = new GrowingAddOnlyList<>();
         list.add(new Object());
         list.add(new Object());
         final var e = new Object();
@@ -109,7 +109,7 @@ public class TestGrowingAddOnlyList {
 
     @Test
     void containsReturnsFalseIfElementIsNotInTheCollection() {
-        final var list = new GrowingAddOnlyList<>(Object.class);
+        final var list = new GrowingAddOnlyList<>();
         list.add(new Object());
         list.add(new Object());
         list.add(new Object());
@@ -122,7 +122,7 @@ public class TestGrowingAddOnlyList {
 
     @Test
     void containsAllReturnsTrueIfElementsAreInTheCollection() {
-        final var list = new GrowingAddOnlyList<>(Object.class);
+        final var list = new GrowingAddOnlyList<>();
         list.add(new Object());
         list.add(new Object());
         final var e = new Object();
@@ -137,7 +137,7 @@ public class TestGrowingAddOnlyList {
 
     @Test
     void containsAllReturnsFalseIfElementIsNotInTheCollection() {
-        final var list = new GrowingAddOnlyList<>(Object.class);
+        final var list = new GrowingAddOnlyList<>();
         list.add(new Object());
         list.add(new Object());
         list.add(new Object());
@@ -152,7 +152,7 @@ public class TestGrowingAddOnlyList {
 
     @Test
     void collectionIsEmptyAfterClear() {
-        final var list = new GrowingAddOnlyList<>(Object.class);
+        final var list = new GrowingAddOnlyList<>();
         list.add(new Object());
         list.add(new Object());
         list.add(new Object());
@@ -165,14 +165,14 @@ public class TestGrowingAddOnlyList {
 
     @Test
     void addAllAddsAll() {
-        final var list = new GrowingAddOnlyList<>(Object.class);
+        final var list = new GrowingAddOnlyList<>();
         list.addAll(List.of(new Object(), new Object(), new Object(), new Object(), new Object()));
         assertEquals(5, list.size());
     }
 
     @Test
     void retainAllRetainsAll() {
-        final var list = new GrowingAddOnlyList<>(Integer.class);
+        final var list = new GrowingAddOnlyList<>();
         list.add(0);
         list.add(1);
         list.add(2);
@@ -187,7 +187,7 @@ public class TestGrowingAddOnlyList {
 
     @Test
     void retainAllRemovesAllOthers() {
-        final var list = new GrowingAddOnlyList<>(Integer.class);
+        final var list = new GrowingAddOnlyList<>();
         list.add(0);
         list.add(1);
         list.add(2);
@@ -202,13 +202,13 @@ public class TestGrowingAddOnlyList {
 
     @Test
     void retainAllReturnsFalseIfRetainingWhenEmpty() {
-        final var list = new GrowingAddOnlyList<>(Integer.class);
+        final var list = new GrowingAddOnlyList<>();
         assertFalse(list.retainAll(List.of(1, 2, 3)));
     }
 
     @Test
     void retainAllReturnsFalseIfRetainingSelf() {
-        final var list = new GrowingAddOnlyList<>(Integer.class);
+        final var list = new GrowingAddOnlyList<>();
         list.add(0);
         list.add(1);
         list.add(2);
@@ -220,14 +220,14 @@ public class TestGrowingAddOnlyList {
 
     @Test
     void retainAllWorksCorrectWhenRetainingSameSizeLists() {
-        final var list = new GrowingAddOnlyList<>(Integer.class);
+        final var list = new GrowingAddOnlyList<>();
         list.add(0);
         list.add(1);
         list.add(2);
         list.add(3);
         list.add(4);
 
-        final var list2 = new GrowingAddOnlyList<>(Integer.class);
+        final var list2 = new GrowingAddOnlyList<>();
         list2.add(2);
         list2.add(3);
         list2.add(4);
@@ -243,14 +243,14 @@ public class TestGrowingAddOnlyList {
 
     @Test
     void retainAllWorksCorrect() {
-        final var list = new GrowingAddOnlyList<>(Integer.class);
+        final var list = new GrowingAddOnlyList<>();
         list.add(0);
         list.add(1);
         list.add(2);
         list.add(3);
         list.add(4);
 
-        final var list2 = new GrowingAddOnlyList<>(Integer.class);
+        final var list2 = new GrowingAddOnlyList<>();
         list2.add(2);
         list2.add(3);
         list2.add(4);
@@ -268,7 +268,7 @@ public class TestGrowingAddOnlyList {
 
     @Test
     void setSetsTheValue() {
-        final var list = new GrowingAddOnlyList<>(Integer.class);
+        final var list = new GrowingAddOnlyList<>();
         list.add(0);
         list.add(1);
         list.add(2);
@@ -281,7 +281,7 @@ public class TestGrowingAddOnlyList {
 
     @Test
     void indexOfReturnsTheCorrectIndex() {
-        final var list = new GrowingAddOnlyList<>(Integer.class);
+        final var list = new GrowingAddOnlyList<>();
         list.add(0);
         list.add(1);
         list.add(2);
@@ -293,7 +293,7 @@ public class TestGrowingAddOnlyList {
 
     @Test
     void indexOfReturnsMinusOneWhenElementDoesNotExist() {
-        final var list = new GrowingAddOnlyList<>(Integer.class);
+        final var list = new GrowingAddOnlyList<>();
         list.add(2);
         list.add(2);
         list.add(2);
@@ -305,7 +305,7 @@ public class TestGrowingAddOnlyList {
 
     @Test
     void lastIndexOfReturnsTheCorrectIndex() {
-        final var list = new GrowingAddOnlyList<>(Integer.class);
+        final var list = new GrowingAddOnlyList<>();
         list.add(2);
         list.add(2);
         list.add(2);
@@ -317,7 +317,7 @@ public class TestGrowingAddOnlyList {
 
     @Test
     void lastIndexOfReturnsMinusOneWhenElementDoesNotExist() {
-        final var list = new GrowingAddOnlyList<>(Integer.class);
+        final var list = new GrowingAddOnlyList<>();
         list.add(2);
         list.add(2);
         list.add(2);

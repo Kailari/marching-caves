@@ -58,7 +58,6 @@ public final class VertexFormat<TVertex> {
 
     public static final class Builder<TVertex> {
         private final Collection<VkVertexInputAttributeDescription> attributes = new GrowingAddOnlyList<>(
-                VkVertexInputAttributeDescription.class,
                 1
         );
 
