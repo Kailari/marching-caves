@@ -16,3 +16,4 @@ Dokumentaatio
  - [viikko 2](./dokumentaatio/viikko_2.md)
  - [viikko 3](./dokumentaatio/viikko_3.md)
  - [viikko 4](./dokumentaatio/viikko_4.md)
+ - [viikko 5](./dokumentaatio/viikko_5.md)
