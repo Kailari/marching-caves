@@ -1,8 +1,8 @@
 package caves.generator.mesh;
 
 import caves.generator.CavePath;
-import caves.generator.CaveSampleSpace;
 import caves.generator.ChunkCaveSampleSpace;
+import caves.generator.SampleSpaceChunk;
 import caves.util.math.Vector3;
 
 import java.util.ArrayDeque;
@@ -19,7 +19,7 @@ public class MeshGenerator {
     private final ChunkCaveSampleSpace sampleSpace;
 
     /**
-     * Creates a new mesh generator for marching through a {@link CaveSampleSpace} using marching
+     * Creates a new mesh generator for marching through a {@link SampleSpaceChunk} using marching
      * cubes algorithm.
      *
      * @param sampleSpace the sample space to march through
@@ -99,8 +99,7 @@ public class MeshGenerator {
         PROFILER.log("-> Starting flood fill at {}",
                      String.format("(%d, %d, %d)", startX, startY, startZ));
 
-        final var startFacings = MarchingCubes.appendToMesh(outVertices, outNormals, outIndices,
-                                                            this.sampleSpace,
+        final var startFacings = MarchingCubes.appendToMesh(this.sampleSpace,
                                                             startX, startY, startZ,
                                                             surfaceLevel);
 
@@ -117,8 +116,7 @@ public class MeshGenerator {
             ++iterations;
             final var entry = fifoFacingQueue.pop();
 
-            final var freeFacings = MarchingCubes.appendToMesh(outVertices, outNormals, outIndices,
-                                                               this.sampleSpace,
+            final var freeFacings = MarchingCubes.appendToMesh(this.sampleSpace,
                                                                entry.x, entry.y, entry.z,
                                                                surfaceLevel);
             for (final var facing : freeFacings) {
@@ -133,6 +131,53 @@ public class MeshGenerator {
         }
 
         PROFILER.log("-> Flood-filling the cave finished in {} steps ", iterations);
+
+        PROFILER.start("Iterating through chunks and joining the vertex data");
+        var skipCount = 0;
+        var totalSkipped = 0;
+        var totalVertexCount = 0;
+        var maxVertexCount = 0;
+        var totalChunksWithVerts = 0;
+        for (final var chunk : this.sampleSpace.getChunks()) {
+            final var vertices = chunk.getVertices();
+            final var normals = chunk.getNormals();
+            final var indices = chunk.getIndices();
+            if (vertices == null || indices == null || normals == null) {
+                ++skipCount;
+                ++totalSkipped;
+                continue;
+            }
+
+            if (skipCount > 0) {
+                PROFILER.log("-> Skipped {} empty chunk{}",
+                             skipCount,
+                             skipCount > 1 ? "s" : "");
+            }
+
+            assert vertices.size() == normals.size() && vertices.size() == indices.size()
+                    : "There should be equal number of vertices, normals and indices within a chunk!";
+
+            skipCount = 0;
+            totalVertexCount += vertices.size();
+            maxVertexCount = Math.max(maxVertexCount, vertices.size());
+            ++totalChunksWithVerts;
+
+            final var baseIndex = outVertices.size();
+            PROFILER.log("-> Adding {} vertices, starting at index {}",
+                         vertices.size(),
+                         baseIndex);
+
+            outVertices.addAll(vertices);
+            outNormals.addAll(normals);
+            indices.forEach(index -> outIndices.add(baseIndex + index));
+        }
+
+        final var averageVertexCount = totalVertexCount / (double) totalChunksWithVerts;
+        PROFILER.log("-> There are {} vertices per chunk (average in chunks with vertices)",
+                     String.format("%.2f", averageVertexCount));
+        PROFILER.log("-> The maximum per-chunk vertex count is {}", maxVertexCount);
+        PROFILER.log("-> There were {} empty chunks", totalSkipped);
+        PROFILER.end();
     }
 
     private static final class FloodFillEntry {

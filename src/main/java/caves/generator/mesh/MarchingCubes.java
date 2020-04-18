@@ -1,10 +1,7 @@
 package caves.generator.mesh;
 
-import caves.generator.CaveSampleSpace;
 import caves.generator.ChunkCaveSampleSpace;
 import caves.util.math.Vector3;
-
-import java.util.Collection;
 
 public final class MarchingCubes {
     /** How close two samples' values need to be in order to be considered the same value. */
@@ -22,9 +19,6 @@ public final class MarchingCubes {
      * Appends a new cube to the given mesh. Gets "free" faces of the cube as return value, for
      * progressing the flood fill.
      *
-     * @param outVertices  vertices of the mesh
-     * @param outNormals   vertex normals of the mesh
-     * @param outIndices   indices of the mesh
      * @param sampleSpace  sample space to use for generation
      * @param x            x-coordinate to sample
      * @param y            y-coordinate to sample
@@ -34,9 +28,6 @@ public final class MarchingCubes {
      * @return free faces of the created cube
      */
     public static MarchingCubesTables.Facing[] appendToMesh(
-            final Collection<Vector3> outVertices,
-            final Collection<Vector3> outNormals,
-            final Collection<Integer> outIndices,
             final ChunkCaveSampleSpace sampleSpace,
             final int x,
             final int y,
@@ -124,6 +115,11 @@ public final class MarchingCubes {
                                                                    density[ia], density[ib]);
             }
         }
+
+        final var chunk = sampleSpace.getChunkAt(x, y, z);
+        final var outVertices = chunk.getOrCreateVertices();
+        final var outNormals = chunk.getOrCreateNormals();
+        final var outIndices = chunk.getOrCreateIndices();
 
         // Now, we have a collection of vertices, but we do not know which vertices were created nor
         // how they should be connected. Luckily, this is again one of the 256 pre-defined cases, so

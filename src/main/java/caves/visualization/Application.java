@@ -19,6 +19,7 @@ import org.lwjgl.vulkan.VkSubmitInfo;
 import javax.annotation.Nullable;
 import java.util.Optional;
 
+import static caves.generator.ChunkCaveSampleSpace.CHUNK_SIZE;
 import static caves.util.profiler.Profiler.PROFILER;
 import static caves.visualization.window.VKUtil.translateVulkanResult;
 import static org.lwjgl.glfw.GLFW.glfwPollEvents;
@@ -61,7 +62,7 @@ public final class Application implements AutoCloseable {
         final var spacing = 10f;
 
         final var surfaceLevel = 0.85f;
-        final var spaceBetweenSamples = 2.0f;
+        final var spaceBetweenSamples = 4.0f;
 
         final var floorFlatness = 0.65;
         final var caveRadius = 40.0;
@@ -108,6 +109,10 @@ public final class Application implements AutoCloseable {
         }
 
         PROFILER.log("Generated {} vertices.", caveVertices.size());
+        PROFILER.log("Sample space is split into {} chunks.", sampleSpace.getChunkCount());
+        PROFILER.log("\t-> (Chunk size is {}x{}x{} = {} samples).",
+                     CHUNK_SIZE, CHUNK_SIZE, CHUNK_SIZE,
+                     CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
 
         PROFILER.start("Initializing the visualization");
         this.appContext = new ApplicationContext(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT, validation);

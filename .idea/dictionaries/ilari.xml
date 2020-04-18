@@ -13,6 +13,7 @@
       <w>isosurface</w>
       <w>iter</w>
       <w>lerp</w>
+      <w>livelocks</w>
       <w>lwjgl</w>
       <w>multisampling</w>
       <w>ndebug</w>

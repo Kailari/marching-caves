@@ -11,7 +11,7 @@ import static caves.util.math.MathUtil.fastFloor;
 public class ChunkCaveSampleSpace {
     public static final int CHUNK_SIZE = 32;
 
-    private final Map<Long, CaveSampleSpace> chunks = new HashMap<>();
+    private final Map<Long, SampleSpaceChunk> chunks = new HashMap<>();
     private final Function<Vector3, Float> densityFunction;
     private final float chunkSize;
     private final float samplesPerUnit;
@@ -29,6 +29,22 @@ public class ChunkCaveSampleSpace {
 
     public float getSamplesPerUnit() {
         return this.samplesPerUnit;
+    }
+
+    /**
+     * Gets the number of chunks created to this sample space.
+     *
+     * @return the number of chunks
+     */
+    public int getChunkCount() {
+        return this.chunks.size();
+    }
+
+    /**
+     * Gets an iterable over all of the chunks in this sample space.
+     */
+    public Iterable<SampleSpaceChunk> getChunks() {
+        return this.chunks.values();
     }
 
     public ChunkCaveSampleSpace(
@@ -58,15 +74,10 @@ public class ChunkCaveSampleSpace {
      * @return the density of the specified sample
      */
     public float getDensity(final int x, final int y, final int z) {
-        final var chunkX = fastFloor(x / (float) CHUNK_SIZE);
-        final var chunkY = fastFloor(y / (float) CHUNK_SIZE);
-        final var chunkZ = fastFloor(z / (float) CHUNK_SIZE);
-        final var chunkIndex = chunkIndex(chunkX, chunkY, chunkZ);
-        final var chunk = this.chunks.computeIfAbsent(chunkIndex, key -> this.createChunk(chunkX, chunkY, chunkZ));
-        return chunk.getDensity(x, y, z, () -> this.densityFunction.apply(getPos(x, y, z)));
+        return getChunkAt(x, y, z).getDensity(x, y, z, () -> this.densityFunction.apply(getPos(x, y, z)));
     }
 
-    private CaveSampleSpace createChunk(
+    private SampleSpaceChunk createChunk(
             final int chunkX,
             final int chunkY,
             final int chunkZ
@@ -75,10 +86,10 @@ public class ChunkCaveSampleSpace {
         final var startY = chunkY * this.chunkSize;
         final var startZ = chunkZ * this.chunkSize;
 
-        final var chunk = new CaveSampleSpace(startX,
-                                              startY,
-                                              startZ,
-                                              this.chunkSize);
+        final var chunk = new SampleSpaceChunk(startX,
+                                               startY,
+                                               startZ,
+                                               this.chunkSize);
         this.min = this.min.min(chunk.getMin(), this.min);
         this.max = this.max.max(chunk.getMax(), this.min);
         return chunk;
@@ -102,11 +113,23 @@ public class ChunkCaveSampleSpace {
      * @return <code>true</code> if and only if the sample was not previously queued.
      */
     public boolean markQueued(final int x, final int y, final int z) {
+        return getChunkAt(x, y, z).markQueued(x, y, z);
+    }
+
+    /**
+     * Gets the chunk at the given sample location.
+     *
+     * @param x x-coordinate of the sample to get the chunk for
+     * @param y y-coordinate of the sample to get the chunk for
+     * @param z z-coordinate of the sample to get the chunk for
+     *
+     * @return the chunk at the given sample coordinates
+     */
+    public SampleSpaceChunk getChunkAt(final int x, final int y, final int z) {
         final var chunkX = fastFloor(x / (float) CHUNK_SIZE);
         final var chunkY = fastFloor(y / (float) CHUNK_SIZE);
         final var chunkZ = fastFloor(z / (float) CHUNK_SIZE);
-        final long chunkIndex = chunkIndex(chunkX, chunkY, chunkZ);
-        final var chunk = this.chunks.computeIfAbsent(chunkIndex, key -> this.createChunk(chunkX, chunkY, chunkZ));
-        return chunk.markQueued(x, y, z);
+        final var chunkIndex = chunkIndex(chunkX, chunkY, chunkZ);
+        return this.chunks.computeIfAbsent(chunkIndex, key -> this.createChunk(chunkX, chunkY, chunkZ));
     }
 }

@@ -1,17 +1,102 @@
 package caves.generator;
 
+import caves.util.collections.GrowingAddOnlyList;
 import caves.util.math.BoundingBox;
 import caves.util.math.Vector3;
 
+import javax.annotation.Nullable;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.function.Supplier;
 
 import static caves.generator.ChunkCaveSampleSpace.CHUNK_SIZE;
 
-public final class CaveSampleSpace {
+public final class SampleSpaceChunk {
+    private static final int INITIAL_VERTEX_CAPACITY = 6000;
+
     private final float[] samples;
     private final BoundingBox bounds;
     private final boolean[] queued;
+    @Nullable private Collection<Vector3> vertices;
+    @Nullable private Collection<Vector3> normals;
+    @Nullable private Collection<Integer> indices;
+
+    /**
+     * Gets the generated vertices for this chunk. This array is populated during generation in
+     * {@link caves.generator.mesh.MeshGenerator MeshGenerator}
+     *
+     * @return vertices
+     */
+    @Nullable
+    public Collection<Vector3> getVertices() {
+        return this.vertices;
+    }
+
+    /**
+     * Gets the generated normals for this chunk. This array is populated during generation in
+     * {@link caves.generator.mesh.MeshGenerator MeshGenerator}
+     *
+     * @return normals
+     */
+    @Nullable
+    public Collection<Vector3> getNormals() {
+        return this.normals;
+    }
+
+    /**
+     * Gets the generated indices for this chunk. This array is populated during generation in
+     * {@link caves.generator.mesh.MeshGenerator MeshGenerator}. These are <strong>relative
+     * indices</strong> which point to arrays returned by {@link #getVertices()} and {@link
+     * #getNormals()}
+     *
+     * @return indices
+     */
+    @Nullable
+    public Collection<Integer> getIndices() {
+        return this.indices;
+    }
+
+    /**
+     * For "lazily" creating the vertex array. This avoid needlessly allocating huge vertex arrays
+     * for empty chunks.
+     *
+     * @return vertex position array for this chunk
+     */
+    public Collection<Vector3> getOrCreateVertices() {
+        if (this.vertices == null) {
+            this.vertices = new GrowingAddOnlyList<>(Vector3.class, INITIAL_VERTEX_CAPACITY);
+        }
+
+        return this.vertices;
+    }
+
+    /**
+     * For "lazily" creating the vertex array. This avoid needlessly allocating huge vertex arrays
+     * for empty chunks.
+     *
+     * @return vertex normal array for this chunk
+     */
+    public Collection<Vector3> getOrCreateNormals() {
+        if (this.normals == null) {
+            this.normals = new GrowingAddOnlyList<>(Vector3.class, INITIAL_VERTEX_CAPACITY);
+        }
+
+        return this.normals;
+    }
+
+    /**
+     * For "lazily" creating the vertex array. This avoid needlessly allocating huge arrays for
+     * empty chunks.
+     *
+     * @return index array for this chunk
+     */
+    public Collection<Integer> getOrCreateIndices() {
+        if (this.indices == null) {
+            this.indices = new GrowingAddOnlyList<>(Integer.class, INITIAL_VERTEX_CAPACITY);
+        }
+
+        return this.indices;
+    }
 
     /**
      * Gets the component-wise minimum possible world-coordinates for this sample space. This is the
@@ -41,7 +126,7 @@ public final class CaveSampleSpace {
      * @param startZ start z-coordinate of the region
      * @param size   size on the x-axis (in units)
      */
-    public CaveSampleSpace(
+    public SampleSpaceChunk(
             final float startX,
             final float startY,
             final float startZ,
