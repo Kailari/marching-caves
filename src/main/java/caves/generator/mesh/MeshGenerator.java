@@ -96,11 +96,13 @@ public class MeshGenerator {
                                                             surfaceLevel);
 
         final var fifoFacingQueue = new ArrayDeque<FloodFillEntry>();
+        var maxQueueSize = 0;
         for (final var facing : startFacings) {
             final var x = startX + facing.getX();
             final var y = startY + facing.getY();
             final var z = startZ + facing.getZ();
             fifoFacingQueue.add(new FloodFillEntry(x, y, z));
+            maxQueueSize = Math.max(maxQueueSize, fifoFacingQueue.size());
         }
 
         var iterations = 0;
@@ -118,11 +120,13 @@ public class MeshGenerator {
 
                 if (this.sampleSpace.markQueued(x, y, z)) {
                     fifoFacingQueue.add(new FloodFillEntry(x, y, z));
+                    maxQueueSize = Math.max(maxQueueSize, fifoFacingQueue.size());
                 }
             }
         }
 
         PROFILER.log("-> Flood-filling the cave finished in {} steps ", iterations);
+        PROFILER.log("-> Maximum queue size was {}", maxQueueSize);
     }
 
     private static final class FloodFillEntry {

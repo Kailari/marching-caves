@@ -1,9 +1,8 @@
 package caves.generator;
 
+import caves.util.collections.ChunkMap;
 import caves.util.math.Vector3;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.function.Function;
 
 import static caves.util.math.MathUtil.fastFloor;
@@ -11,7 +10,7 @@ import static caves.util.math.MathUtil.fastFloor;
 public class ChunkCaveSampleSpace {
     public static final int CHUNK_SIZE = 32;
 
-    private final Map<Long, SampleSpaceChunk> chunks = new HashMap<>();
+    private final ChunkMap chunks = new ChunkMap(2048);
     private final Function<Vector3, Float> densityFunction;
     private final float chunkSize;
     private final float samplesPerUnit;
@@ -37,7 +36,7 @@ public class ChunkCaveSampleSpace {
      * @return the number of chunks
      */
     public int getChunkCount() {
-        return this.chunks.size();
+        return this.chunks.getSize();
     }
 
     /**
@@ -142,6 +141,6 @@ public class ChunkCaveSampleSpace {
         final var chunkY = fastFloor(y / (float) CHUNK_SIZE);
         final var chunkZ = fastFloor(z / (float) CHUNK_SIZE);
         final var chunkIndex = chunkIndex(chunkX, chunkY, chunkZ);
-        return this.chunks.computeIfAbsent(chunkIndex, key -> this.createChunk(chunkX, chunkY, chunkZ));
+        return this.chunks.createIfAbsent(chunkIndex, () -> this.createChunk(chunkX, chunkY, chunkZ));
     }
 }

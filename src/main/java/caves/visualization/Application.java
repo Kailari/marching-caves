@@ -5,7 +5,6 @@ import caves.generator.PathGenerator;
 import caves.generator.density.EdgeDensityFunction;
 import caves.generator.density.PathDensityFunction;
 import caves.generator.mesh.MeshGenerator;
-import caves.util.collections.GrowingAddOnlyList;
 import caves.util.math.Vector3;
 import caves.visualization.rendering.command.CommandPool;
 import caves.visualization.rendering.mesh.Mesh;

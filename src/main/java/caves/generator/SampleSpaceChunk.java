@@ -14,9 +14,10 @@ import static caves.generator.ChunkCaveSampleSpace.CHUNK_SIZE;
 public final class SampleSpaceChunk {
     private static final int INITIAL_VERTEX_CAPACITY = 6000;
 
-    private final float[] samples;
     private final BoundingBox bounds;
-    private final boolean[] queued;
+
+    @Nullable private float[] samples;
+    @Nullable private boolean[] queued;
     @Nullable private Collection<Vector3> vertices;
     @Nullable private Collection<Vector3> normals;
     @Nullable private Collection<Integer> indices;
@@ -134,6 +135,12 @@ public final class SampleSpaceChunk {
     ) {
         this.bounds = new BoundingBox(new Vector3(startX, startY, startZ),
                                       new Vector3(startX + size, startY + size, startZ + size));
+    }
+
+    private void lazyInitSamples() {
+        if (this.samples != null) {
+            return;
+        }
 
         final var sampleCount = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
         this.samples = new float[sampleCount];
@@ -172,6 +179,9 @@ public final class SampleSpaceChunk {
             final int z,
             final Supplier<Float> densityFunction
     ) {
+        lazyInitSamples();
+        assert this.samples != null;
+
         final var sampleIndex = getSampleIndex(x, y, z);
         if (Float.isNaN(this.samples[sampleIndex])) {
             this.samples[sampleIndex] = densityFunction.get();
@@ -182,6 +192,9 @@ public final class SampleSpaceChunk {
 
     public boolean markQueued(final int x, final int y, final int z) {
         final var sampleIndex = getSampleIndex(x, y, z);
+
+        lazyInitSamples();
+        assert this.queued != null;
 
         if (this.queued[sampleIndex]) {
             return false;

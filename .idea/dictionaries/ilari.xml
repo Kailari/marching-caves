@@ -10,6 +10,7 @@
       <w>glfw</w>
       <w>glsl</w>
       <w>imgv</w>
+      <w>ints</w>
       <w>isosurface</w>
       <w>iter</w>
       <w>lerp</w>
