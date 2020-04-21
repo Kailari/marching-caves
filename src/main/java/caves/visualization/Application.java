@@ -36,13 +36,12 @@ import static org.lwjgl.vulkan.VK10.*;
 
 @SuppressWarnings("SameParameterValue")
 public final class Application implements AutoCloseable {
+    public static final int CHUNK_REFRESH_THRESHOLD = 25;
     private static final int DEFAULT_WINDOW_WIDTH = 800;
     private static final int DEFAULT_WINDOW_HEIGHT = 600;
     private static final long UINT64_MAX = 0xFFFFFFFFFFFFFFFFL; // or "-1L", but this looks nicer.
     private static final int MAX_FRAMES_IN_FLIGHT = 2;
-
     private static final float DEGREES_PER_SECOND = 360.0f / 10.0f;
-
     private final ApplicationContext appContext;
     private final long[] imageAvailableSemaphores;
     private final long[] renderFinishedSemaphores;
@@ -53,10 +52,12 @@ public final class Application implements AutoCloseable {
     private final float lookAtDistance;
 
     private final LongMap<QueuedChunk> queuedChunks = new LongMap<>(1024);
+    private final LongMap<Mesh<PolygonVertex>> chunkMeshes = new LongMap<>(1024);
     private final Object chunkQueueLock = new Object();
     private final AtomicInteger queuedChunkCount = new AtomicInteger(0);
-    private final LongMap<Mesh<PolygonVertex>> chunkMeshes = new LongMap<>(1024);
+
     private final Collection<Mesh<PolygonVertex>> caveMeshes = new GrowingAddOnlyList<>(128);
+    private final MeshGenerator meshGenerator;
 
     private final Vector3 middle;
     @Nullable private final Mesh<LineVertex> lineMesh;
@@ -102,7 +103,7 @@ public final class Application implements AutoCloseable {
 
         PROFILER.start("Constructing the cave");
 
-        PROFILER.start("Creating isosurface mesh with Marching Cubes");
+        PROFILER.start("Preparing sample space and generator");
         final var edgeFunc = new EdgeDensityFunction(maxInfluenceRadius,
                                                      caveRadius,
                                                      floorFlatness);
@@ -114,13 +115,12 @@ public final class Application implements AutoCloseable {
                                                                                  edgeFunc),
                                                          surfaceLevel);
 
-        final var meshGenerator = new MeshGenerator(sampleSpace);
+        this.meshGenerator = new MeshGenerator(sampleSpace);
 
-        // TODO: Run in another thread
         final var generatorThread = new Thread(
                 () -> {
                     PROFILER.start("Chunk generator");
-                    meshGenerator.generate(cavePath, surfaceLevel, (x, y, z, chunk) -> {
+                    this.meshGenerator.generate(cavePath, surfaceLevel, (x, y, z, chunk) -> {
                         final var chunkX = fastFloor(x / (float) CHUNK_SIZE);
                         final var chunkY = fastFloor(y / (float) CHUNK_SIZE);
                         final var chunkZ = fastFloor(z / (float) CHUNK_SIZE);
@@ -146,16 +146,18 @@ public final class Application implements AutoCloseable {
                                  sampleSpace.getTotalVertices());
                     PROFILER.log("-> Sample space is split into {} chunks.",
                                  sampleSpace.getChunkCount());
+
                     PROFILER.end();
                 });
+        logGPUMemoryProfilingInfo(deviceContext);
         generatorThread.setName("chunk-gen");
 
+        PROFILER.next("Creating path visualization (line mesh)");
         try (var commandPool = new CommandPool(deviceContext,
                                                deviceContext.getQueueFamilies().getTransfer())
         ) {
             this.middle = cavePath.getAveragePosition();
 
-            PROFILER.next("Creating path visualization (line mesh)");
             this.lineMesh = linesVisible
                     ? Meshes.createLineMesh(cavePath,
                                             this.middle,
@@ -163,10 +165,10 @@ public final class Application implements AutoCloseable {
                                             commandPool)
                     : null;
 
-            PROFILER.end();
 
-            logGPUMemoryProfilingInfo(deviceContext);
         }
+        logGPUMemoryProfilingInfo(deviceContext);
+        PROFILER.end();
         this.appContext.setMeshes(null, this.lineMesh);
 
         PROFILER.end();
@@ -301,10 +303,11 @@ public final class Application implements AutoCloseable {
             presentFrame(imageIndex, frameIndex);
             currentFrame++;
         }
+        this.meshGenerator.kill();
     }
 
     private void runQueuedMeshTasks() {
-        if (this.queuedChunkCount.get() < 100) {
+        if (this.queuedChunkCount.get() < CHUNK_REFRESH_THRESHOLD) {
             return;
         }
 
@@ -332,6 +335,7 @@ public final class Application implements AutoCloseable {
                         existing.close();
                     }
 
+                    chunk.chunk.getLock().claimFromMain();
                     final var vertices = chunk.chunk.getVertices();
                     final var normals = chunk.chunk.getNormals();
                     final var indices = chunk.chunk.getIndices();
@@ -345,6 +349,7 @@ public final class Application implements AutoCloseable {
                                                                              vertices,
                                                                              normals,
                                                                              indices));
+                    chunk.chunk.getLock().freeFromMain();
                 }
             }
 

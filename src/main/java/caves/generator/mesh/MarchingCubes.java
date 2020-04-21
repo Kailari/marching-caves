@@ -117,6 +117,8 @@ public final class MarchingCubes {
         }
 
         final var chunk = sampleSpace.getChunkAt(x, y, z);
+        chunk.getLock().claimFromGenerator();
+
         final var outVertices = chunk.getOrCreateVertices();
         final var outNormals = chunk.getOrCreateNormals();
         final var outIndices = chunk.getOrCreateIndices();
@@ -141,6 +143,7 @@ public final class MarchingCubes {
             }
         }
 
+        chunk.getLock().freeFromGenerator();
         return MarchingCubesTables.FREE_CUBE_FACES[cubeIndex];
     }
 

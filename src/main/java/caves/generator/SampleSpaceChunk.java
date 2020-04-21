@@ -14,6 +14,7 @@ import static caves.generator.ChunkCaveSampleSpace.CHUNK_SIZE;
 public final class SampleSpaceChunk {
     private static final int INITIAL_VERTEX_CAPACITY = 6000;
 
+    private final ChunkLock lock = new ChunkLock();
     private final BoundingBox bounds;
     private final float surfaceLevel;
 
@@ -121,6 +122,10 @@ public final class SampleSpaceChunk {
      */
     public Vector3 getMax() {
         return this.bounds.getMax();
+    }
+
+    public ChunkLock getLock() {
+        return this.lock;
     }
 
     /**

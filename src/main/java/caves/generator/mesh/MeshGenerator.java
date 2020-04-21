@@ -16,6 +16,8 @@ public class MeshGenerator {
 
     private final ChunkCaveSampleSpace sampleSpace;
 
+    private boolean killSwitch;
+
     /**
      * Creates a new mesh generator for marching through a {@link SampleSpaceChunk} using marching
      * cubes algorithm.
@@ -24,6 +26,10 @@ public class MeshGenerator {
      */
     public MeshGenerator(final ChunkCaveSampleSpace sampleSpace) {
         this.sampleSpace = sampleSpace;
+    }
+
+    public void kill() {
+        this.killSwitch = true;
     }
 
     /**
@@ -116,7 +122,7 @@ public class MeshGenerator {
         }
 
         var iterations = 0;
-        while (!fifoFacingQueue.isEmpty()) {
+        while (!fifoFacingQueue.isEmpty() && !this.killSwitch) {
             ++iterations;
             final var entry = fifoFacingQueue.pop();
 
