@@ -89,7 +89,10 @@ public class ChunkCaveSampleSpace {
      * @return the density of the specified sample
      */
     public float getDensity(final int x, final int y, final int z) {
-        return getChunkAt(x, y, z).getDensity(x, y, z, () -> this.densityFunction.apply(getPos(x, y, z)));
+        return getChunkAt(x, y, z).getDensity(x,
+                                              y,
+                                              z,
+                                              () -> this.densityFunction.apply(getPos(x, y, z)));
     }
 
     private SampleSpaceChunk createChunk(

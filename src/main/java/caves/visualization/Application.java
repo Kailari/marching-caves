@@ -36,7 +36,8 @@ import static org.lwjgl.vulkan.VK10.*;
 
 @SuppressWarnings("SameParameterValue")
 public final class Application implements AutoCloseable {
-    public static final int CHUNK_REFRESH_THRESHOLD = 25;
+    private static final int CHUNK_REFRESH_THRESHOLD = 1;
+
     private static final int DEFAULT_WINDOW_WIDTH = 800;
     private static final int DEFAULT_WINDOW_HEIGHT = 600;
     private static final long UINT64_MAX = 0xFFFFFFFFFFFFFFFFL; // or "-1L", but this looks nicer.
@@ -71,7 +72,7 @@ public final class Application implements AutoCloseable {
      * @param validation should validation/debug features be enabled.
      */
     public Application(final boolean validation) {
-        final var caveLength = 16000;
+        final var caveLength = 8000;
         final var spacing = 10f;
 
         final var surfaceLevel = 0.85f;
@@ -120,36 +121,40 @@ public final class Application implements AutoCloseable {
         final var generatorThread = new Thread(
                 () -> {
                     PROFILER.start("Chunk generator");
-                    this.meshGenerator.generate(cavePath, surfaceLevel, (x, y, z, chunk) -> {
-                        final var chunkX = fastFloor(x / (float) CHUNK_SIZE);
-                        final var chunkY = fastFloor(y / (float) CHUNK_SIZE);
-                        final var chunkZ = fastFloor(z / (float) CHUNK_SIZE);
-                        final var index = ChunkCaveSampleSpace.chunkIndex(chunkX, chunkY, chunkZ);
+                    this.meshGenerator.generate(
+                            cavePath,
+                            surfaceLevel,
+                            (x, y, z, chunk) -> {
+                                final var chunkX = fastFloor(x / (float) CHUNK_SIZE);
+                                final var chunkY = fastFloor(y / (float) CHUNK_SIZE);
+                                final var chunkZ = fastFloor(z / (float) CHUNK_SIZE);
+                                final var index = ChunkCaveSampleSpace.chunkIndex(chunkX, chunkY, chunkZ);
 
-                        final var vertices = chunk.getVertices();
-                        final var normals = chunk.getNormals();
-                        final var indices = chunk.getIndices();
+                                final var vertices = chunk.getVertices();
+                                final var normals = chunk.getNormals();
+                                final var indices = chunk.getIndices();
 
-                        if (vertices == null || indices == null || normals == null) {
-                            return;
-                        }
+                                if (vertices == null || indices == null || normals == null) {
+                                    return;
+                                }
 
-                        synchronized (this.chunkQueueLock) {
-                            this.queuedChunks.put(index, new QueuedChunk(index, chunk));
-                        }
-                        this.queuedChunkCount.incrementAndGet();
-                    });
+                                synchronized (this.chunkQueueLock) {
+                                    this.queuedChunks.put(index, new QueuedChunk(index, chunk));
+                                }
+                                this.queuedChunkCount.incrementAndGet();
+                            },
+                            () -> {
+                                this.queuedChunkCount.set(100000);
 
-                    this.queuedChunkCount.set(100000);
+                                PROFILER.log("-> Generated {} vertices.",
+                                             sampleSpace.getTotalVertices());
+                                PROFILER.log("-> Sample space is split into {} chunks.",
+                                             sampleSpace.getChunkCount());
 
-                    PROFILER.log("-> Generated {} vertices.",
-                                 sampleSpace.getTotalVertices());
-                    PROFILER.log("-> Sample space is split into {} chunks.",
-                                 sampleSpace.getChunkCount());
-
-                    PROFILER.end();
+                                logGPUMemoryProfilingInfo(deviceContext);
+                                PROFILER.end();
+                            });
                 });
-        logGPUMemoryProfilingInfo(deviceContext);
         generatorThread.setName("chunk-gen");
 
         PROFILER.next("Creating path visualization (line mesh)");
@@ -335,21 +340,21 @@ public final class Application implements AutoCloseable {
                         existing.close();
                     }
 
-                    chunk.chunk.getLock().claimFromMain();
-                    final var vertices = chunk.chunk.getVertices();
-                    final var normals = chunk.chunk.getNormals();
-                    final var indices = chunk.chunk.getIndices();
-                    if (vertices == null || indices == null || normals == null) {
-                        continue;
-                    }
+                    synchronized (chunk.chunk.getLock()) {
+                        final var vertices = chunk.chunk.getVertices();
+                        final var normals = chunk.chunk.getNormals();
+                        final var indices = chunk.chunk.getIndices();
+                        if (vertices == null || indices == null || normals == null) {
+                            continue;
+                        }
 
-                    this.chunkMeshes.put(chunk.index, Meshes.createChunkMesh(this.middle,
-                                                                             deviceContext,
-                                                                             commandPool,
-                                                                             vertices,
-                                                                             normals,
-                                                                             indices));
-                    chunk.chunk.getLock().freeFromMain();
+                        this.chunkMeshes.put(chunk.index, Meshes.createChunkMesh(this.middle,
+                                                                                 deviceContext,
+                                                                                 commandPool,
+                                                                                 vertices,
+                                                                                 normals,
+                                                                                 indices));
+                    }
                 }
             }
 

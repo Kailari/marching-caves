@@ -4,7 +4,11 @@ import caves.generator.CavePath;
 import caves.generator.ChunkCaveSampleSpace;
 import caves.generator.SampleSpaceChunk;
 
-import java.util.ArrayDeque;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static caves.util.profiler.Profiler.PROFILER;
 
@@ -15,8 +19,8 @@ public class MeshGenerator {
     private static final int MAX_WALL_DISTANCE = 1024;
 
     private final ChunkCaveSampleSpace sampleSpace;
-
-    private boolean killSwitch;
+    private final AtomicInteger nQueuedSteps = new AtomicInteger(0);
+    private final AtomicBoolean killSwitch = new AtomicBoolean(false);
 
     /**
      * Creates a new mesh generator for marching through a {@link SampleSpaceChunk} using marching
@@ -29,7 +33,7 @@ public class MeshGenerator {
     }
 
     public void kill() {
-        this.killSwitch = true;
+        this.killSwitch.set(true);
     }
 
     /**
@@ -47,7 +51,8 @@ public class MeshGenerator {
     public void generate(
             final CavePath cavePath,
             final float surfaceLevel,
-            final ReadyChunkConsumer readyChunks
+            final ReadyChunkConsumer readyChunks,
+            final Runnable onReady
     ) {
         PROFILER.log("-> Using surface level of {}",
                      String.format("%.3f", surfaceLevel));
@@ -62,37 +67,31 @@ public class MeshGenerator {
                      caveStartSampleCoord.z);
 
         int startX = (int) caveStartSampleCoord.getX();
-        int startY = (int) caveStartSampleCoord.getY();
-        int startZ = (int) caveStartSampleCoord.getZ();
+        final int startY = (int) caveStartSampleCoord.getY();
+        final int startZ = (int) caveStartSampleCoord.getZ();
         // Move on the x axis until we find a wall
-        for (var x = 0; startX + x < MAX_WALL_DISTANCE; ++x) {
-            for (var y = 0; startY + y < MAX_WALL_DISTANCE; ++y) {
-                for (var z = 0; startZ + z < MAX_WALL_DISTANCE; ++z) {
-                    var solidFound = false;
-                    var nonSolidFound = false;
-                    for (final var offset : MarchingCubesTables.VERTEX_OFFSETS) {
-                        final var density = this.sampleSpace.getDensity(startX + offset[X] + x,
-                                                                        startY + offset[Y] + y,
-                                                                        startZ + offset[Z] + z);
-                        if (density < surfaceLevel) {
-                            nonSolidFound = true;
-                        } else {
-                            solidFound = true;
-                        }
-
-                        if (nonSolidFound && solidFound) {
-                            startX += x;
-                            startY += y;
-                            startZ += z;
-                            startFound = true;
-                            break;
-                        }
-                    }
-
-                    if (startFound) {
-                        break;
-                    }
+        for (var x = 0; x < MAX_WALL_DISTANCE; ++x) {
+            var solidFound = false;
+            var nonSolidFound = false;
+            for (final var offset : MarchingCubesTables.VERTEX_OFFSETS) {
+                final var density = this.sampleSpace.getDensity(startX + offset[X] + x,
+                                                                startY + offset[Y],
+                                                                startZ + offset[Z]);
+                if (density < surfaceLevel) {
+                    nonSolidFound = true;
+                } else {
+                    solidFound = true;
                 }
+
+                if (nonSolidFound && solidFound) {
+                    startX += x;
+                    startFound = true;
+                    break;
+                }
+            }
+
+            if (startFound) {
+                break;
             }
         }
         if (!startFound) {
@@ -104,51 +103,58 @@ public class MeshGenerator {
                      String.format("(%d, %d, %d)", startX, startY, startZ));
         this.sampleSpace.compact();
 
-        this.sampleSpace.markQueued(startX, startY, startZ);
-        this.sampleSpace.popQueued(startX, startY, startZ);
-        final var startFacings = MarchingCubes.appendToMesh(this.sampleSpace,
-                                                            startX, startY, startZ,
-                                                            surfaceLevel);
+        final var marcherTaskPool = Executors.newFixedThreadPool(8);
 
-        final var fifoFacingQueue = new ArrayDeque<FloodFillEntry>();
-        var maxQueueSize = 0;
-        for (final var facing : startFacings) {
-            final var x = startX + facing.getX();
-            final var y = startY + facing.getY();
-            final var z = startZ + facing.getZ();
-            fifoFacingQueue.add(new FloodFillEntry(x, y, z));
-            this.sampleSpace.markQueued(x, y, z);
-            maxQueueSize = Math.max(maxQueueSize, fifoFacingQueue.size());
+        if (!this.killSwitch.get()) {
+            this.nQueuedSteps.incrementAndGet();
+            this.sampleSpace.markQueued(startX, startY, startZ);
+            step(surfaceLevel,
+                 readyChunks,
+                 marcherTaskPool,
+                 new FloodFillEntry(startX, startY, startZ),
+                 onReady);
+        }
+    }
+
+    private void step(
+            final float surfaceLevel,
+            final ReadyChunkConsumer readyChunks,
+            final ExecutorService marcherTaskPool,
+            final FloodFillEntry entry,
+            final Runnable onReady
+    ) {
+        if (this.killSwitch.get()) {
+            marcherTaskPool.shutdown();
+            return;
         }
 
-        var iterations = 0;
-        while (!fifoFacingQueue.isEmpty() && !this.killSwitch) {
-            ++iterations;
-            final var entry = fifoFacingQueue.pop();
+        this.sampleSpace.popQueued(entry.x, entry.y, entry.z);
+        final var freeFacings = MarchingCubes.appendToMesh(this.sampleSpace,
+                                                           entry.x, entry.y, entry.z,
+                                                           surfaceLevel);
+        for (final var facing : freeFacings) {
+            final var x = entry.x + facing.getX();
+            final var y = entry.y + facing.getY();
+            final var z = entry.z + facing.getZ();
 
-            this.sampleSpace.popQueued(entry.x, entry.y, entry.z);
-            final var freeFacings = MarchingCubes.appendToMesh(this.sampleSpace,
-                                                               entry.x, entry.y, entry.z,
-                                                               surfaceLevel);
-            for (final var facing : freeFacings) {
-                final var x = entry.x + facing.getX();
-                final var y = entry.y + facing.getY();
-                final var z = entry.z + facing.getZ();
-
-                if (this.sampleSpace.markQueued(x, y, z)) {
-                    fifoFacingQueue.add(new FloodFillEntry(x, y, z));
-                    maxQueueSize = Math.max(maxQueueSize, fifoFacingQueue.size());
-                }
-            }
-
-            if (this.sampleSpace.isChunkReady(entry.x, entry.y, entry.z)) {
-                readyChunks.accept(entry.x, entry.y, entry.z,
-                                   this.sampleSpace.getChunkAt(entry.x, entry.y, entry.z));
+            if (this.sampleSpace.markQueued(x, y, z)) {
+                this.nQueuedSteps.incrementAndGet();
+                marcherTaskPool.submit(() -> step(surfaceLevel,
+                                                  readyChunks,
+                                                  marcherTaskPool,
+                                                  new FloodFillEntry(x, y, z), onReady));
             }
         }
 
-        PROFILER.log("-> Flood-filling the cave finished in {} steps ", iterations);
-        PROFILER.log("-> Maximum queue size was {}", maxQueueSize);
+        if (this.sampleSpace.isChunkReady(entry.x, entry.y, entry.z)) {
+            readyChunks.accept(entry.x, entry.y, entry.z,
+                               this.sampleSpace.getChunkAt(entry.x, entry.y, entry.z));
+        }
+        final var remaining = this.nQueuedSteps.decrementAndGet();
+        if (remaining == 0) {
+            marcherTaskPool.shutdown();
+            onReady.run();
+        }
     }
 
     public interface ReadyChunkConsumer {

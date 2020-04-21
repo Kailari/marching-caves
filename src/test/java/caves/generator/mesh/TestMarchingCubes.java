@@ -4,14 +4,16 @@ import caves.generator.ChunkCaveSampleSpace;
 import caves.generator.PathGenerator;
 import caves.util.math.LineSegment;
 import caves.util.math.Vector3;
+import caves.util.profiler.Profiler;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-import static org.junit.jupiter.api.Assertions.assertAll;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class TestMarchingCubes {
     @Test
@@ -42,8 +44,22 @@ public class TestMarchingCubes {
                 };
         final var sampleSpace = new ChunkCaveSampleSpace(samplesPerUnit, densityFunction, surfaceLevel);
 
+        final var latch = new CountDownLatch(1);
         final var meshGenerator = new MeshGenerator(sampleSpace);
-        meshGenerator.generate(cavePath, surfaceLevel, (x, y, z, chunk) -> {});
+        meshGenerator.generate(cavePath, surfaceLevel,
+                               (x, y, z, chunk) -> {},
+                               () -> {
+                                   latch.countDown();
+                                   Profiler.PROFILER.log("Ready.");
+                               });
+
+        try {
+            if (!latch.await(10000, TimeUnit.MILLISECONDS)) {
+                fail("Timed out");
+            }
+        } catch (final InterruptedException ignored) {
+        }
+
         final var caveVertices = new ArrayList<Vector3>();
         final var caveIndices = new ArrayList<Integer>();
         final var caveNormals = new ArrayList<Vector3>();

@@ -148,7 +148,7 @@ public final class SampleSpaceChunk {
                                       new Vector3(startX + size, startY + size, startZ + size));
     }
 
-    private void lazyInitSamples() {
+    private synchronized void lazyInitSamples() {
         if (this.samples != null) {
             return;
         }
@@ -217,7 +217,7 @@ public final class SampleSpaceChunk {
      * @return <code>true</code> if the sample was queued, <code>false</code> if was already in
      *         queue
      */
-    public boolean markQueued(final int x, final int y, final int z) {
+    public synchronized boolean markQueued(final int x, final int y, final int z) {
         final var sampleIndex = getSampleIndex(x, y, z);
 
         lazyInitSamples();
@@ -239,7 +239,7 @@ public final class SampleSpaceChunk {
      * @param y y-coordinate of the sample
      * @param z z-coordinate of the sample
      */
-    public void popQueued(final int x, final int y, final int z) {
+    public synchronized void popQueued(final int x, final int y, final int z) {
         assert this.nQueued > 0;
 
         lazyInitSamples();

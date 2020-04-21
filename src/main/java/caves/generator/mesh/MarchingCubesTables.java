@@ -336,7 +336,6 @@ public final class MarchingCubesTables {
      * the whole sample space at once.
      */
     public static final Facing[][] FREE_CUBE_FACES = new Facing[256][];
-    private static final boolean MARCH_EMPTY_SPACE = false;
 
     static {
         for (var cubeIndex = 0; cubeIndex <= 0xFF; ++cubeIndex) {
