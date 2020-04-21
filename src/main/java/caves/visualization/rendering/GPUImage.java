@@ -1,5 +1,6 @@
 package caves.visualization.rendering;
 
+import caves.visualization.memory.GPUMemorySlice;
 import caves.visualization.rendering.command.CommandBuffer;
 import caves.visualization.rendering.command.CommandPool;
 import caves.visualization.window.DeviceContext;
@@ -12,8 +13,8 @@ import static org.lwjgl.vulkan.VK10.*;
 public final class GPUImage implements AutoCloseable {
     private final DeviceContext deviceContext;
 
+    private final GPUMemorySlice imageMemory;
     private final long image;
-    private final long imageMemory;
     private final int format;
 
     /**
@@ -88,38 +89,15 @@ public final class GPUImage implements AutoCloseable {
 
     }
 
-    private static long allocateImageMemory(
+    private static GPUMemorySlice allocateImageMemory(
             final DeviceContext deviceContext,
             final long image,
             final int memoryProperties
     ) {
-        try (var stack = stackPush()) {
-            final var memoryRequirements = VkMemoryRequirements.callocStack();
-            vkGetImageMemoryRequirements(deviceContext.getDeviceHandle(), image, memoryRequirements);
-
-            final var allocInfo = VkMemoryAllocateInfo
-                    .callocStack()
-                    .sType(VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO)
-                    .allocationSize(memoryRequirements.size())
-                    .memoryTypeIndex(deviceContext.findMemoryType(memoryRequirements.memoryTypeBits(), memoryProperties)
-                                                  .orElseThrow());
-
-            final var pMemory = stack.callocLong(1);
-            final var result = vkAllocateMemory(deviceContext.getDeviceHandle(),
-                                                allocInfo,
-                                                null,
-                                                pMemory);
-            if (result != VK_SUCCESS) {
-                throw new IllegalStateException("Allocating image memory failed: "
-                                                        + translateVulkanResult(result));
-            }
-            vkBindImageMemory(deviceContext.getDeviceHandle(),
-                              image,
-                              pMemory.get(0),
-                              0);
-
-            return pMemory.get(0);
-        }
+        final var slice = deviceContext.getMemoryAllocator()
+                                       .allocateImageMemory(image, memoryProperties);
+        slice.bindImage(image);
+        return slice;
     }
 
     private static boolean hasStencilComponent(final int format) {
@@ -228,7 +206,7 @@ public final class GPUImage implements AutoCloseable {
     @Override
     public void close() {
         vkDestroyImage(this.deviceContext.getDeviceHandle(), this.image, null);
-        vkFreeMemory(this.deviceContext.getDeviceHandle(), this.imageMemory, null);
+        this.imageMemory.close();
     }
 
     public static final class View implements AutoCloseable {

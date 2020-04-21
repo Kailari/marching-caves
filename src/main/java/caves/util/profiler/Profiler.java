@@ -70,9 +70,9 @@ public class Profiler {
     public void end() {
         final var entry = this.timestamps.pop();
         final var elapsed = (System.nanoTime() - entry.timestamp) / 1_000_000_000.0;
-        log("{}. Done in {}s",
-            entry.name,
-            String.format("%.3f", elapsed));
+        log("Done in {}s (\"{}\")",
+            String.format("%.3f", elapsed),
+            entry.name);
     }
 
     /**

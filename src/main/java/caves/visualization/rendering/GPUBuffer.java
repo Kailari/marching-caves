@@ -1,23 +1,20 @@
 package caves.visualization.rendering;
 
+import caves.visualization.memory.GPUMemorySlice;
 import caves.visualization.window.DeviceContext;
 import org.lwjgl.vulkan.VkBufferCreateInfo;
 import org.lwjgl.vulkan.VkDevice;
-import org.lwjgl.vulkan.VkMemoryAllocateInfo;
-import org.lwjgl.vulkan.VkMemoryRequirements;
 
 import java.nio.ByteBuffer;
 
 import static org.lwjgl.system.MemoryStack.stackPush;
-import static org.lwjgl.system.MemoryUtil.memAddress;
-import static org.lwjgl.system.MemoryUtil.memCopy;
 import static org.lwjgl.vulkan.VK10.*;
 
 public class GPUBuffer implements AutoCloseable {
     private final VkDevice device;
 
+    private final GPUMemorySlice bufferMemory;
     private final long bufferHandle;
-    private final long bufferMemory;
     private final long bufferSize;
 
     private final boolean deviceLocal;
@@ -28,7 +25,7 @@ public class GPUBuffer implements AutoCloseable {
      * @return the owning device
      */
     protected VkDevice getDevice() {
-        return device;
+        return this.device;
     }
 
     /**
@@ -99,36 +96,16 @@ public class GPUBuffer implements AutoCloseable {
         }
     }
 
-    private static long allocateBufferMemory(
+    private static GPUMemorySlice allocateBufferMemory(
             final long bufferHandle,
             final DeviceContext deviceContext,
             final int propertyFlags
     ) {
-        final var device = deviceContext.getDeviceHandle();
-        try (var stack = stackPush()) {
-            final var memoryRequirements = VkMemoryRequirements.callocStack(stack);
-            vkGetBufferMemoryRequirements(device, bufferHandle, memoryRequirements);
+        final var slice = deviceContext.getMemoryAllocator()
+                                       .allocateBufferMemory(bufferHandle, propertyFlags);
+        slice.bindBuffer(bufferHandle);
 
-            final var memoryType = deviceContext
-                    .findMemoryType(memoryRequirements.memoryTypeBits(),
-                                    propertyFlags)
-                    .orElseThrow(() -> new IllegalStateException("Could not find suitable memory type!"));
-
-            final var allocInfo = VkMemoryAllocateInfo
-                    .callocStack(stack)
-                    .sType(VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO)
-                    .allocationSize(memoryRequirements.size())
-                    .memoryTypeIndex(memoryType);
-
-            final var pBufferMemory = stack.mallocLong(1);
-            final var error = vkAllocateMemory(device, allocInfo, null, pBufferMemory);
-            if (error != VK_SUCCESS) {
-                throw new IllegalStateException("Could not allocate memory for a GPU buffer!");
-            }
-            final var bufferMemory = pBufferMemory.get(0);
-            vkBindBufferMemory(device, bufferHandle, bufferMemory, 0);
-            return bufferMemory;
-        }
+        return slice;
     }
 
     /**
@@ -142,16 +119,7 @@ public class GPUBuffer implements AutoCloseable {
             throw new IllegalStateException("Tried to push elements to GPU-only buffer!");
         }
 
-        final long data;
-        try (var stack = stackPush()) {
-            final var pData = stack.mallocPointer(1);
-            vkMapMemory(this.device, this.bufferMemory, 0, this.bufferSize, 0, pData);
-            data = pData.get();
-        }
-
-        memCopy(memAddress(buffer), data, buffer.remaining());
-
-        vkUnmapMemory(this.device, this.bufferMemory);
+        this.bufferMemory.push(buffer, this.bufferSize);
     }
 
     /**
@@ -161,6 +129,6 @@ public class GPUBuffer implements AutoCloseable {
     @Override
     public void close() {
         vkDestroyBuffer(this.device, this.bufferHandle, null);
-        vkFreeMemory(this.device, this.bufferMemory, null);
+        this.bufferMemory.close();
     }
 }

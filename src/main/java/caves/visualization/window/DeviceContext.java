@@ -1,5 +1,6 @@
 package caves.visualization.window;
 
+import caves.visualization.memory.GPUMemoryAllocator;
 import caves.visualization.rendering.swapchain.SwapChainSupportDetails;
 import caves.visualization.util.io.BufferUtil;
 import org.lwjgl.PointerBuffer;
@@ -21,6 +22,8 @@ public final class DeviceContext implements AutoCloseable {
     private final VkQueue graphicsQueue;
     private final VkQueue presentQueue;
     private final VkQueue transferQueue;
+
+    private final GPUMemoryAllocator memoryAllocator;
 
     /**
      * Gets the chosen physical device.
@@ -77,6 +80,15 @@ public final class DeviceContext implements AutoCloseable {
     }
 
     /**
+     * Gets the memory manager/allocator. Use this to allocate memory for buffers and images.
+     *
+     * @return the memory manager
+     */
+    public GPUMemoryAllocator getMemoryAllocator() {
+        return this.memoryAllocator;
+    }
+
+    /**
      * Selects a new physical device and creates context for it using the given Vulkan instance.
      *
      * @param instance           instance to select the device for
@@ -112,15 +124,16 @@ public final class DeviceContext implements AutoCloseable {
             this.logicalDevice = new LogicalDevice(selected, indices, requiredExtensions);
         }
 
-        this.memoryProperties = VkPhysicalDeviceMemoryProperties.malloc();
-        vkGetPhysicalDeviceMemoryProperties(this.physicalDevice, this.memoryProperties);
-
         this.graphicsQueue = getQueue(this.getDeviceHandle(),
                                       this.logicalDevice.getQueueFamilies().getGraphics());
         this.transferQueue = getQueue(this.getDeviceHandle(),
                                       this.logicalDevice.getQueueFamilies().getTransfer());
         this.presentQueue = getQueue(this.getDeviceHandle(),
                                      this.logicalDevice.getQueueFamilies().getPresent());
+
+        this.memoryProperties = VkPhysicalDeviceMemoryProperties.malloc();
+        vkGetPhysicalDeviceMemoryProperties(this.physicalDevice, this.memoryProperties);
+        this.memoryAllocator = new GPUMemoryAllocator(this.memoryProperties, this.logicalDevice);
     }
 
     private static PointerBuffer getPhysicalDevices(
@@ -214,30 +227,8 @@ public final class DeviceContext implements AutoCloseable {
     public void close() {
         // NOTE: Physical device is automatically destroyed with the instance so do not destroy it here
         this.memoryProperties.free();
+        this.memoryAllocator.close();
         this.logicalDevice.close();
-    }
-
-    /**
-     * Searches the physical device for a memory type matching the given type filter and property
-     * flags. If no such memory type can be found, an empty optional is returned.
-     *
-     * @param typeFilter    memory type filter bit flags
-     * @param propertyFlags property bit flags
-     *
-     * @return <code>Optional</code> containing the memory type, if available.
-     *         <code>Optional.empty()</code> otherwise.
-     */
-    public Optional<Integer> findMemoryType(final int typeFilter, final int propertyFlags) {
-        for (var i = 0; i < this.memoryProperties.memoryTypeCount(); ++i) {
-            final var typeIsSuitable = (typeFilter & (1 << i)) != 0;
-            final var hasAllProperties =
-                    (this.memoryProperties.memoryTypes(i).propertyFlags() & propertyFlags) == propertyFlags;
-
-            if (typeIsSuitable && hasAllProperties) {
-                return Optional.of(i);
-            }
-        }
-        return Optional.empty();
     }
 
     /**

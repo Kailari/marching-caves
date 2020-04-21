@@ -132,7 +132,28 @@ public final class Application implements AutoCloseable {
                     : null;
             PROFILER.end();
 
+            PROFILER.start("Gathering GPU memory profiling info");
+
+            final var usageTotal = deviceContext.getMemoryAllocator().getUsageTotal();
+            final var allocationTotal = deviceContext.getMemoryAllocator().getAllocationTotal();
+
+            PROFILER.log("-> {} GPU memory allocations have been made.",
+                         deviceContext.getMemoryAllocator().getAllocationCount());
+            PROFILER.log("-> Total {} bytes of GPU memory is allocated (~{} kb)",
+                         allocationTotal, Math.round(allocationTotal / 1000.0));
+            PROFILER.log("-> {} bytes of allocated memory is in use (~{} kb)",
+                         usageTotal, Math.round(usageTotal / 1000.0));
+            PROFILER.log("-> ~{} kb of memory is wasted ({}% utilization)",
+                         Math.round((allocationTotal - usageTotal) / 1000.0),
+                         String.format("%.2f", (usageTotal / (double) allocationTotal) * 100.0));
+            PROFILER.log("-> Size of the largest allocation is {} bytes (~{} kb)",
+                         deviceContext.getMemoryAllocator().getLargestAllocationSize(),
+                         Math.round(deviceContext.getMemoryAllocator().getAverageAllocationSize() / 1000.0));
+            PROFILER.log("-> Average allocation is {} bytes (~{} kb)",
+                         deviceContext.getMemoryAllocator().getAverageAllocationSize(),
+                         Math.round(deviceContext.getMemoryAllocator().getAverageAllocationSize() / 1000.0));
             this.appContext.setMeshes(this.caveMeshes, this.lineMesh);
+            PROFILER.end();
             PROFILER.end();
         }
 

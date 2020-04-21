@@ -8,11 +8,17 @@ import org.lwjgl.vulkan.VkCommandBuffer;
 
 import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
+import java.util.function.BiConsumer;
 
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.vulkan.VK10.*;
 
+// TODO: Use single buffer with offsets.
+//        - it is sub-optimal to pack a single mesh to two separate buffers. Why? The mesh data is
+//          ALWAYS used together, indices and vertices are useless without one another. It makes
+//          sense to store them together, too.
+//        - This requires a bit trickery on the buffer side. We need custom buffer class capable of
+//          storing multiple data types with offsets.
 public final class Mesh<TVertex> implements AutoCloseable {
     private final SequentialGPUBuffer<TVertex> vertexBuffer;
     @Nullable private final SequentialGPUBuffer<Integer> indexBuffer;
@@ -70,7 +76,12 @@ public final class Mesh<TVertex> implements AutoCloseable {
                 VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                 null);
-        updateVertexBuffer(this.vertexBuffer, vertexFormat, deviceContext, commandPool, vertices);
+        pushToBuffer(this.vertexBuffer,
+                     deviceContext,
+                     commandPool,
+                     vertices,
+                     vertexFormat.getSizeInBytes(),
+                     vertexFormat::write);
 
         if (indices == null) {
             this.indexBuffer = null;
@@ -82,49 +93,32 @@ public final class Mesh<TVertex> implements AutoCloseable {
                     VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                     null);
-            updateIndexBuffer(this.indexBuffer, deviceContext, commandPool, indices);
+            pushToBuffer(this.indexBuffer,
+                         deviceContext,
+                         commandPool,
+                         indices,
+                         Integer.BYTES,
+                         ByteBuffer::putInt);
         }
     }
 
-    private static <TVertex> void updateVertexBuffer(
-            final SequentialGPUBuffer<TVertex> vertexBuffer,
-            final VertexFormat<TVertex> vertexFormat,
+    private static <T> void pushToBuffer(
+            final SequentialGPUBuffer<T> buffer,
             final DeviceContext deviceContext,
             final CommandPool commandPool,
-            final TVertex[] vertices
+            final T[] values,
+            final int elementSize,
+            final BiConsumer<ByteBuffer, T> writer
     ) {
         final var stagingBuffer = new SequentialGPUBuffer<>(
                 deviceContext,
-                vertices.length,
-                vertexFormat.getSizeInBytes(),
+                values.length,
+                elementSize,
                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                vertexFormat::write);
-
-        stagingBuffer.pushElements(Arrays.asList(vertices));
-        stagingBuffer.copyToAndWait(commandPool.getHandle(),
-                                    deviceContext.getTransferQueue(),
-                                    vertexBuffer);
-        stagingBuffer.close();
-    }
-
-    private static void updateIndexBuffer(
-            final SequentialGPUBuffer<Integer> indexBuffer,
-            final DeviceContext deviceContext,
-            final CommandPool commandPool,
-            final Integer[] indices
-    ) {
-        final var stagingBuffer = new SequentialGPUBuffer<Integer>(
-                deviceContext,
-                indices.length,
-                Integer.BYTES,
-                VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                ByteBuffer::putInt);
-        stagingBuffer.pushElements(indices);
-        stagingBuffer.copyToAndWait(commandPool.getHandle(),
-                                    deviceContext.getTransferQueue(),
-                                    indexBuffer);
+                writer);
+        stagingBuffer.pushElements(values);
+        stagingBuffer.copyToAndWait(commandPool.getHandle(), deviceContext.getTransferQueue(), buffer);
         stagingBuffer.close();
     }
 

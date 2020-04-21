@@ -62,11 +62,6 @@ final class Meshes {
             }
 
             final var meshVertices = new PolygonVertex[vertices.size()];
-            if (skipCount > 0) {
-                PROFILER.log("-> Skipped {} empty chunk{}",
-                             skipCount,
-                             skipCount > 1 ? "s" : "");
-            }
 
             assert vertices.size() == normals.size() && vertices.size() == indices.size()
                     : "There should be equal number of vertices, normals and indices within a chunk!";
@@ -75,8 +70,6 @@ final class Meshes {
             totalVertexCount += vertices.size();
             maxVertexCount = Math.max(maxVertexCount, vertices.size());
             ++totalChunksWithVerts;
-
-            PROFILER.log("-> Creating chunk mesh with {} vertices", vertices.size());
 
             final var vertexIter = vertices.iterator();
             final var normalIter = normals.iterator();
@@ -99,7 +92,7 @@ final class Meshes {
         }
 
         final var averageVertexCount = totalVertexCount / (double) totalChunksWithVerts;
-        PROFILER.log("-> There are {} vertices per chunk (average in chunks with vertices)",
+        PROFILER.log("-> There are {} vertices per chunk (average in non-empty)",
                      String.format("%.2f", averageVertexCount));
         PROFILER.log("-> The maximum per-chunk vertex count is {}", maxVertexCount);
         PROFILER.log("-> There were {} empty chunks", totalSkipped);
