@@ -2,11 +2,13 @@ package caves.visualization;
 
 import caves.generator.ChunkCaveSampleSpace;
 import caves.generator.PathGenerator;
+import caves.generator.SampleSpaceChunk;
 import caves.generator.density.EdgeDensityFunction;
 import caves.generator.density.PathDensityFunction;
 import caves.generator.mesh.MeshGenerator;
 import caves.util.collections.GrowingAddOnlyList;
 import caves.util.collections.LongMap;
+import caves.util.math.BoundingBox;
 import caves.util.math.Vector3;
 import caves.visualization.rendering.command.CommandPool;
 import caves.visualization.rendering.mesh.Mesh;
@@ -20,6 +22,7 @@ import org.lwjgl.vulkan.VkSubmitInfo;
 import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static caves.generator.ChunkCaveSampleSpace.CHUNK_SIZE;
 import static caves.util.math.MathUtil.fastFloor;
@@ -49,8 +52,14 @@ public final class Application implements AutoCloseable {
     private final long[] imagesInFlight;
     private final float lookAtDistance;
 
-    @Nullable private Collection<Mesh<PolygonVertex>> caveMeshes;
-    @Nullable private Mesh<LineVertex> lineMesh;
+    private final LongMap<QueuedChunk> queuedChunks = new LongMap<>(1024);
+    private final Object chunkQueueLock = new Object();
+    private final AtomicInteger queuedChunkCount = new AtomicInteger(0);
+    private final LongMap<Mesh<PolygonVertex>> chunkMeshes = new LongMap<>(1024);
+    private final Collection<Mesh<PolygonVertex>> caveMeshes = new GrowingAddOnlyList<>(128);
+
+    private final Vector3 middle;
+    @Nullable private final Mesh<LineVertex> lineMesh;
 
     /** Indicates that framebuffers have just resized and the swapchain should be re-created. */
     private boolean framebufferResized;
@@ -98,54 +107,58 @@ public final class Application implements AutoCloseable {
                                                      caveRadius,
                                                      floorFlatness);
 
-        final var sampleSpace = new ChunkCaveSampleSpace(
-                samplesPerUnit,
-                new PathDensityFunction(cavePath,
-                                        caveRadius,
-                                        maxInfluenceRadius,
-                                        edgeFunc));
+        final var sampleSpace = new ChunkCaveSampleSpace(samplesPerUnit,
+                                                         new PathDensityFunction(cavePath,
+                                                                                 caveRadius,
+                                                                                 maxInfluenceRadius,
+                                                                                 edgeFunc),
+                                                         surfaceLevel);
+
+        final var meshGenerator = new MeshGenerator(sampleSpace);
+
+        // TODO: Run in another thread
+        final var generatorThread = new Thread(
+                () -> {
+                    PROFILER.start("Chunk generator");
+                    meshGenerator.generate(cavePath, surfaceLevel, (x, y, z, chunk) -> {
+                        final var chunkX = fastFloor(x / (float) CHUNK_SIZE);
+                        final var chunkY = fastFloor(y / (float) CHUNK_SIZE);
+                        final var chunkZ = fastFloor(z / (float) CHUNK_SIZE);
+                        final var index = ChunkCaveSampleSpace.chunkIndex(chunkX, chunkY, chunkZ);
+
+                        final var vertices = chunk.getVertices();
+                        final var normals = chunk.getNormals();
+                        final var indices = chunk.getIndices();
+
+                        if (vertices == null || indices == null || normals == null) {
+                            return;
+                        }
+
+                        synchronized (this.chunkQueueLock) {
+                            this.queuedChunks.put(index, new QueuedChunk(index, chunk));
+                        }
+                        this.queuedChunkCount.incrementAndGet();
+                    });
+
+                    this.queuedChunkCount.set(100000);
+
+                    PROFILER.log("-> Generated {} vertices.",
+                                 sampleSpace.getTotalVertices());
+                    PROFILER.log("-> Sample space is split into {} chunks.",
+                                 sampleSpace.getChunkCount());
+                    PROFILER.end();
+                });
+        generatorThread.setName("chunk-gen");
 
         try (var commandPool = new CommandPool(deviceContext,
                                                deviceContext.getQueueFamilies().getTransfer())
         ) {
-            final var middle = cavePath.getAveragePosition();
-
-            final var meshGenerator = new MeshGenerator(sampleSpace);
-            final var chunkMeshes = new LongMap<Mesh<PolygonVertex>>(1024);
-
-            meshGenerator.generate(cavePath, surfaceLevel, (x, y, z, chunk) -> {
-                final var chunkX = fastFloor(x / (float) CHUNK_SIZE);
-                final var chunkY = fastFloor(y / (float) CHUNK_SIZE);
-                final var chunkZ = fastFloor(z / (float) CHUNK_SIZE);
-                final var index = ChunkCaveSampleSpace.chunkIndex(chunkX, chunkY, chunkZ);
-
-                final var vertices = chunk.getVertices();
-                final var normals = chunk.getNormals();
-                final var indices = chunk.getIndices();
-
-                if (vertices == null || indices == null || normals == null) {
-                    return;
-                }
-
-                final var existing = chunkMeshes.get(index);
-                if (existing != null) {
-                    existing.close();
-                }
-
-                chunkMeshes.put(index, Meshes.createChunkMesh(middle,
-                                                              deviceContext,
-                                                              commandPool,
-                                                              chunk.getVertices(),
-                                                              chunk.getNormals(),
-                                                              chunk.getIndices()));
-            });
-            this.caveMeshes = new GrowingAddOnlyList<>(chunkMeshes.getSize());
-            chunkMeshes.values().forEach(this.caveMeshes::add);
+            this.middle = cavePath.getAveragePosition();
 
             PROFILER.next("Creating path visualization (line mesh)");
             this.lineMesh = linesVisible
                     ? Meshes.createLineMesh(cavePath,
-                                            middle,
+                                            this.middle,
                                             deviceContext,
                                             commandPool)
                     : null;
@@ -154,13 +167,7 @@ public final class Application implements AutoCloseable {
 
             logGPUMemoryProfilingInfo(deviceContext);
         }
-        this.appContext.setMeshes(this.caveMeshes, this.lineMesh);
-
-        PROFILER.log("-> Generated {} vertices.", sampleSpace.getTotalVertices());
-        PROFILER.log("-> Sample space is split into {} chunks.", sampleSpace.getChunkCount());
-        PROFILER.log("-> (Chunk size is {}x{}x{} = {} samples).",
-                     CHUNK_SIZE, CHUNK_SIZE, CHUNK_SIZE,
-                     CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
+        this.appContext.setMeshes(null, this.lineMesh);
 
         PROFILER.end();
 
@@ -177,10 +184,13 @@ public final class Application implements AutoCloseable {
             this.imagesInFlight[i] = VK_NULL_HANDLE;
         }
 
-        this.lookAtDistance = Math.max(sampleSpace.getMin().length(),
-                                       sampleSpace.getMax().length()) + (float) caveRadius + 1;
+        final var allNodes = cavePath.getAllNodes();
+        final var bounds = new BoundingBox(allNodes, (float) caveRadius + 100f);
+        this.lookAtDistance = Math.max(bounds.getMin().length(), bounds.getMax().length());
 
         PROFILER.end();
+
+        generatorThread.start();
     }
 
     private static long[] createFences(final int count, final DeviceContext deviceContext) {
@@ -265,6 +275,8 @@ public final class Application implements AutoCloseable {
         var lastFrameTime = System.currentTimeMillis();
         this.framebufferResized = false;
         while (!this.appContext.getWindow().shouldClose()) {
+            runQueuedMeshTasks();
+
             final var currentTime = System.currentTimeMillis();
             final var delta = (lastFrameTime - currentTime) / 1000.0;
             lastFrameTime = currentTime;
@@ -288,6 +300,57 @@ public final class Application implements AutoCloseable {
             submitCommandBuffer(imageIndex, frameIndex);
             presentFrame(imageIndex, frameIndex);
             currentFrame++;
+        }
+    }
+
+    private void runQueuedMeshTasks() {
+        if (this.queuedChunkCount.get() < 100) {
+            return;
+        }
+
+        final Collection<QueuedChunk> queue;
+        synchronized (this.chunkQueueLock) {
+            queue = this.queuedChunks.values();
+            this.queuedChunks.clear();
+            this.queuedChunkCount.set(0);
+        }
+
+        if (queue.size() > 0) {
+            // Wait until everything has finished
+            final var deviceContext = this.appContext.getDeviceContext();
+            vkQueueWaitIdle(deviceContext.getGraphicsQueue());
+            vkQueueWaitIdle(deviceContext.getPresentQueue());
+
+            try (var commandPool = new CommandPool(deviceContext,
+                                                   deviceContext.getQueueFamilies().getTransfer())
+            ) {
+                for (final var chunk : queue) {
+                    final var existing = this.chunkMeshes.get(chunk.index);
+                    if (existing != null) {
+                        // XXX: Could we flush the render queues by waiting here? Then destroy the meshes
+                        //      and do full cmd buffer re-create?
+                        existing.close();
+                    }
+
+                    final var vertices = chunk.chunk.getVertices();
+                    final var normals = chunk.chunk.getNormals();
+                    final var indices = chunk.chunk.getIndices();
+                    if (vertices == null || indices == null || normals == null) {
+                        continue;
+                    }
+
+                    this.chunkMeshes.put(chunk.index, Meshes.createChunkMesh(this.middle,
+                                                                             deviceContext,
+                                                                             commandPool,
+                                                                             vertices,
+                                                                             normals,
+                                                                             indices));
+                }
+            }
+
+            this.caveMeshes.clear();
+            this.caveMeshes.addAll(this.chunkMeshes.values());
+            this.appContext.setMeshes(this.caveMeshes, this.lineMesh);
         }
     }
 
@@ -391,10 +454,8 @@ public final class Application implements AutoCloseable {
             vkDestroyFence(device, this.inFlightFences[i], null);
         }
 
-        if (this.caveMeshes != null) {
-            for (final var mesh : this.caveMeshes) {
-                mesh.close();
-            }
+        for (final var mesh : this.caveMeshes) {
+            mesh.close();
         }
         if (this.lineMesh != null) {
             this.lineMesh.close();
@@ -403,4 +464,13 @@ public final class Application implements AutoCloseable {
         this.appContext.close();
     }
 
+    private static class QueuedChunk {
+        private final long index;
+        private final SampleSpaceChunk chunk;
+
+        public QueuedChunk(final long index, final SampleSpaceChunk chunk) {
+            this.index = index;
+            this.chunk = chunk;
+        }
+    }
 }

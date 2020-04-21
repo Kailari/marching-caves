@@ -1,6 +1,7 @@
 package caves.util.collections;
 
 import javax.annotation.Nullable;
+import java.util.Collection;
 import java.util.function.Supplier;
 
 /**
@@ -8,7 +9,7 @@ import java.util.function.Supplier;
  */
 public class LongMap<T> {
     @SuppressWarnings("rawtypes")
-    private final Entry[] buckets;
+    private Entry[] buckets;
 
     private int size;
 
@@ -32,18 +33,23 @@ public class LongMap<T> {
      * @param value added value
      */
     @SuppressWarnings({"rawtypes", "unchecked"})
-    public void put(final long index, final T value) {
+    public void put(final long index, @Nullable final T value) {
         final var entry = new Entry(index, value, null);
         final var bucket = index % this.buckets.length;
 
         var existing = this.buckets[(int) bucket];
         if (existing == null) {
-            this.buckets[(int) bucket] = entry;
-            ++this.size;
+            if (value != null) {
+                this.buckets[(int) bucket] = entry;
+                ++this.size;
+            }
         } else {
             while (existing.next != null) {
                 if (existing.index == index) {
                     existing.value = value;
+                    if (value == null) {
+                        --this.size;
+                    }
                     return;
                 }
                 existing = existing.next;
@@ -51,9 +57,14 @@ public class LongMap<T> {
 
             if (existing.index == index) {
                 existing.value = value;
+                if (value == null) {
+                    --this.size;
+                }
             } else {
-                existing.next = entry;
-                ++this.size;
+                if (value != null) {
+                    existing.next = entry;
+                    ++this.size;
+                }
             }
         }
     }
@@ -80,12 +91,14 @@ public class LongMap<T> {
     }
 
     @SuppressWarnings("unchecked")
-    public Iterable<T> values() {
+    public Collection<T> values() {
         final var allValues = new GrowingAddOnlyList<T>(this.size);
         for (final var bucket : this.buckets) {
             var entry = bucket;
             while (entry != null) {
-                allValues.add((T) entry.value);
+                if (entry.value != null) {
+                    allValues.add((T) entry.value);
+                }
                 entry = entry.next;
             }
         }
@@ -107,13 +120,33 @@ public class LongMap<T> {
         return newValue;
     }
 
+    public void clear() {
+        this.buckets = new Entry[this.buckets.length];
+        this.size = 0;
+    }
+
+    public Iterable<Long> keys() {
+        final var allKeys = new GrowingAddOnlyList<Long>(this.size);
+        for (final var bucket : this.buckets) {
+            var entry = bucket;
+            while (entry != null) {
+                if (entry.value != null) {
+                    allKeys.add(entry.index);
+                }
+                entry = entry.next;
+            }
+        }
+
+        return allKeys;
+    }
+
     private static class Entry<T> {
         private final long index;
-        private T value;
+        @Nullable private T value;
 
         @Nullable private Entry<T> next;
 
-        public Entry(final long index, final T value, @Nullable final Entry<T> next) {
+        public Entry(final long index, @Nullable final T value, @Nullable final Entry<T> next) {
             this.index = index;
             this.value = value;
             this.next = next;

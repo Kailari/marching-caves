@@ -2,8 +2,6 @@ package caves.util.collections;
 
 import org.junit.jupiter.api.Test;
 
-import java.util.stream.StreamSupport;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class TestLongMap {
@@ -58,7 +56,6 @@ public class TestLongMap {
         }
 
         assertEquals(123,
-                     StreamSupport.stream(map.values().spliterator(), false)
-                                  .count());
+                     (long) map.values().size());
     }
 }

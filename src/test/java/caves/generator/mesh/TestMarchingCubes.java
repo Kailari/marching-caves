@@ -40,7 +40,7 @@ public class TestMarchingCubes {
                                                        .orElse(caveRadius * caveRadius);
                     return Math.min(1.0f, distance / caveRadius);
                 };
-        final var sampleSpace = new ChunkCaveSampleSpace(samplesPerUnit, densityFunction);
+        final var sampleSpace = new ChunkCaveSampleSpace(samplesPerUnit, densityFunction, surfaceLevel);
 
         final var meshGenerator = new MeshGenerator(sampleSpace);
         meshGenerator.generate(cavePath, surfaceLevel, (x, y, z, chunk) -> {});

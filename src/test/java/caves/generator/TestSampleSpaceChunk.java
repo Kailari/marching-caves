@@ -6,16 +6,17 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class TestSampleSpaceChunk {
+    float surfaceLevel = 0.5f;
     ChunkCaveSampleSpace sampleSpace;
 
     @BeforeEach
     void beforeEach() {
-        sampleSpace = new ChunkCaveSampleSpace(1.0f, (v) -> v.x + v.y + v.z);
+        sampleSpace = new ChunkCaveSampleSpace(1.0f, (v) -> v.x + v.y + v.z, surfaceLevel);
     }
 
     @Test
     void correctSamplesPerUnitIsStored() {
-        assertEquals(4.2f, new ChunkCaveSampleSpace(4.2f, v -> 0.0f).getSamplesPerUnit());
+        assertEquals(4.2f, new ChunkCaveSampleSpace(4.2f, v -> 0.0f, surfaceLevel).getSamplesPerUnit());
     }
 
     @Test

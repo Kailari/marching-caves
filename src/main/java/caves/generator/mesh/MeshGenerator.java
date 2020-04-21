@@ -96,11 +96,13 @@ public class MeshGenerator {
 
         PROFILER.log("-> Starting flood fill at {}",
                      String.format("(%d, %d, %d)", startX, startY, startZ));
+        this.sampleSpace.compact();
 
+        this.sampleSpace.markQueued(startX, startY, startZ);
+        this.sampleSpace.popQueued(startX, startY, startZ);
         final var startFacings = MarchingCubes.appendToMesh(this.sampleSpace,
                                                             startX, startY, startZ,
                                                             surfaceLevel);
-        this.sampleSpace.markQueued(startX, startY, startZ);
 
         final var fifoFacingQueue = new ArrayDeque<FloodFillEntry>();
         var maxQueueSize = 0;

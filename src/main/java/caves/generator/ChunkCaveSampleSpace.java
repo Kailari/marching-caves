@@ -6,6 +6,7 @@ import caves.util.math.Vector3;
 import java.util.function.Function;
 
 import static caves.util.math.MathUtil.fastFloor;
+import static caves.util.profiler.Profiler.PROFILER;
 
 public class ChunkCaveSampleSpace {
     public static final int CHUNK_SIZE = 32;
@@ -14,6 +15,7 @@ public class ChunkCaveSampleSpace {
     private final Function<Vector3, Float> densityFunction;
     private final float chunkSize;
     private final float samplesPerUnit;
+    private final float surfaceLevel;
 
     private Vector3 min = new Vector3();
     private Vector3 max = new Vector3();
@@ -60,10 +62,12 @@ public class ChunkCaveSampleSpace {
 
     public ChunkCaveSampleSpace(
             final float samplesPerUnit,
-            final Function<Vector3, Float> densityFunction
+            final Function<Vector3, Float> densityFunction,
+            final float surfaceLevel
     ) {
         this.densityFunction = densityFunction;
         this.samplesPerUnit = samplesPerUnit;
+        this.surfaceLevel = surfaceLevel;
 
         final var spaceBetweenSamples = (1.0f / this.samplesPerUnit);
         this.chunkSize = CHUNK_SIZE * spaceBetweenSamples;
@@ -100,7 +104,8 @@ public class ChunkCaveSampleSpace {
         final var chunk = new SampleSpaceChunk(startX,
                                                startY,
                                                startZ,
-                                               this.chunkSize);
+                                               this.chunkSize,
+                                               this.surfaceLevel);
         this.min = this.min.min(chunk.getMin(), this.min);
         this.max = this.max.max(chunk.getMax(), this.min);
         return chunk;
@@ -150,5 +155,21 @@ public class ChunkCaveSampleSpace {
 
     public boolean isChunkReady(final int x, final int y, final int z) {
         return getChunkAt(x, y, z).isReady(x, y, z);
+    }
+
+    /**
+     * Destroys all empty (fully non-solid) chunks
+     */
+    public void compact() {
+        final var keys = this.chunks.keys();
+        var count = 0;
+        for (final var index : keys) {
+            final var chunk = this.chunks.get(index);
+            if (chunk != null && !chunk.hasSolidSamples()) {
+                this.chunks.put(index, null);
+                ++count;
+            }
+        }
+        PROFILER.log("-> Compacted away {} chunks", count);
     }
 }

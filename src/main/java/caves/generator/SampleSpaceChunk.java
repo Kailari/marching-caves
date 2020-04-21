@@ -15,6 +15,7 @@ public final class SampleSpaceChunk {
     private static final int INITIAL_VERTEX_CAPACITY = 6000;
 
     private final BoundingBox bounds;
+    private final float surfaceLevel;
 
     @Nullable private float[] samples;
     @Nullable private boolean[] queued;
@@ -23,6 +24,7 @@ public final class SampleSpaceChunk {
     @Nullable private Collection<Integer> indices;
 
     private int nQueued;
+    private int solidSampleCount;
 
     /**
      * Gets the generated vertices for this chunk. This array is populated during generation in
@@ -133,8 +135,10 @@ public final class SampleSpaceChunk {
             final float startX,
             final float startY,
             final float startZ,
-            final float size
+            final float size,
+            final float surfaceLevel
     ) {
+        this.surfaceLevel = surfaceLevel;
         this.bounds = new BoundingBox(new Vector3(startX, startY, startZ),
                                       new Vector3(startX + size, startY + size, startZ + size));
     }
@@ -186,7 +190,12 @@ public final class SampleSpaceChunk {
 
         final var sampleIndex = getSampleIndex(x, y, z);
         if (Float.isNaN(this.samples[sampleIndex])) {
-            this.samples[sampleIndex] = densityFunction.get();
+            final var sample = densityFunction.get();
+            this.samples[sampleIndex] = sample;
+
+            if (sample < this.surfaceLevel) {
+                ++this.solidSampleCount;
+            }
         }
 
         return this.samples[sampleIndex];
@@ -237,5 +246,9 @@ public final class SampleSpaceChunk {
 
     public boolean isReady(final int x, final int y, final int z) {
         return this.nQueued == 0;
+    }
+
+    public boolean hasSolidSamples() {
+        return this.solidSampleCount > 0;
     }
 }
