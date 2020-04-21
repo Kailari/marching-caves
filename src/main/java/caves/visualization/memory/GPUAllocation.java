@@ -12,7 +12,7 @@ import java.util.Optional;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.vulkan.VK10.*;
 
-public class GPUAllocation implements AutoCloseable {
+public final class GPUAllocation implements AutoCloseable {
     private final VkDevice device;
 
     private final long memoryHandle;
@@ -50,6 +50,11 @@ public class GPUAllocation implements AutoCloseable {
         return this.size;
     }
 
+    /**
+     * Gets the amount of memory actually in use.
+     *
+     * @return the memory in use
+     */
     public long getAmountOfMemoryInUse() {
         return this.slices.stream()
                           .mapToLong(GPUMemorySlice::getSize)
@@ -71,7 +76,7 @@ public class GPUAllocation implements AutoCloseable {
         this.device = device;
         this.size = size;
 
-        try (final var stack = stackPush()) {
+        try (var stack = stackPush()) {
             final var allocInfo = VkMemoryAllocateInfo
                     .callocStack(stack)
                     .sType(VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO)

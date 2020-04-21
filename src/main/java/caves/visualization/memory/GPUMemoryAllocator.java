@@ -13,7 +13,7 @@ import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.vulkan.VK10.vkGetBufferMemoryRequirements;
 import static org.lwjgl.vulkan.VK10.vkGetImageMemoryRequirements;
 
-public class GPUMemoryAllocator implements AutoCloseable {
+public final class GPUMemoryAllocator implements AutoCloseable {
     private static final Logger LOG = LoggerFactory.getLogger(GPUMemoryAllocator.class);
 
     // FIXME: Should this be get from vkPhysicalDeviceLimits::maxMemoryAllocationCount?
@@ -90,6 +90,12 @@ public class GPUMemoryAllocator implements AutoCloseable {
                                                 .orElse(0.0));
     }
 
+    /**
+     * Creates a new memory manager.
+     *
+     * @param memoryProperties memory properties of the physical device
+     * @param device           the logical device to allocate on
+     */
     public GPUMemoryAllocator(
             final VkPhysicalDeviceMemoryProperties memoryProperties,
             final LogicalDevice device
@@ -98,6 +104,14 @@ public class GPUMemoryAllocator implements AutoCloseable {
         this.device = device.getHandle();
     }
 
+    /**
+     * Allocates memory for a GPU buffer.
+     *
+     * @param handle        handle to the buffer
+     * @param propertyFlags desired properties
+     *
+     * @return memory slice pointing to the allocated memory
+     */
     public GPUMemorySlice allocateBufferMemory(final long handle, final int propertyFlags) {
         final GPUMemorySlice slice;
         try (var stack = stackPush()) {
@@ -111,6 +125,14 @@ public class GPUMemoryAllocator implements AutoCloseable {
         return slice;
     }
 
+    /**
+     * Allocates memory for a GPU image.
+     *
+     * @param handle        handle to the image
+     * @param propertyFlags desired properties
+     *
+     * @return memory slice pointing to the allocated memory
+     */
     public GPUMemorySlice allocateImageMemory(final long handle, final int propertyFlags) {
         final GPUMemorySlice slice;
         try (var stack = stackPush()) {

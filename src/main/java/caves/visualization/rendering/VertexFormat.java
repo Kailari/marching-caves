@@ -24,14 +24,29 @@ public final class VertexFormat<TVertex> {
     private final BiConsumer<ByteBuffer, TVertex> writer;
     private final int sizeInBytes;
 
+    /**
+     * Gets the vertex attribute descriptions.
+     *
+     * @return the vertex attribute descriptions
+     */
     public VkVertexInputAttributeDescription[] getAttributeDescriptions() {
         return this.attributes;
     }
 
+    /**
+     * Gets the vertex input binding descriptions.
+     *
+     * @return the binding descriptions
+     */
     public VkVertexInputBindingDescription[] getBindingDescriptions() {
         return this.bindings;
     }
 
+    /**
+     * Gets size of a single vertex in bytes.
+     *
+     * @return the size of a single vertex, in bytes
+     */
     public int getSizeInBytes() {
         return this.sizeInBytes;
     }
@@ -48,10 +63,23 @@ public final class VertexFormat<TVertex> {
         this.sizeInBytes = sizeInBytes;
     }
 
+    /**
+     * Creates a new format builder.
+     *
+     * @param <TVertex> vertex type
+     *
+     * @return the builder
+     */
     public static <TVertex> Builder<TVertex> builder() {
         return new Builder<>();
     }
 
+    /**
+     * Writes the vertex to the buffer.
+     *
+     * @param buffer buffer to write to
+     * @param vertex the vertex to write
+     */
     public void write(final ByteBuffer buffer, final TVertex vertex) {
         this.writer.accept(buffer, vertex);
     }

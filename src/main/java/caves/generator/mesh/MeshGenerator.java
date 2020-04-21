@@ -6,13 +6,12 @@ import caves.generator.SampleSpaceChunk;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static caves.util.profiler.Profiler.PROFILER;
 
-public class MeshGenerator {
+public final class MeshGenerator {
     private static final int X = 0;
     private static final int Y = 1;
     private static final int Z = 2;
@@ -32,6 +31,9 @@ public class MeshGenerator {
         this.sampleSpace = sampleSpace;
     }
 
+    /**
+     * Shuts down the generator threads.
+     */
     public void kill() {
         this.killSwitch.set(true);
     }
@@ -47,6 +49,7 @@ public class MeshGenerator {
      * @param cavePath     cave path to iterate for potential starting positions
      * @param surfaceLevel surface level, any sample density below this is considered empty space
      * @param readyChunks  consumer which will be supplied with chunks that are "ready"
+     * @param onReady      task to run when generation finishes
      */
     public void generate(
             final CavePath cavePath,
@@ -158,6 +161,14 @@ public class MeshGenerator {
     }
 
     public interface ReadyChunkConsumer {
+        /**
+         * Accepts a "ready" chunk.
+         *
+         * @param x     sample x-index which was last generated
+         * @param y     sample y-index which was last generated
+         * @param z     sample z-index which was last generated
+         * @param chunk chunk which is now ready
+         */
         void accept(int x, int y, int z, SampleSpaceChunk chunk);
     }
 

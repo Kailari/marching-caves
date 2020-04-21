@@ -6,6 +6,8 @@ import java.util.function.Supplier;
 
 /**
  * Map with longs as keys.
+ *
+ * @param <T> Type of the stored elements.
  */
 public class LongMap<T> {
     @SuppressWarnings("rawtypes")
@@ -16,12 +18,17 @@ public class LongMap<T> {
     /**
      * Gets the number of elements in this map .
      *
-     * @return the number of chunks stored
+     * @return the number of values stored
      */
     public int getSize() {
         return this.size;
     }
 
+    /**
+     * Creates a new map with initial capacity.
+     *
+     * @param initialCapacity initial capacity
+     */
     public LongMap(final int initialCapacity) {
         this.buckets = new Entry[initialCapacity];
     }
@@ -90,6 +97,11 @@ public class LongMap<T> {
         return null;
     }
 
+    /**
+     * Gets all values stored in this map.
+     *
+     * @return all values
+     */
     @SuppressWarnings("unchecked")
     public Collection<T> values() {
         final var allValues = new GrowingAddOnlyList<T>(this.size);
@@ -106,6 +118,14 @@ public class LongMap<T> {
         return allValues;
     }
 
+    /**
+     * Creates the given entry using the supplier if it does not exist already.
+     *
+     * @param index         index to check
+     * @param valueSupplier value supplier
+     *
+     * @return the created or stored value
+     */
     public T createIfAbsent(
             final long index,
             final Supplier<T> valueSupplier
@@ -120,11 +140,19 @@ public class LongMap<T> {
         return newValue;
     }
 
+    /**
+     * Clears this map. All items are destroyed and size is set to zero.
+     */
     public void clear() {
         this.buckets = new Entry[this.buckets.length];
         this.size = 0;
     }
 
+    /**
+     * Gets all keys in this map.
+     *
+     * @return all keys
+     */
     public Iterable<Long> keys() {
         final var allKeys = new GrowingAddOnlyList<Long>(this.size);
         for (final var bucket : this.buckets) {
@@ -146,7 +174,7 @@ public class LongMap<T> {
 
         @Nullable private Entry<T> next;
 
-        public Entry(final long index, @Nullable final T value, @Nullable final Entry<T> next) {
+        Entry(final long index, @Nullable final T value, @Nullable final Entry<T> next) {
             this.index = index;
             this.value = value;
             this.next = next;

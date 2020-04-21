@@ -2,7 +2,6 @@ package caves.visualization;
 
 import caves.util.math.Vector3;
 import caves.visualization.rendering.VertexFormat;
-import org.joml.Vector3f;
 
 import static org.lwjgl.vulkan.VK10.VK_FORMAT_R32G32B32_SFLOAT;
 

@@ -77,11 +77,11 @@ public final class EdgeDensityFunction {
         //               direction vectors are non-zero later on.
         if (distanceSq < 0.0000001) {
             final var contribution = new NodeContribution();
-            contribution.value = -1.0f;
-            contribution.floorness = 0.0f;
-            contribution.weight = 1.0f;
-            contribution.distance = 0.0;
-            contribution.hasContribution = true;
+            contribution.setValue(-1.0f);
+            contribution.setFloorness(0.0f);
+            contribution.setWeight(1.0f);
+            contribution.setDistance(0.0);
+            contribution.setHasContribution(true);
             return contribution;
         }
 
@@ -113,11 +113,11 @@ public final class EdgeDensityFunction {
         }
 
         final var contribution = new NodeContribution();
-        contribution.floorness = floorWeight;
-        contribution.value = caveContribution;
-        contribution.distance = distance;
-        contribution.weight = distanceAlpha;
-        contribution.hasContribution = true;
+        contribution.setFloorness(floorWeight);
+        contribution.setValue(caveContribution);
+        contribution.setDistance(distance);
+        contribution.setWeight(distanceAlpha);
+        contribution.setHasContribution(true);
         return contribution;
     }
 }

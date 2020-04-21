@@ -61,10 +61,10 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
         var summedFloorness = 0.0;
         final var edgeResult = new NodeContribution();
         for (final var nodeIndex : nodes) {
-            edgeResult.value = 0.0;
-            edgeResult.weight = 0.0;
-            edgeResult.floorness = 0.0;
-            edgeResult.hasContribution = false;
+            edgeResult.setValue(0.0);
+            edgeResult.setWeight(0.0);
+            edgeResult.setFloorness(0.0);
+            edgeResult.setHasContribution(false);
 
             final int previous = this.cavePath.getPreviousFor(nodeIndex);
             if (previous != -1) {
@@ -74,11 +74,11 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
                 calculateEdge(edgeResult, nodeIndex, n, position);
             }
 
-            if (edgeResult.hasContribution) {
-                final var weight = edgeResult.weight;
-                weightedTotal += weight * edgeResult.value;
-                summedFloorness += weight * edgeResult.floorness;
-                minDistance = Math.min(minDistance, edgeResult.distance);
+            if (edgeResult.hasContribution()) {
+                final var weight = edgeResult.getWeight();
+                weightedTotal += weight * edgeResult.getValue();
+                summedFloorness += weight * edgeResult.getFloorness();
+                minDistance = Math.min(minDistance, edgeResult.getDistance());
 
                 summedWeights += weight;
                 nContributions++;
@@ -143,12 +143,12 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
         }
 
         final var contribution = this.edgeDensityFunction.apply(position, closest, distanceSq);
-        if (contribution.hasContribution) {
-            result.value = Math.min(result.value, contribution.value);
-            result.weight = Math.max(result.weight, weightSq);
-            result.distance = Math.min(result.distance, contribution.distance);
-            result.floorness = Math.min(result.floorness, contribution.floorness);
-            result.hasContribution = true;
+        if (contribution.hasContribution()) {
+            result.setValue(Math.min(result.getValue(), contribution.getValue()));
+            result.setWeight(Math.max(result.getWeight(), weightSq));
+            result.setDistance(Math.min(result.getDistance(), contribution.getDistance()));
+            result.setFloorness(Math.min(result.getFloorness(), contribution.getFloorness()));
+            result.setHasContribution(true);
         }
     }
 }

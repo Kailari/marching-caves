@@ -14,7 +14,7 @@ import static caves.generator.ChunkCaveSampleSpace.CHUNK_SIZE;
 public final class SampleSpaceChunk {
     private static final int INITIAL_VERTEX_CAPACITY = 6000;
 
-    private final ChunkLock lock = new ChunkLock();
+    private final Object lock = new Object();
     private final BoundingBox bounds;
     private final float surfaceLevel;
 
@@ -124,17 +124,33 @@ public final class SampleSpaceChunk {
         return this.bounds.getMax();
     }
 
-    public ChunkLock getLock() {
+    /**
+     * Gets a synchronization lock for this chunk.
+     *
+     * @return the lock
+     */
+    public Object getLock() {
         return this.lock;
+    }
+
+    /**
+     * Heuristic check for "readiness" of this chunk. Chunks considered ready are selected for mesh
+     * (re-)generation.
+     *
+     * @return <code>true</code> if this chunk is ready for mesh generation
+     */
+    public boolean isReady() {
+        return this.nQueued == 0;
     }
 
     /**
      * Creates a new sample space for the given region of space.
      *
-     * @param startX start x-coordinate of the region
-     * @param startY start y-coordinate of the region
-     * @param startZ start z-coordinate of the region
-     * @param size   size on the x-axis (in units)
+     * @param startX       start x-coordinate of the region
+     * @param startY       start y-coordinate of the region
+     * @param startZ       start z-coordinate of the region
+     * @param size         size on the x-axis (in units)
+     * @param surfaceLevel the isosurface density level
      */
     public SampleSpaceChunk(
             final float startX,
@@ -178,9 +194,10 @@ public final class SampleSpaceChunk {
     /**
      * Calculates density for the sample at given per-axis sample indices.
      *
-     * @param x index of the sample on the x-axis
-     * @param y index of the sample on the y-axis
-     * @param z index of the sample on the z-axis
+     * @param x               index of the sample on the x-axis
+     * @param y               index of the sample on the y-axis
+     * @param z               index of the sample on the z-axis
+     * @param densityFunction the density function
      *
      * @return the density of the sample
      */
@@ -249,10 +266,12 @@ public final class SampleSpaceChunk {
         --this.nQueued;
     }
 
-    public boolean isReady(final int x, final int y, final int z) {
-        return this.nQueued == 0;
-    }
-
+    /**
+     * Checks whether or not this chunk has any solid samples. This is used to compact empty chunks
+     * out of the sample space.
+     *
+     * @return <code>true</code> if this chunk has at least one solid sample
+     */
     public boolean hasSolidSamples() {
         return this.solidSampleCount > 0;
     }

@@ -478,7 +478,7 @@ public final class Application implements AutoCloseable {
         private final long index;
         private final SampleSpaceChunk chunk;
 
-        public QueuedChunk(final long index, final SampleSpaceChunk chunk) {
+        QueuedChunk(final long index, final SampleSpaceChunk chunk) {
             this.index = index;
             this.chunk = chunk;
         }

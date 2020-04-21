@@ -132,6 +132,13 @@ public final class GLFWVulkanWindow implements AutoCloseable {
     }
 
     public interface ResizeCallback {
+        /**
+         * Called when window is resized.
+         *
+         * @param windowHandle window handle
+         * @param width        new width
+         * @param height       new height
+         */
         void resize(long windowHandle, int width, int height);
     }
 }

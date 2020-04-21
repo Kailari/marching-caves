@@ -58,6 +58,7 @@ public final class CavePath {
     /**
      * Constructs a new empty path.
      *
+     * @param nodeCount          node capacity
      * @param maxInfluenceRadius maximum density influence radius of a node
      */
     public CavePath(final int nodeCount, final float maxInfluenceRadius) {

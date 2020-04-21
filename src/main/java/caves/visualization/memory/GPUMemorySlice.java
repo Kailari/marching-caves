@@ -8,29 +8,52 @@ import static org.lwjgl.system.MemoryUtil.memAddress;
 import static org.lwjgl.system.MemoryUtil.memCopy;
 import static org.lwjgl.vulkan.VK10.*;
 
-public class GPUMemorySlice implements AutoCloseable {
+public final class GPUMemorySlice implements AutoCloseable {
     private final GPUAllocation allocation;
     private final long offset;
     private final long size;
 
+    /**
+     * Gets the memory offset for this slice.
+     *
+     * @return the offset
+     */
     public long getOffset() {
         return this.offset;
     }
 
+    /**
+     * Gets the size of this slice.
+     *
+     * @return the size
+     */
     public long getSize() {
         return this.size;
     }
 
-    public GPUMemorySlice(final GPUAllocation allocation, final long offset, final long size) {
+    /**
+     * Creates a new slice, pointing at the given allocation.
+     *
+     * @param allocation allocation this slice is from
+     * @param offset     offset from the beginning of the allocation
+     * @param size       size in bytes
+     */
+    GPUMemorySlice(final GPUAllocation allocation, final long offset, final long size) {
         this.allocation = allocation;
         this.offset = offset;
         this.size = size;
     }
 
-    public boolean overlaps(final long a0, final long b0) {
-        final var a1 = this.offset;
-        final var b1 = a1 + this.size;
-        return a0 < b1 && b0 > a1;
+    /**
+     * Checks if this slice overlaps with the given memory region.
+     *
+     * @param start start of the region
+     * @param end   end of the region
+     *
+     * @return <code>true</code> if this slice overlaps with the given region
+     */
+    boolean overlaps(final long start, final long end) {
+        return start < this.offset + this.size && end > this.offset;
     }
 
     /**
@@ -55,7 +78,6 @@ public class GPUMemorySlice implements AutoCloseable {
      *
      * @param handle the buffer handle
      */
-
     public void bindImage(final long handle) {
         final var result = vkBindImageMemory(this.allocation.getDevice(),
                                              handle,
@@ -66,6 +88,12 @@ public class GPUMemorySlice implements AutoCloseable {
         }
     }
 
+    /**
+     * Pushes some memory onto this slice.
+     *
+     * @param buffer     buffer which contents to push
+     * @param bufferSize size of the buffer
+     */
     public void push(final ByteBuffer buffer, final long bufferSize) {
         final long data;
         try (var stack = stackPush()) {
