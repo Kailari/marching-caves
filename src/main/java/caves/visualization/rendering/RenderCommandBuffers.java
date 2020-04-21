@@ -1,7 +1,6 @@
 package caves.visualization.rendering;
 
 import caves.visualization.LineVertex;
-import caves.visualization.PointVertex;
 import caves.visualization.PolygonVertex;
 import caves.visualization.rendering.command.CommandBuffer;
 import caves.visualization.rendering.command.CommandPool;
@@ -21,15 +20,14 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
     private final VkDevice device;
     private final CommandPool commandPool;
     private final SwapChain swapChain;
-    private final GraphicsPipeline<PointVertex> pointPipeline;
     private final GraphicsPipeline<LineVertex> linePipeline;
     private final GraphicsPipeline<PolygonVertex> polygonPipeline;
     private final RenderPass renderPass;
 
-    @Nullable private Mesh<PointVertex> pointMesh;
     @Nullable private Mesh<LineVertex> lineMesh;
     @Nullable private Collection<Mesh<PolygonVertex>> polygonMeshes;
 
+    @SuppressWarnings("NotNullFieldNotInitialized")
     private CommandBuffer[] commandBuffers;
     private boolean cleanedUp;
 
@@ -39,11 +37,9 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
      * @param deviceContext   the device context to use
      * @param commandPool     command pool to allocate on
      * @param swapChain       active swapchain
-     * @param pointPipeline   the graphics pipeline for rendering meshes as points
      * @param linePipeline    the graphics pipeline for rendering meshes as line strips
      * @param polygonPipeline the graphics pipeline for rendering meshes as triangles
      * @param renderPass      the render pass to record commands for
-     * @param pointMesh       mesh to render as points
      * @param lineMesh        mesh to render as lines
      * @param polygonMeshes   mesh to render as polygons
      */
@@ -51,22 +47,18 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
             final DeviceContext deviceContext,
             final CommandPool commandPool,
             final SwapChain swapChain,
-            final GraphicsPipeline<PointVertex> pointPipeline,
             final GraphicsPipeline<LineVertex> linePipeline,
             final GraphicsPipeline<PolygonVertex> polygonPipeline,
             final RenderPass renderPass,
-            @Nullable final Mesh<PointVertex> pointMesh,
             @Nullable final Mesh<LineVertex> lineMesh,
             @Nullable final Collection<Mesh<PolygonVertex>> polygonMeshes
     ) {
         this.device = deviceContext.getDeviceHandle();
         this.commandPool = commandPool;
         this.swapChain = swapChain;
-        this.pointPipeline = pointPipeline;
         this.linePipeline = linePipeline;
         this.polygonPipeline = polygonPipeline;
         this.renderPass = renderPass;
-        this.pointMesh = pointMesh;
         this.lineMesh = lineMesh;
         this.polygonMeshes = polygonMeshes;
 
@@ -115,11 +107,6 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
                     }
                 }
 
-                if (this.pointMesh != null) {
-                    this.pointPipeline.bind(this.commandBuffers[imageIndex], imageIndex);
-                    this.pointMesh.draw(this.commandBuffers[imageIndex].getHandle());
-                }
-
                 if (this.lineMesh != null) {
                     this.linePipeline.bind(this.commandBuffers[imageIndex], imageIndex);
                     this.lineMesh.draw(this.commandBuffers[imageIndex].getHandle());
@@ -151,8 +138,8 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
      * @param lineMesh   line mesh
      */
     public void setMeshes(
-            final Collection<Mesh<PolygonVertex>> caveMeshes,
-            final Mesh<LineVertex> lineMesh
+            @Nullable final Collection<Mesh<PolygonVertex>> caveMeshes,
+            @Nullable final Mesh<LineVertex> lineMesh
     ) {
         this.polygonMeshes = caveMeshes;
         this.lineMesh = lineMesh;

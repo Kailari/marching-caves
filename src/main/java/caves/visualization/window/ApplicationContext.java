@@ -1,14 +1,12 @@
 package caves.visualization.window;
 
 import caves.visualization.LineVertex;
-import caves.visualization.PointVertex;
 import caves.visualization.PolygonVertex;
 import caves.visualization.rendering.RenderingContext;
 import caves.visualization.rendering.mesh.Mesh;
 import org.lwjgl.PointerBuffer;
 
 import javax.annotation.Nullable;
-
 import java.util.Collection;
 
 import static org.lwjgl.glfw.GLFW.glfwInit;
@@ -93,7 +91,6 @@ public final class ApplicationContext implements AutoCloseable {
                                                    stack.pointers(stack.UTF8(VK_KHR_SWAPCHAIN_EXTENSION_NAME)));
             this.renderContext = new RenderingContext(null,
                                                       null,
-                                                      null,
                                                       this.deviceContext,
                                                       this.window.getSurfaceHandle(),
                                                       this.window.getHandle());
@@ -117,8 +114,8 @@ public final class ApplicationContext implements AutoCloseable {
     /**
      * Updates the rendered meshes.
      *
-     * @param caveMeshes  polygon mesh
-     * @param lineMesh  line mesh
+     * @param caveMeshes polygon mesh
+     * @param lineMesh   line mesh
      */
     public void setMeshes(
             @Nullable final Collection<Mesh<PolygonVertex>> caveMeshes,

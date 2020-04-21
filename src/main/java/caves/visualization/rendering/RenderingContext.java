@@ -1,7 +1,6 @@
 package caves.visualization.rendering;
 
 import caves.visualization.LineVertex;
-import caves.visualization.PointVertex;
 import caves.visualization.PolygonVertex;
 import caves.visualization.rendering.command.CommandPool;
 import caves.visualization.rendering.mesh.Mesh;
@@ -31,7 +30,6 @@ public final class RenderingContext implements AutoCloseable {
 
     private final SwapChain swapChain;
     private final RenderPass renderPass;
-    private final GraphicsPipeline<PointVertex> pointPipeline;
     private final GraphicsPipeline<LineVertex> linePipeline;
     private final GraphicsPipeline<PolygonVertex> polygonPipeline;
     private final CommandPool commandPool;
@@ -64,7 +62,6 @@ public final class RenderingContext implements AutoCloseable {
     /**
      * Initializes the required context for rendering on the screen.
      *
-     * @param pointMesh     mesh to be rendered as points
      * @param lineMesh      mesh to be rendered as lines
      * @param polygonMeshes mesh to be rendered as polygons
      * @param deviceContext device context information to use for creating the swapchain
@@ -72,7 +69,6 @@ public final class RenderingContext implements AutoCloseable {
      * @param windowHandle  handle to the window
      */
     public RenderingContext(
-            @Nullable final Mesh<PointVertex> pointMesh,
             @Nullable final Mesh<LineVertex> lineMesh,
             @Nullable final Collection<Mesh<PolygonVertex>> polygonMeshes,
             final DeviceContext deviceContext,
@@ -90,15 +86,6 @@ public final class RenderingContext implements AutoCloseable {
         this.uniformBufferObject = new UniformBufferObject(this.deviceContext, this.swapChain, this.descriptorPool);
 
         this.renderPass = new RenderPass(this.deviceContext, this.swapChain);
-
-        this.pointPipeline = new GraphicsPipeline<>(deviceContext.getDeviceHandle(),
-                                                    this.swapChain,
-                                                    this.renderPass,
-                                                    this.uniformBufferObject,
-                                                    "points",
-                                                    "shader",
-                                                    PointVertex.FORMAT,
-                                                    VK_PRIMITIVE_TOPOLOGY_POINT_LIST);
 
         this.linePipeline = new GraphicsPipeline<>(deviceContext.getDeviceHandle(),
                                                    this.swapChain,
@@ -121,11 +108,9 @@ public final class RenderingContext implements AutoCloseable {
         this.renderCommandBuffers = new RenderCommandBuffers(deviceContext,
                                                              this.commandPool,
                                                              this.swapChain,
-                                                             this.pointPipeline,
                                                              this.linePipeline,
                                                              this.polygonPipeline,
                                                              this.renderPass,
-                                                             pointMesh,
                                                              lineMesh,
                                                              polygonMeshes
         );
@@ -162,7 +147,6 @@ public final class RenderingContext implements AutoCloseable {
 
         this.renderCommandBuffers.cleanup();
 
-        this.pointPipeline.cleanup();
         this.linePipeline.cleanup();
         this.polygonPipeline.cleanup();
 
@@ -178,7 +162,6 @@ public final class RenderingContext implements AutoCloseable {
 
         this.renderPass.recreate();
 
-        this.pointPipeline.recreate();
         this.linePipeline.recreate();
         this.polygonPipeline.recreate();
 
@@ -204,7 +187,6 @@ public final class RenderingContext implements AutoCloseable {
         this.commandPool.close();
         this.descriptorPool.close();
 
-        this.pointPipeline.close();
         this.linePipeline.close();
         this.polygonPipeline.close();
 

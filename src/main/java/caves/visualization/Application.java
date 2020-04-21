@@ -5,6 +5,8 @@ import caves.generator.PathGenerator;
 import caves.generator.density.EdgeDensityFunction;
 import caves.generator.density.PathDensityFunction;
 import caves.generator.mesh.MeshGenerator;
+import caves.util.collections.GrowingAddOnlyList;
+import caves.util.collections.LongMap;
 import caves.util.math.Vector3;
 import caves.visualization.rendering.command.CommandPool;
 import caves.visualization.rendering.mesh.Mesh;
@@ -20,6 +22,7 @@ import java.util.Collection;
 import java.util.Optional;
 
 import static caves.generator.ChunkCaveSampleSpace.CHUNK_SIZE;
+import static caves.util.math.MathUtil.fastFloor;
 import static caves.util.profiler.Profiler.PROFILER;
 import static caves.visualization.window.VKUtil.translateVulkanResult;
 import static org.lwjgl.glfw.GLFW.glfwPollEvents;
@@ -46,8 +49,8 @@ public final class Application implements AutoCloseable {
     private final long[] imagesInFlight;
     private final float lookAtDistance;
 
-    @Nullable private final Collection<Mesh<PolygonVertex>> caveMeshes;
-    @Nullable private final Mesh<LineVertex> lineMesh;
+    @Nullable private Collection<Mesh<PolygonVertex>> caveMeshes;
+    @Nullable private Mesh<LineVertex> lineMesh;
 
     /** Indicates that framebuffers have just resized and the swapchain should be re-created. */
     private boolean framebufferResized;
@@ -58,22 +61,20 @@ public final class Application implements AutoCloseable {
      * @param validation should validation/debug features be enabled.
      */
     public Application(final boolean validation) {
-        final var caveLength = 200;
+        final var caveLength = 16000;
         final var spacing = 10f;
 
         final var surfaceLevel = 0.85f;
-        final var spaceBetweenSamples = 2.0f;
+        final var samplesPerUnit = 0.25f;
 
         final var floorFlatness = 0.65;
         final var caveRadius = 40.0;
         final var maxInfluenceRadius = caveRadius + 20;
 
-        final var meshVisible = true;
         final var linesVisible = true;
 
         final var start = new Vector3(0.0f, 0.0f, 0.0f);
         PROFILER.start("Initialization");
-        PROFILER.start("Generation step (The interesting part of the algorithm)");
 
         PROFILER.start("Generating path");
         final var cavePath = new PathGenerator().generate(start,
@@ -81,8 +82,18 @@ public final class Application implements AutoCloseable {
                                                           spacing,
                                                           (float) maxInfluenceRadius,
                                                           420);
-        PROFILER.next("Creating isosurface mesh with Marching Cubes");
-        final var samplesPerUnit = 1.0f / spaceBetweenSamples;
+        PROFILER.end();
+
+        PROFILER.start("Initializing the visualization");
+        this.appContext = new ApplicationContext(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT, validation);
+        this.appContext.getWindow()
+                       .onResize((windowHandle, width, height) -> this.framebufferResized = true);
+        final var deviceContext = this.appContext.getDeviceContext();
+        PROFILER.end();
+
+        PROFILER.start("Constructing the cave");
+
+        PROFILER.start("Creating isosurface mesh with Marching Cubes");
         final var edgeFunc = new EdgeDensityFunction(maxInfluenceRadius,
                                                      caveRadius,
                                                      floorFlatness);
@@ -94,68 +105,65 @@ public final class Application implements AutoCloseable {
                                         maxInfluenceRadius,
                                         edgeFunc));
 
-
-        final var meshGenerator = new MeshGenerator(sampleSpace);
-        meshGenerator.generate(cavePath, surfaceLevel);
-
-        PROFILER.end();
-        PROFILER.end();
-
-        PROFILER.log("Generated {} vertices.", sampleSpace.getTotalVertices());
-        PROFILER.log("Sample space is split into {} chunks.", sampleSpace.getChunkCount());
-        PROFILER.log("\t-> (Chunk size is {}x{}x{} = {} samples).",
-                     CHUNK_SIZE, CHUNK_SIZE, CHUNK_SIZE,
-                     CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
-
-        PROFILER.start("Initializing the visualization");
-        this.appContext = new ApplicationContext(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT, validation);
-        this.appContext.getWindow().onResize((windowHandle, width, height) -> this.framebufferResized = true);
-        final var deviceContext = this.appContext.getDeviceContext();
-
         try (var commandPool = new CommandPool(deviceContext,
                                                deviceContext.getQueueFamilies().getTransfer())
         ) {
-            PROFILER.start("Constructing meshes");
             final var middle = cavePath.getAveragePosition();
 
-            PROFILER.start("Uploading chunk data to GPU");
-            this.caveMeshes = meshVisible
-                    ? Meshes.createCaveMeshes(middle, sampleSpace, deviceContext, commandPool)
-                    : null;
+            final var meshGenerator = new MeshGenerator(sampleSpace);
+            final var chunkMeshes = new LongMap<Mesh<PolygonVertex>>(1024);
 
-            PROFILER.next("Creating additional path-line visualization");
+            meshGenerator.generate(cavePath, surfaceLevel, (x, y, z, chunk) -> {
+                final var chunkX = fastFloor(x / (float) CHUNK_SIZE);
+                final var chunkY = fastFloor(y / (float) CHUNK_SIZE);
+                final var chunkZ = fastFloor(z / (float) CHUNK_SIZE);
+                final var index = ChunkCaveSampleSpace.chunkIndex(chunkX, chunkY, chunkZ);
+
+                final var vertices = chunk.getVertices();
+                final var normals = chunk.getNormals();
+                final var indices = chunk.getIndices();
+
+                if (vertices == null || indices == null || normals == null) {
+                    return;
+                }
+
+                final var existing = chunkMeshes.get(index);
+                if (existing != null) {
+                    existing.close();
+                }
+
+                chunkMeshes.put(index, Meshes.createChunkMesh(middle,
+                                                              deviceContext,
+                                                              commandPool,
+                                                              chunk.getVertices(),
+                                                              chunk.getNormals(),
+                                                              chunk.getIndices()));
+            });
+            this.caveMeshes = new GrowingAddOnlyList<>(chunkMeshes.getSize());
+            chunkMeshes.values().forEach(this.caveMeshes::add);
+
+            PROFILER.next("Creating path visualization (line mesh)");
             this.lineMesh = linesVisible
                     ? Meshes.createLineMesh(cavePath,
                                             middle,
                                             deviceContext,
                                             commandPool)
                     : null;
+
             PROFILER.end();
 
-            PROFILER.start("Gathering GPU memory profiling info");
-
-            final var usageTotal = deviceContext.getMemoryAllocator().getUsageTotal();
-            final var allocationTotal = deviceContext.getMemoryAllocator().getAllocationTotal();
-
-            PROFILER.log("-> {} GPU memory allocations have been made.",
-                         deviceContext.getMemoryAllocator().getAllocationCount());
-            PROFILER.log("-> Total {} bytes of GPU memory is allocated (~{} kb)",
-                         allocationTotal, Math.round(allocationTotal / 1000.0));
-            PROFILER.log("-> {} bytes of allocated memory is in use (~{} kb)",
-                         usageTotal, Math.round(usageTotal / 1000.0));
-            PROFILER.log("-> ~{} kb of memory is wasted ({}% utilization)",
-                         Math.round((allocationTotal - usageTotal) / 1000.0),
-                         String.format("%.2f", (usageTotal / (double) allocationTotal) * 100.0));
-            PROFILER.log("-> Size of the largest allocation is {} bytes (~{} kb)",
-                         deviceContext.getMemoryAllocator().getLargestAllocationSize(),
-                         Math.round(deviceContext.getMemoryAllocator().getAverageAllocationSize() / 1000.0));
-            PROFILER.log("-> Average allocation is {} bytes (~{} kb)",
-                         deviceContext.getMemoryAllocator().getAverageAllocationSize(),
-                         Math.round(deviceContext.getMemoryAllocator().getAverageAllocationSize() / 1000.0));
-            this.appContext.setMeshes(this.caveMeshes, this.lineMesh);
-            PROFILER.end();
-            PROFILER.end();
+            logGPUMemoryProfilingInfo(deviceContext);
         }
+        this.appContext.setMeshes(this.caveMeshes, this.lineMesh);
+
+        PROFILER.log("-> Generated {} vertices.", sampleSpace.getTotalVertices());
+        PROFILER.log("-> Sample space is split into {} chunks.", sampleSpace.getChunkCount());
+        PROFILER.log("-> (Chunk size is {}x{}x{} = {} samples).",
+                     CHUNK_SIZE, CHUNK_SIZE, CHUNK_SIZE,
+                     CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
+
+        PROFILER.end();
+
 
         final var renderContext = this.appContext.getRenderContext();
 
@@ -172,7 +180,6 @@ public final class Application implements AutoCloseable {
         this.lookAtDistance = Math.max(sampleSpace.getMin().length(),
                                        sampleSpace.getMax().length()) + (float) caveRadius + 1;
 
-        PROFILER.end();
         PROFILER.end();
     }
 
@@ -222,6 +229,30 @@ public final class Application implements AutoCloseable {
         }
 
         return semaphores;
+    }
+
+    private void logGPUMemoryProfilingInfo(final DeviceContext deviceContext) {
+        PROFILER.start("Gathering GPU memory profiling info");
+
+        final var usageTotal = deviceContext.getMemoryAllocator().getUsageTotal();
+        final var allocationTotal = deviceContext.getMemoryAllocator().getAllocationTotal();
+
+        PROFILER.log("-> {} GPU memory allocations have been made.",
+                     deviceContext.getMemoryAllocator().getAllocationCount());
+        PROFILER.log("-> Total {} bytes of GPU memory is allocated (~{} kb)",
+                     allocationTotal, Math.round(allocationTotal / 1000.0));
+        PROFILER.log("-> {} bytes of allocated memory is in use (~{} kb)",
+                     usageTotal, Math.round(usageTotal / 1000.0));
+        PROFILER.log("-> ~{} kb of memory is wasted ({}% utilization)",
+                     Math.round((allocationTotal - usageTotal) / 1000.0),
+                     String.format("%.2f", (usageTotal / (double) allocationTotal) * 100.0));
+        PROFILER.log("-> Size of the largest allocation is {} bytes (~{} kb)",
+                     deviceContext.getMemoryAllocator().getLargestAllocationSize(),
+                     Math.round(deviceContext.getMemoryAllocator().getAverageAllocationSize() / 1000.0));
+        PROFILER.log("-> Average allocation is {} bytes (~{} kb)",
+                     deviceContext.getMemoryAllocator().getAverageAllocationSize(),
+                     Math.round(deviceContext.getMemoryAllocator().getAverageAllocationSize() / 1000.0));
+        PROFILER.end();
     }
 
     /**

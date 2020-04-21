@@ -1,6 +1,6 @@
 package caves.generator;
 
-import caves.util.collections.ChunkMap;
+import caves.util.collections.LongMap;
 import caves.util.math.Vector3;
 
 import java.util.function.Function;
@@ -10,7 +10,7 @@ import static caves.util.math.MathUtil.fastFloor;
 public class ChunkCaveSampleSpace {
     public static final int CHUNK_SIZE = 32;
 
-    private final ChunkMap chunks = new ChunkMap(2048);
+    private final LongMap<SampleSpaceChunk> chunks = new LongMap<>(2048);
     private final Function<Vector3, Float> densityFunction;
     private final float chunkSize;
     private final float samplesPerUnit;
@@ -70,7 +70,7 @@ public class ChunkCaveSampleSpace {
     }
 
     // XXX: Sneaky cast ints to longs by using long as parameter type. This avoids overflowing the integer while shifting
-    private static long chunkIndex(final long x, final long y, final long z) {
+    public static long chunkIndex(final long x, final long y, final long z) {
         // Pack first 20 bits of each into a single 64bit sequence (yes, whopping 4 bits are wasted! :o)
         return (x & 0xF_FFFF) | ((y & 0xF_FFFF) << 20) | ((z & 0xF_FFFF) << 40);
     }
@@ -142,5 +142,13 @@ public class ChunkCaveSampleSpace {
         final var chunkZ = fastFloor(z / (float) CHUNK_SIZE);
         final var chunkIndex = chunkIndex(chunkX, chunkY, chunkZ);
         return this.chunks.createIfAbsent(chunkIndex, () -> this.createChunk(chunkX, chunkY, chunkZ));
+    }
+
+    public void popQueued(final int x, final int y, final int z) {
+        getChunkAt(x, y, z).popQueued(x, y, z);
+    }
+
+    public boolean isChunkReady(final int x, final int y, final int z) {
+        return getChunkAt(x, y, z).isReady(x, y, z);
     }
 }

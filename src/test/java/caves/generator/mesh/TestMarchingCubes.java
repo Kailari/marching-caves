@@ -43,7 +43,7 @@ public class TestMarchingCubes {
         final var sampleSpace = new ChunkCaveSampleSpace(samplesPerUnit, densityFunction);
 
         final var meshGenerator = new MeshGenerator(sampleSpace);
-        meshGenerator.generate(cavePath, surfaceLevel);
+        meshGenerator.generate(cavePath, surfaceLevel, (x, y, z, chunk) -> {});
         final var caveVertices = new ArrayList<Vector3>();
         final var caveIndices = new ArrayList<Integer>();
         final var caveNormals = new ArrayList<Vector3>();
@@ -58,8 +58,8 @@ public class TestMarchingCubes {
             }
         });
 
-        assertAll(() -> assertEquals(24942, caveIndices.size()));
-        assertAll(() -> assertEquals(24942, caveVertices.size()));
+        assertAll(() -> assertEquals(24912, caveIndices.size(), 128));
+        assertAll(() -> assertEquals(24912, caveVertices.size(), 128));
         assertAll(() -> assertEquals(caveVertices.size(), caveNormals.size()));
     }
 }

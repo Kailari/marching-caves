@@ -16,7 +16,7 @@ import static caves.util.profiler.Profiler.PROFILER;
 
 @SuppressWarnings("SameParameterValue")
 final class Meshes {
-    private static final Vector3f CAVE_MESH_VERTEX_COLOR = new Vector3f(0.7f, 0.3f, 0.1f);
+    private static final Vector3 CAVE_MESH_VERTEX_COLOR = new Vector3(0.7f, 0.3f, 0.1f);
 
     private Meshes() {
     }
@@ -45,7 +45,6 @@ final class Meshes {
             final CommandPool commandPool
     ) {
         final var meshes = new GrowingAddOnlyList<Mesh<PolygonVertex>>(sampleSpace.getChunkCount());
-        var skipCount = 0;
         var totalSkipped = 0;
         var totalVertexCount = 0;
         var maxVertexCount = 0;
@@ -56,39 +55,23 @@ final class Meshes {
             final var indices = chunk.getIndices();
 
             if (vertices == null || indices == null || normals == null) {
-                ++skipCount;
                 ++totalSkipped;
                 continue;
             }
 
-            final var meshVertices = new PolygonVertex[vertices.size()];
-
             assert vertices.size() == normals.size() && vertices.size() == indices.size()
                     : "There should be equal number of vertices, normals and indices within a chunk!";
 
-            skipCount = 0;
             totalVertexCount += vertices.size();
             maxVertexCount = Math.max(maxVertexCount, vertices.size());
             ++totalChunksWithVerts;
 
-            final var vertexIter = vertices.iterator();
-            final var normalIter = normals.iterator();
-            for (int i = 0; i < vertices.size(); i++) {
-                final var vertex = vertexIter.next();
-                final var normal = normalIter.next();
-
-                meshVertices[i] = new PolygonVertex(new Vector3f(vertex.getX() - middle.getX(),
-                                                                 vertex.getY() - middle.getY(),
-                                                                 vertex.getZ() - middle.getZ()),
-                                                    new Vector3f(normal.getX(), normal.getY(), normal.getZ()),
-                                                    CAVE_MESH_VERTEX_COLOR);
-            }
-
-            meshes.add(new Mesh<>(deviceContext,
-                                  commandPool,
-                                  PolygonVertex.FORMAT,
-                                  meshVertices,
-                                  indices.toArray(Integer[]::new)));
+            meshes.add(createChunkMesh(middle,
+                                       deviceContext,
+                                       commandPool,
+                                       vertices,
+                                       normals,
+                                       indices));
         }
 
         final var averageVertexCount = totalVertexCount / (double) totalChunksWithVerts;
@@ -99,5 +82,33 @@ final class Meshes {
         PROFILER.log("-> Created {} chunk meshes", meshes.size());
 
         return meshes;
+    }
+
+    public static Mesh<PolygonVertex> createChunkMesh(
+            final Vector3 middle,
+            final DeviceContext deviceContext,
+            final CommandPool commandPool,
+            final Collection<Vector3> vertices,
+            final Collection<Vector3> normals,
+            final Collection<Integer> indices
+    ) {
+        final var meshVertices = new PolygonVertex[vertices.size()];
+
+        final var vertexIter = vertices.iterator();
+        final var normalIter = normals.iterator();
+        for (int i = 0; i < meshVertices.length; i++) {
+            final var vertex = vertexIter.next();
+            final var normal = normalIter.next();
+
+            meshVertices[i] = new PolygonVertex(vertex.sub(middle, new Vector3()),
+                                                new Vector3(normal),
+                                                CAVE_MESH_VERTEX_COLOR);
+        }
+
+        return new Mesh<>(deviceContext,
+                          commandPool,
+                          PolygonVertex.FORMAT,
+                          meshVertices,
+                          indices.toArray(Integer[]::new));
     }
 }

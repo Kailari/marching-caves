@@ -22,6 +22,8 @@ public final class SampleSpaceChunk {
     @Nullable private Collection<Vector3> normals;
     @Nullable private Collection<Integer> indices;
 
+    private int nQueued;
+
     /**
      * Gets the generated vertices for this chunk. This array is populated during generation in
      * {@link caves.generator.mesh.MeshGenerator MeshGenerator}
@@ -190,6 +192,17 @@ public final class SampleSpaceChunk {
         return this.samples[sampleIndex];
     }
 
+    /**
+     * Marks the given sample as queued. If sample is not yet queued, increments the queue counter
+     * by one.
+     *
+     * @param x x-coordinate of the sample
+     * @param y y-coordinate of the sample
+     * @param z z-coordinate of the sample
+     *
+     * @return <code>true</code> if the sample was queued, <code>false</code> if was already in
+     *         queue
+     */
     public boolean markQueued(final int x, final int y, final int z) {
         final var sampleIndex = getSampleIndex(x, y, z);
 
@@ -200,7 +213,29 @@ public final class SampleSpaceChunk {
             return false;
         }
 
+        ++this.nQueued;
         this.queued[sampleIndex] = true;
         return true;
+    }
+
+    /**
+     * Marks the given sample as popped from queue. Decrements the queue counter.
+     *
+     * @param x x-coordinate of the sample
+     * @param y y-coordinate of the sample
+     * @param z z-coordinate of the sample
+     */
+    public void popQueued(final int x, final int y, final int z) {
+        assert this.nQueued > 0;
+
+        lazyInitSamples();
+        assert this.queued != null;
+        assert this.queued[getSampleIndex(x, y, z)];
+
+        --this.nQueued;
+    }
+
+    public boolean isReady(final int x, final int y, final int z) {
+        return this.nQueued == 0;
     }
 }

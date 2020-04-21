@@ -29,13 +29,19 @@ public class MeshGenerator {
     /**
      * Generates chunk meshes for the sample space. Goes through the whole sample space in
      * flood-fill manner. Start position is somewhere along the path.
+     * <p>
+     * Chunks are heuristically marked as "ready" at some point during the generation. Same chunk
+     * may be marked more than once if heuristic makes bad guesses. Once chunk is marked ready, it
+     * will be supplied to the <code>readyChunks</code> consumer.
      *
      * @param cavePath     cave path to iterate for potential starting positions
      * @param surfaceLevel surface level, any sample density below this is considered empty space
+     * @param readyChunks  consumer which will be supplied with chunks that are "ready"
      */
     public void generate(
             final CavePath cavePath,
-            final float surfaceLevel
+            final float surfaceLevel,
+            final ReadyChunkConsumer readyChunks
     ) {
         PROFILER.log("-> Using surface level of {}",
                      String.format("%.3f", surfaceLevel));
@@ -94,6 +100,7 @@ public class MeshGenerator {
         final var startFacings = MarchingCubes.appendToMesh(this.sampleSpace,
                                                             startX, startY, startZ,
                                                             surfaceLevel);
+        this.sampleSpace.markQueued(startX, startY, startZ);
 
         final var fifoFacingQueue = new ArrayDeque<FloodFillEntry>();
         var maxQueueSize = 0;
@@ -102,6 +109,7 @@ public class MeshGenerator {
             final var y = startY + facing.getY();
             final var z = startZ + facing.getZ();
             fifoFacingQueue.add(new FloodFillEntry(x, y, z));
+            this.sampleSpace.markQueued(x, y, z);
             maxQueueSize = Math.max(maxQueueSize, fifoFacingQueue.size());
         }
 
@@ -110,6 +118,7 @@ public class MeshGenerator {
             ++iterations;
             final var entry = fifoFacingQueue.pop();
 
+            this.sampleSpace.popQueued(entry.x, entry.y, entry.z);
             final var freeFacings = MarchingCubes.appendToMesh(this.sampleSpace,
                                                                entry.x, entry.y, entry.z,
                                                                surfaceLevel);
@@ -123,10 +132,19 @@ public class MeshGenerator {
                     maxQueueSize = Math.max(maxQueueSize, fifoFacingQueue.size());
                 }
             }
+
+            if (this.sampleSpace.isChunkReady(entry.x, entry.y, entry.z)) {
+                readyChunks.accept(entry.x, entry.y, entry.z,
+                                   this.sampleSpace.getChunkAt(entry.x, entry.y, entry.z));
+            }
         }
 
         PROFILER.log("-> Flood-filling the cave finished in {} steps ", iterations);
         PROFILER.log("-> Maximum queue size was {}", maxQueueSize);
+    }
+
+    public interface ReadyChunkConsumer {
+        void accept(int x, int y, int z, SampleSpaceChunk chunk);
     }
 
     private static final class FloodFillEntry {
