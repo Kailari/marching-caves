@@ -2,7 +2,6 @@ package caves.util.collections;
 
 import javax.annotation.Nullable;
 import java.util.Collection;
-import java.util.function.Supplier;
 
 /**
  * Map with longs as keys.
@@ -42,12 +41,12 @@ public class LongMap<T> {
     @SuppressWarnings({"rawtypes", "unchecked"})
     public void put(final long index, @Nullable final T value) {
         final var entry = new Entry(index, value, null);
-        final var bucket = index % this.buckets.length;
+        final var bucket = getHash(index);
 
-        var existing = this.buckets[(int) bucket];
+        var existing = this.buckets[bucket];
         if (existing == null) {
             if (value != null) {
-                this.buckets[(int) bucket] = entry;
+                this.buckets[bucket] = entry;
                 ++this.size;
             }
         } else {
@@ -76,6 +75,10 @@ public class LongMap<T> {
         }
     }
 
+    private int getHash(final long index) {
+        return Math.abs(Long.hashCode(index) % this.buckets.length);
+    }
+
     /**
      * Gets a chunk with the given index from the map.
      *
@@ -86,7 +89,7 @@ public class LongMap<T> {
     @Nullable
     @SuppressWarnings("unchecked")
     public T get(final long index) {
-        var entry = this.buckets[(int) (index % this.buckets.length)];
+        var entry = this.buckets[getHash(index)];
         while (entry != null) {
             if (entry.index == index) {
                 return (T) entry.value;
@@ -116,28 +119,6 @@ public class LongMap<T> {
         }
 
         return allValues;
-    }
-
-    /**
-     * Creates the given entry using the supplier if it does not exist already.
-     *
-     * @param index         index to check
-     * @param valueSupplier value supplier
-     *
-     * @return the created or stored value
-     */
-    public T createIfAbsent(
-            final long index,
-            final Supplier<T> valueSupplier
-    ) {
-        final var chunk = get(index);
-        if (chunk != null) {
-            return chunk;
-        }
-
-        final var newValue = valueSupplier.get();
-        put(index, newValue);
-        return newValue;
     }
 
     /**

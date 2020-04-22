@@ -59,30 +59,28 @@ public final class EdgeDensityFunction {
      * @param position     position for which to calculate the density
      * @param closestPoint the point on the edge that is closest to the given position
      * @param distanceSq   squared distance between the closest point and the position
+     * @param result       object to hold the results
      *
      * @return the density contribution
      */
     public NodeContribution apply(
             final Vector3 position,
             final Vector3 closestPoint,
-            final float distanceSq
+            final float distanceSq,
+            final NodeContribution result
     ) {
         // Optimization: Skip everything further than max influence radius away
         final var influenceRadiusSq = this.maxInfluenceRadius * this.maxInfluenceRadius;
         if (distanceSq > influenceRadiusSq) {
-            return new NodeContribution();
+            result.clear(false);
+            return result;
         }
 
         // Special case: The point being sampled is *exactly* on the node. This guarantees that
         //               direction vectors are non-zero later on.
         if (distanceSq < 0.0000001) {
-            final var contribution = new NodeContribution();
-            contribution.setValue(-1.0f);
-            contribution.setFloorness(0.0f);
-            contribution.setWeight(1.0f);
-            contribution.setDistance(0.0);
-            contribution.setHasContribution(true);
-            return contribution;
+            result.clear(true);
+            return result;
         }
 
         final var distance = Math.sqrt(distanceSq);
@@ -93,10 +91,15 @@ public final class EdgeDensityFunction {
         final double caveContribution;
         double floorWeight;
         if (verticalDistance > 0) {
-            // Calculate floor bias if we are below the path
-            final var direction = closestPoint.sub(position, new Vector3()).normalize();
+            // Calculate floor bias if we are below the path.
+            // XXX: Do not allocate new vector. The closest point is tmpResult from PathDensityFunction
+            //      and is not used after this point
+            final var direction = closestPoint.sub(position/*, new Vector3()*/).normalize();
 
-            floorWeight = Math.max(0.0, direction.dot(this.directionUp) - this.floorStart);
+            // This is actually
+            //   max(0, (direction dot directionUp) - this.floorStart)
+            // but as direction x/y are always zero, we can optimize them away
+            floorWeight = Math.max(0.0, direction.y * this.directionUp.y - this.floorStart);
             assert floorWeight >= 0.0 && floorWeight <= 1.0;
             floorWeight *= floorWeight;
 
@@ -112,12 +115,11 @@ public final class EdgeDensityFunction {
             floorWeight = 0.0;
         }
 
-        final var contribution = new NodeContribution();
-        contribution.setFloorness(floorWeight);
-        contribution.setValue(caveContribution);
-        contribution.setDistance(distance);
-        contribution.setWeight(distanceAlpha);
-        contribution.setHasContribution(true);
-        return contribution;
+        result.setFloorness(floorWeight);
+        result.setValue(caveContribution);
+        result.setDistance(distance);
+        result.setWeight(distanceAlpha);
+        result.setHasContribution(true);
+        return result;
     }
 }

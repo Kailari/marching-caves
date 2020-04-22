@@ -4,11 +4,9 @@ import caves.generator.CavePath;
 import caves.util.math.LineSegment;
 import caves.util.math.Vector3;
 
-import java.util.function.Function;
-
 import static caves.generator.density.EdgeDensityFunction.lerp;
 
-public final class PathDensityFunction implements Function<Vector3, Float> {
+public final class PathDensityFunction implements DensityFunction {
     private static final double WEIGHT_EPSILON = 0.0001;
     private static final double WEIGHT_EPSILON_SQ = WEIGHT_EPSILON * WEIGHT_EPSILON;
 
@@ -16,8 +14,6 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
     private final double maxInfluenceRadius;
     private final double caveMainInfluenceRadius;
     private final EdgeDensityFunction edgeDensityFunction;
-
-    private final Vector3 tmpResult = new Vector3();
 
     private final SimplexNoiseGenerator noiseGenerator;
     private final float noiseScale;
@@ -51,8 +47,9 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
     }
 
     @Override
-    public Float apply(final Vector3 position) {
+    public float apply(final Vector3 position) {
         final var nodes = this.cavePath.getNodesWithin(position, this.maxInfluenceRadius);
+        final var nodesArray = nodes.getBackingArray();
 
         var summedWeights = 0.0;
         var nContributions = 0;
@@ -60,18 +57,27 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
         var minDistance = Double.MAX_VALUE;
         var summedFloorness = 0.0;
         final var edgeResult = new NodeContribution();
-        for (final var nodeIndex : nodes) {
+
+        // Create temporaries here to avoid allocations in the loop
+        final var tmpEdgeResult = new NodeContribution();
+        final var tmpResult = new Vector3();
+        for (var i = 0; i < nodes.getCount(); ++i) {
+            final var nodeIndex = nodesArray[i];
             edgeResult.setValue(0.0);
             edgeResult.setWeight(0.0);
             edgeResult.setFloorness(0.0);
             edgeResult.setHasContribution(false);
+            edgeResult.clear(false);
 
             final int previous = this.cavePath.getPreviousFor(nodeIndex);
             if (previous != -1) {
-                calculateEdge(edgeResult, previous, nodeIndex, position);
+                calculateEdge(edgeResult, previous, nodeIndex, position, tmpResult, tmpEdgeResult);
             }
-            for (final int n : this.cavePath.getNextFor(nodeIndex)) {
-                calculateEdge(edgeResult, nodeIndex, n, position);
+            // XXX: Change back to arrays if branching caves are implemented
+            //for (final int n : this.cavePath.getNextFor(nodeIndex)) {
+            final var n = nodeIndex + 1;
+            if (n < this.cavePath.getNodeCount()) {
+                calculateEdge(edgeResult, nodeIndex, n, position, tmpResult, tmpEdgeResult);
             }
 
             if (edgeResult.hasContribution()) {
@@ -111,13 +117,15 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
             final NodeContribution result,
             final int indexA,
             final int indexB,
-            final Vector3 position
+            final Vector3 position,
+            final Vector3 tmpResult,
+            final NodeContribution tmpEdgeResult
     ) {
         final var maxRadiusSq = this.maxInfluenceRadius * this.maxInfluenceRadius;
 
         final var nodeA = PathDensityFunction.this.cavePath.get(indexA);
         final var nodeB = PathDensityFunction.this.cavePath.get(indexB);
-        final var closest = LineSegment.closestPoint(nodeA, nodeB, position, this.tmpResult);
+        final var closest = LineSegment.closestPoint(nodeA, nodeB, position, tmpResult);
 
         final var distanceSq = closest.distanceSq(position);
         if (distanceSq > maxRadiusSq) {
@@ -142,7 +150,7 @@ public final class PathDensityFunction implements Function<Vector3, Float> {
             return;
         }
 
-        final var contribution = this.edgeDensityFunction.apply(position, closest, distanceSq);
+        final var contribution = this.edgeDensityFunction.apply(position, closest, distanceSq, tmpEdgeResult);
         if (contribution.hasContribution()) {
             result.setValue(Math.min(result.getValue(), contribution.getValue()));
             result.setWeight(Math.max(result.getWeight(), weightSq));

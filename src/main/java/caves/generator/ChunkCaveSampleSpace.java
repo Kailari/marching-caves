@@ -1,9 +1,8 @@
 package caves.generator;
 
-import caves.util.collections.LongMap;
+import caves.generator.density.DensityFunction;
+import caves.util.collections.ChunkMap;
 import caves.util.math.Vector3;
-
-import java.util.function.Function;
 
 import static caves.util.math.MathUtil.fastFloor;
 import static caves.util.profiler.Profiler.PROFILER;
@@ -14,10 +13,9 @@ public final class ChunkCaveSampleSpace {
      */
     public static final int CHUNK_SIZE = 32;
 
-    private final LongMap<SampleSpaceChunk> chunks = new LongMap<>(2048);
-    private final Function<Vector3, Float> densityFunction;
+    private final ChunkMap chunks;
+    private final DensityFunction densityFunction;
     private final float samplesPerUnit;
-    private final float surfaceLevel;
 
     /**
      * Gets the number of samples per unit in this sample space.
@@ -73,12 +71,13 @@ public final class ChunkCaveSampleSpace {
      */
     public ChunkCaveSampleSpace(
             final float samplesPerUnit,
-            final Function<Vector3, Float> densityFunction,
+            final DensityFunction densityFunction,
             final float surfaceLevel
     ) {
         this.densityFunction = densityFunction;
         this.samplesPerUnit = samplesPerUnit;
-        this.surfaceLevel = surfaceLevel;
+
+        this.chunks = new ChunkMap(32768, surfaceLevel);
     }
 
     /**
@@ -101,31 +100,33 @@ public final class ChunkCaveSampleSpace {
     /**
      * Gets the density for the given sample.
      *
-     * @param x sample x index
-     * @param y sample y index
-     * @param z sample z index
+     * @param x      sample x index
+     * @param y      sample y index
+     * @param z      sample z index
+     * @param tmpPos vector to use as the temporary position vector
      *
      * @return the density of the specified sample
      */
-    public float getDensity(final int x, final int y, final int z) {
+    public float getDensity(final int x, final int y, final int z, final Vector3 tmpPos) {
         return getChunkAt(x, y, z).getDensity(x, y, z,
-                                              () -> this.densityFunction.apply(getPos(x, y, z)));
+                                              () -> this.densityFunction.apply(getPos(x, y, z, tmpPos)));
     }
 
     /**
      * Gets in-world coordinates for given sample position.
      *
-     * @param x the x-index of the sample
-     * @param y the y-index of the sample
-     * @param z the z-index of the sample
+     * @param x      the x-index of the sample
+     * @param y      the y-index of the sample
+     * @param z      the z-index of the sample
+     * @param result vector to hold the result
      *
      * @return the world coordinates for the sample
      */
-    public Vector3 getPos(final int x, final int y, final int z) {
+    public Vector3 getPos(final int x, final int y, final int z, final Vector3 result) {
         final var spaceBetweenSamples = (1.0f / this.samplesPerUnit);
-        return new Vector3(x * spaceBetweenSamples,
-                           y * spaceBetweenSamples,
-                           z * spaceBetweenSamples);
+        return result.set(x * spaceBetweenSamples,
+                          y * spaceBetweenSamples,
+                          z * spaceBetweenSamples);
     }
 
     /**
@@ -156,7 +157,7 @@ public final class ChunkCaveSampleSpace {
         final var chunkY = fastFloor(y / (float) CHUNK_SIZE);
         final var chunkZ = fastFloor(z / (float) CHUNK_SIZE);
         final var chunkIndex = chunkIndex(chunkX, chunkY, chunkZ);
-        return this.chunks.createIfAbsent(chunkIndex, () -> new SampleSpaceChunk(this.surfaceLevel));
+        return this.chunks.createIfAbsent(chunkIndex);
     }
 
     /**

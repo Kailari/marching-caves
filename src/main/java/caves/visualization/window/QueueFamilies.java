@@ -5,6 +5,7 @@ import org.lwjgl.vulkan.VkQueueFamilyProperties;
 
 import javax.annotation.Nullable;
 
+import static caves.util.profiler.Profiler.PROFILER;
 import static org.lwjgl.system.MemoryStack.stackGet;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.vulkan.KHRSurface.vkGetPhysicalDeviceSurfaceSupportKHR;
@@ -104,6 +105,14 @@ public class QueueFamilies {
                 final var allFound = graphicsFound && presentFound && transferFound;
                 if (allFound) {
                     break;
+                }
+            }
+
+            if (graphicsFound) {
+                if (!transferFound && (queueProps.get(selectedGraphics).queueFlags() & VK_QUEUE_TRANSFER_BIT) != 0) {
+                    PROFILER.log("WARN: No separate transfer queue available, falling back to graphics queue!");
+                    selectedTransfer = selectedGraphics;
+                    transferFound = true;
                 }
             }
 

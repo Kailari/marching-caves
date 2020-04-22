@@ -31,7 +31,7 @@ public final class LineSegment {
         // "bp dot ab" >= 0
         if (abx * (p.x - b.x) + aby * (p.y - b.y) + abz * (p.z - b.z) >= 0.0) {
             // pos is past the segment towards B, thus the closest point is B
-            return b;
+            return result.set(b);
         }
 
         final var apx = p.x - a.x;
@@ -41,7 +41,7 @@ public final class LineSegment {
         // "ap dot ab" <= 0
         if (abx * apx + aby * apy + abz * apz <= 0.0) {
             // pos is past the segment towards A, thus the closest point is A
-            return a;
+            return result.set(a);
         }
 
         // Project the pos to the direction vector AB

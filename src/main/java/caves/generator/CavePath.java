@@ -1,6 +1,7 @@
 package caves.generator;
 
 import caves.generator.spatial.SpatialPathIndex;
+import caves.util.collections.GrowingIntList;
 import caves.util.math.Vector3;
 
 import java.util.Collection;
@@ -11,15 +12,6 @@ public final class CavePath {
     private final SpatialPathIndex spatialPathIndex;
 
     private int nodeCount;
-
-    /**
-     * How many branches can start from a single node? 1 means no branching.
-     *
-     * @return branching limit per node
-     */
-    public int getSplittingLimit() {
-        return 1;
-    }
 
     /**
      * Gets all nodes on the path, ordered from path start to the end.
@@ -56,6 +48,15 @@ public final class CavePath {
     }
 
     /**
+     * Gets the number of nodes on this path.
+     *
+     * @return the node count
+     */
+    public int getNodeCount() {
+        return this.nodeCount;
+    }
+
+    /**
      * Constructs a new empty path.
      *
      * @param nodeCount          node capacity
@@ -89,7 +90,7 @@ public final class CavePath {
      *
      * @return indices of all nodes within the radius
      */
-    public int[] getNodesWithin(final Vector3 position, final double radius) {
+    public GrowingIntList getNodesWithin(final Vector3 position, final double radius) {
         return this.spatialPathIndex.getIndicesWithin(position, radius);
     }
 
@@ -111,6 +112,7 @@ public final class CavePath {
      *
      * @return the index of the previous (parent) node
      */
+    @SuppressWarnings("unused")
     public int[] getNextFor(final int index) {
         return index == this.nodes.length - 1
                 ? new int[0]

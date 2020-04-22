@@ -1,11 +1,11 @@
 package caves.generator.spatial;
 
-import caves.util.collections.GrowingAddOnlyList;
+import caves.util.ThreadedResourcePool;
+import caves.util.collections.GrowingIntList;
 import caves.util.math.BoundingBox;
 import caves.util.math.Vector3;
 
 import javax.annotation.Nullable;
-import java.util.Collection;
 
 /**
  * Implements an inverted octree as spatial index to the cave path. The idea is as follows:
@@ -39,6 +39,9 @@ import java.util.Collection;
  * additional tree walking on read, but simplifies the implementation and reduces memory footprint.
  */
 public final class SpatialPathIndex {
+    private static final ThreadedResourcePool<GrowingIntList> LIST_POOL = new ThreadedResourcePool<>(GrowingIntList::new);
+    private static final ThreadedResourcePool<OctreeNode[]> NODE_POOL = new ThreadedResourcePool<>(() -> new OctreeNode[32]);
+
     private final float maxInfluenceRadius;
 
     @Nullable
@@ -144,20 +147,19 @@ public final class SpatialPathIndex {
      *
      * @return all indices of points within the given radius
      */
-    public int[] getIndicesWithin(
+    public GrowingIntList getIndicesWithin(
             final Vector3 position,
             final double radius
     ) {
+        final var foundItems = LIST_POOL.get();
+        foundItems.clear();
+
         if (this.rootNode == null) {
-            return new int[0];
+            return foundItems;
         }
 
-        // XXX: This blows up if there are more than 512 influencing points
-        final var foundItems = new int[2048];
-        var resultPointer = 0;
-
-        // XXX: This blows up if there are more than 32 nodes per bucket
-        final var nodeQueue = new OctreeNode[32];
+        // XXX: This blows up if there are more than nodeQueue.length nodes per bucket
+        final var nodeQueue = NODE_POOL.get();
         var queuePointer = 0;
         nodeQueue[queuePointer] = this.rootNode;
         while (queuePointer >= 0) {
@@ -165,10 +167,8 @@ public final class SpatialPathIndex {
             queuePointer--;
 
             if (next.depth == 0) {
-                for (final int item : next.items) {
-                    foundItems[resultPointer] = item;
-                    resultPointer++;
-                }
+                assert next.items != null;
+                foundItems.addAll(next.items);
             } else {
                 assert next.children != null;
                 for (final var child : next.children) {
@@ -180,9 +180,7 @@ public final class SpatialPathIndex {
             }
         }
 
-        final var result = new int[resultPointer];
-        System.arraycopy(foundItems, 0, result, 0, resultPointer);
-        return result;
+        return foundItems;
     }
 
     /**
@@ -192,8 +190,8 @@ public final class SpatialPathIndex {
     public static final class OctreeNode extends BoundingBox {
         private final int depth;
 
-        @Nullable private final Collection<Integer> items;
         @Nullable private final OctreeNode[] children;
+        @Nullable private int[] items;
 
         /**
          * Gets the depth of this node. Value of zero means this node is a leaf.
@@ -222,7 +220,7 @@ public final class SpatialPathIndex {
         ) {
             super(min, max);
             this.depth = depth;
-            this.items = this.depth == 0 ? new GrowingAddOnlyList<>(1) : null;
+            this.items = this.depth == 0 ? new int[0] : null;
             this.children = children;
         }
 
@@ -273,7 +271,10 @@ public final class SpatialPathIndex {
 
             if (this.depth == 0) {
                 assert this.items != null;
-                this.items.add(index);
+                final var newItems = new int[this.items.length + 1];
+                System.arraycopy(this.items, 0, newItems, 0, this.items.length);
+                this.items = newItems;
+                this.items[this.items.length - 1] = index;
             } else {
                 assert this.children != null;
                 getOrCreateChildAt(position).insert(position, index);

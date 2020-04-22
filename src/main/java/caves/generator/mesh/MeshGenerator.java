@@ -3,7 +3,9 @@ package caves.generator.mesh;
 import caves.generator.CavePath;
 import caves.generator.ChunkCaveSampleSpace;
 import caves.generator.SampleSpaceChunk;
+import caves.util.math.Vector3;
 
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -20,6 +22,9 @@ public final class MeshGenerator {
     private final ChunkCaveSampleSpace sampleSpace;
     private final AtomicInteger nQueuedSteps = new AtomicInteger(0);
     private final AtomicBoolean killSwitch = new AtomicBoolean(false);
+
+    private ExecutorService marcherTaskPool;
+    private CountDownLatch readyLatch;
 
     /**
      * Creates a new mesh generator for marching through a {@link SampleSpaceChunk} using marching
@@ -79,7 +84,8 @@ public final class MeshGenerator {
             for (final var offset : MarchingCubesTables.VERTEX_OFFSETS) {
                 final var density = this.sampleSpace.getDensity(startX + offset[X] + x,
                                                                 startY + offset[Y],
-                                                                startZ + offset[Z]);
+                                                                startZ + offset[Z],
+                                                                new Vector3());
                 if (density < surfaceLevel) {
                     nonSolidFound = true;
                 } else {
@@ -106,28 +112,35 @@ public final class MeshGenerator {
                      String.format("(%d, %d, %d)", startX, startY, startZ));
         this.sampleSpace.compact();
 
-        final var marcherTaskPool = Executors.newFixedThreadPool(8);
+        this.marcherTaskPool = Executors.newFixedThreadPool(4);
 
         if (!this.killSwitch.get()) {
+            this.readyLatch = new CountDownLatch(1);
             this.nQueuedSteps.incrementAndGet();
             this.sampleSpace.markQueued(startX, startY, startZ);
-            step(surfaceLevel,
-                 readyChunks,
-                 marcherTaskPool,
-                 new FloodFillEntry(startX, startY, startZ),
-                 onReady);
+            final int finalStartX = startX;
+            this.marcherTaskPool.submit(() -> step(surfaceLevel,
+                                                   readyChunks,
+                                                   this.readyLatch,
+                                                   new FloodFillEntry(finalStartX, startY, startZ),
+                                                   onReady));
+            try {
+                this.readyLatch.await();
+            } catch (final InterruptedException ignored) {
+            }
+            PROFILER.log("Generation finished.");
         }
     }
 
     private void step(
             final float surfaceLevel,
             final ReadyChunkConsumer readyChunks,
-            final ExecutorService marcherTaskPool,
+            final CountDownLatch readyLatch,
             final FloodFillEntry entry,
             final Runnable onReady
     ) {
         if (this.killSwitch.get()) {
-            marcherTaskPool.shutdown();
+            this.marcherTaskPool.shutdown();
             return;
         }
 
@@ -142,10 +155,10 @@ public final class MeshGenerator {
 
             if (this.sampleSpace.markQueued(x, y, z)) {
                 this.nQueuedSteps.incrementAndGet();
-                marcherTaskPool.submit(() -> step(surfaceLevel,
-                                                  readyChunks,
-                                                  marcherTaskPool,
-                                                  new FloodFillEntry(x, y, z), onReady));
+                this.marcherTaskPool.submit(() -> step(surfaceLevel,
+                                                       readyChunks,
+                                                       readyLatch,
+                                                       new FloodFillEntry(x, y, z), onReady));
             }
         }
 
@@ -155,8 +168,8 @@ public final class MeshGenerator {
         }
         final var remaining = this.nQueuedSteps.decrementAndGet();
         if (remaining == 0) {
-            PROFILER.log("Finished.");
-            marcherTaskPool.shutdown();
+            readyLatch.countDown();
+            this.marcherTaskPool.shutdown();
             onReady.run();
         }
     }

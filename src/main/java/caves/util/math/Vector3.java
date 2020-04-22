@@ -111,6 +111,20 @@ public final class Vector3 {
     }
 
     /**
+     * Sets the component values of this vector from the other vector.
+     *
+     * @param other the vector to copy the values from
+     *
+     * @return self
+     */
+    public Vector3 set(final Vector3 other) {
+        this.x = other.x;
+        this.y = other.y;
+        this.z = other.z;
+        return this;
+    }
+
+    /**
      * Calculates the sum of this vector and vector with the given components x, y and z.
      *
      * @param x      the x-component to be added

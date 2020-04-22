@@ -52,8 +52,8 @@ public final class Application implements AutoCloseable {
     private final long[] imagesInFlight;
     private final float lookAtDistance;
 
-    private final LongMap<QueuedChunk> queuedChunks = new LongMap<>(1024);
-    private final LongMap<Mesh<PolygonVertex>> chunkMeshes = new LongMap<>(1024);
+    private final LongMap<QueuedChunk> queuedChunks = new LongMap<>(32768);
+    private final LongMap<Mesh<PolygonVertex>> chunkMeshes = new LongMap<>(32768);
     private final Object chunkQueueLock = new Object();
     private final AtomicInteger queuedChunkCount = new AtomicInteger(0);
 
@@ -72,11 +72,11 @@ public final class Application implements AutoCloseable {
      * @param validation should validation/debug features be enabled.
      */
     public Application(final boolean validation) {
-        final var caveLength = 16000;
+        final var caveLength = 8000;
         final var spacing = 10f;
 
         final var surfaceLevel = 0.85f;
-        final var samplesPerUnit = 0.5f;
+        final var samplesPerUnit = 0.25f;
 
         final var floorFlatness = 0.65;
         final var caveRadius = 40.0;

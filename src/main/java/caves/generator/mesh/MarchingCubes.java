@@ -2,18 +2,19 @@ package caves.generator.mesh;
 
 import caves.generator.ChunkCaveSampleSpace;
 import caves.generator.SampleSpaceChunk;
+import caves.util.ThreadedResourcePool;
 import caves.util.math.Vector3;
 
-import static caves.util.profiler.Profiler.PROFILER;
-
 public final class MarchingCubes {
+    private static final int MAX_VERTICES_PER_CUBE = 12;
+    private static final int NUM_CUBE_VERTS = 8;
+
     /** How close two samples' values need to be in order to be considered the same value. */
     private static final float SAME_POINT_EPSILON = 0.0001f;
-
     private static final int X = 0;
     private static final int Y = 1;
     private static final int Z = 2;
-    private static final int NUM_CUBE_VERTS = 8;
+    private static final ThreadedResourcePool<Temporaries> TMP_POOL = new ThreadedResourcePool<>(Temporaries::new);
 
     private MarchingCubes() {
     }
@@ -37,13 +38,14 @@ public final class MarchingCubes {
             final int z,
             final float surfaceLevel
     ) {
-        final float[] density = new float[NUM_CUBE_VERTS];
+        final var tmp = TMP_POOL.get();
         for (int i = 0; i < NUM_CUBE_VERTS; ++i) {
-            density[i] = sampleSpace.getDensity(x + MarchingCubesTables.VERTEX_OFFSETS[i][X],
-                                                y + MarchingCubesTables.VERTEX_OFFSETS[i][Y],
-                                                z + MarchingCubesTables.VERTEX_OFFSETS[i][Z]);
+            tmp.densities[i] = sampleSpace.getDensity(x + MarchingCubesTables.VERTEX_OFFSETS[i][X],
+                                                      y + MarchingCubesTables.VERTEX_OFFSETS[i][Y],
+                                                      z + MarchingCubesTables.VERTEX_OFFSETS[i][Z],
+                                                      tmp.samplePos);
         }
-        final var cubeIndex = MarchingCubesTables.calculateCubeIndex(surfaceLevel, density);
+        final var cubeIndex = MarchingCubesTables.calculateCubeIndex(surfaceLevel, tmp.densities);
         final var edgeMask = MarchingCubesTables.EDGE_TABLE[cubeIndex];
         if (edgeMask == 0) {
             // Still need to check for free faces as this still may be either empty (all free) or
@@ -51,21 +53,22 @@ public final class MarchingCubes {
             return MarchingCubesTables.FREE_CUBE_FACES[cubeIndex];
         }
 
-        final Vector3[] pos = new Vector3[NUM_CUBE_VERTS];
         for (int i = 0; i < NUM_CUBE_VERTS; ++i) {
-            pos[i] = sampleSpace.getPos(x + MarchingCubesTables.VERTEX_OFFSETS[i][X],
-                                        y + MarchingCubesTables.VERTEX_OFFSETS[i][Y],
-                                        z + MarchingCubesTables.VERTEX_OFFSETS[i][Z]);
+            tmp.positions[i] = sampleSpace.getPos(x + MarchingCubesTables.VERTEX_OFFSETS[i][X],
+                                                  y + MarchingCubesTables.VERTEX_OFFSETS[i][Y],
+                                                  z + MarchingCubesTables.VERTEX_OFFSETS[i][Z],
+                                                  tmp.positions[i]);
         }
 
         // We have positions and densities for cube corners, calculate estimated surface gradient
         // vectors for them
-        final Vector3[] gradient = new Vector3[NUM_CUBE_VERTS];
         for (var i = 0; i < NUM_CUBE_VERTS; ++i) {
-            gradient[i] = calculateGradientVector(sampleSpace,
-                                                  x + MarchingCubesTables.VERTEX_OFFSETS[i][X],
-                                                  y + MarchingCubesTables.VERTEX_OFFSETS[i][Y],
-                                                  z + MarchingCubesTables.VERTEX_OFFSETS[i][Z]);
+            tmp.gradients[i] = calculateGradientVector(sampleSpace,
+                                                       x + MarchingCubesTables.VERTEX_OFFSETS[i][X],
+                                                       y + MarchingCubesTables.VERTEX_OFFSETS[i][Y],
+                                                       z + MarchingCubesTables.VERTEX_OFFSETS[i][Z],
+                                                       tmp.gradients[i],
+                                                       tmp.samplePos);
         }
 
         // Create edge vertices (vertex is not created if not needed). Here, we are adding vertices
@@ -95,15 +98,16 @@ public final class MarchingCubes {
         //  2. upper layer (cases 4-7)
         //  3. vertical    (cases 8-11)
 
-        final var maxVerticesPerCube = 12;
-        final var vertices = new Vector3[maxVerticesPerCube];
-        final var normals = new Vector3[maxVerticesPerCube];
+        final var vertices = tmp.vertices;
+        final var normals = tmp.normals;
         for (var i = 0; i < 4; i++) {
             // Lower/Upper
             final var lowerOffset = 0;
             final var upperOffset = 4;
-            handleLayerVertex(surfaceLevel, density, edgeMask, pos, gradient, vertices, normals, i, lowerOffset);
-            handleLayerVertex(surfaceLevel, density, edgeMask, pos, gradient, vertices, normals, i, upperOffset);
+            handleLayerVertex(surfaceLevel, tmp.densities, edgeMask, tmp.positions, tmp.gradients,
+                              vertices, normals, i, lowerOffset);
+            handleLayerVertex(surfaceLevel, tmp.densities, edgeMask, tmp.positions, tmp.gradients,
+                              vertices, normals, i, upperOffset);
 
             // Vertical
             final var verticalOffset = upperOffset + 4;
@@ -111,11 +115,13 @@ public final class MarchingCubes {
                 final var ia = lowerOffset + i;
                 final var ib = upperOffset + i;
                 vertices[verticalOffset + i] = interpolateToSurface(surfaceLevel,
-                                                                    pos[ia], pos[ib],
-                                                                    density[ia], density[ib]);
+                                                                    tmp.positions[ia], tmp.positions[ib],
+                                                                    tmp.densities[ia], tmp.densities[ib],
+                                                                    vertices[verticalOffset + i]);
                 normals[verticalOffset + i] = interpolateToSurface(surfaceLevel,
-                                                                   gradient[ia], gradient[ib],
-                                                                   density[ia], density[ib]);
+                                                                   tmp.gradients[ia], tmp.gradients[ib],
+                                                                   tmp.densities[ia], tmp.densities[ib],
+                                                                   normals[verticalOffset + i]);
             }
         }
 
@@ -127,16 +133,11 @@ public final class MarchingCubes {
 
         final var chunk = sampleSpace.getChunkAt(x, y, z);
 
-        // TODO: Get the vertex list and append vertexIndexLookup.length vertices
-        //  - lock can be released immediately after the append is done
         final var outVertices = chunk.getOrCreateVertices();
         final int offset = outVertices.append(vertexIndexLookup.length);
 
         for (int i = 0; i < vertexIndexLookup.length; i++) {
             final int vertexIndex = vertexIndexLookup[i];
-            assert vertices[vertexIndex] != null : "Vertex cannot be null! Invalid triangulation list or vertices were populated incorrectly!";
-            assert normals[vertexIndex] != null : "Normal cannot be null! Normals were populated incorrectly!";
-
             outVertices.set(offset + i,
                             new SampleSpaceChunk.Vertex(vertices[vertexIndex],
                                                         normals[vertexIndex]));
@@ -149,13 +150,15 @@ public final class MarchingCubes {
             final ChunkCaveSampleSpace samples,
             final int x,
             final int y,
-            final int z
+            final int z,
+            final Vector3 result,
+            final Vector3 tmpPos
     ) {
         // Estimate derivative of the density function using central differences
-        final var gx = (samples.getDensity(x + 1, y, z) - samples.getDensity(x - 1, y, z));
-        final var gy = (samples.getDensity(x, y + 1, z) - samples.getDensity(x, y - 1, z));
-        final var gz = (samples.getDensity(x, y, z + 1) - samples.getDensity(x, y, z - 1));
-        final var grad = new Vector3(gx, gy, gz);
+        final var gx = (samples.getDensity(x + 1, y, z, tmpPos) - samples.getDensity(x - 1, y, z, tmpPos));
+        final var gy = (samples.getDensity(x, y + 1, z, tmpPos) - samples.getDensity(x, y - 1, z, tmpPos));
+        final var gz = (samples.getDensity(x, y, z + 1, tmpPos) - samples.getDensity(x, y, z - 1, tmpPos));
+        final var grad = result.set(gx, gy, gz);
         if (grad.lengthSq() > 0.0f) {
             grad.normalize();
         }
@@ -177,10 +180,18 @@ public final class MarchingCubes {
         if ((edgeMask & (1 << (layerOffset + i))) != 0) {
             final var ia = layerOffset + i;
             final var ib = layerOffset + ((i + 1) % 4);
-            vertices[layerOffset + i] = interpolateToSurface(surfaceLevel, pos[ia], pos[ib], density[ia], density[ib]);
+            vertices[layerOffset + i] = interpolateToSurface(surfaceLevel,
+                                                             pos[ia],
+                                                             pos[ib],
+                                                             density[ia],
+                                                             density[ib],
+                                                             vertices[layerOffset + i]);
             normals[layerOffset + i] = interpolateToSurface(surfaceLevel,
-                                                            gradient[ia], gradient[ib],
-                                                            density[ia], density[ib]);
+                                                            gradient[ia],
+                                                            gradient[ib],
+                                                            density[ia],
+                                                            density[ib],
+                                                            normals[layerOffset + i]);
         }
     }
 
@@ -189,7 +200,8 @@ public final class MarchingCubes {
             final Vector3 posA,
             final Vector3 posB,
             final float valueA,
-            final float valueB
+            final float valueB,
+            final Vector3 tmpResult
     ) {
         final var deltaA = Math.abs(surfaceLevel - valueA);
         final var deltaB = Math.abs(surfaceLevel - valueB);
@@ -198,13 +210,36 @@ public final class MarchingCubes {
         if (delta < SAME_POINT_EPSILON || deltaA < SAME_POINT_EPSILON) {
             // Either the points are considered the same (either one is fine) or the point A is
             // already at surface level.
-            return new Vector3(posA);
+            return tmpResult.set(posA);
         } else if (deltaB < SAME_POINT_EPSILON) {
             // The point B is already at surface level
-            return new Vector3(posB);
+            return tmpResult.set(posB);
         }
 
         final var alpha = Math.min(1.0f, Math.max(0.0f, (surfaceLevel - valueA) / (valueB - valueA)));
-        return Vector3.lerp(posA, posB, alpha, new Vector3());
+        return Vector3.lerp(posA, posB, alpha, tmpResult);
+    }
+
+    private static class Temporaries {
+        private final float[] densities = new float[NUM_CUBE_VERTS];
+        private final Vector3[] positions = new Vector3[NUM_CUBE_VERTS];
+        private final Vector3[] gradients = new Vector3[NUM_CUBE_VERTS];
+
+        private final Vector3[] vertices = new Vector3[MAX_VERTICES_PER_CUBE];
+        private final Vector3[] normals = new Vector3[MAX_VERTICES_PER_CUBE];
+
+        private final Vector3 samplePos = new Vector3();
+
+        Temporaries() {
+            for (int i = 0; i < NUM_CUBE_VERTS; i++) {
+                this.positions[i] = new Vector3();
+                this.gradients[i] = new Vector3();
+            }
+
+            for (int i = 0; i < MAX_VERTICES_PER_CUBE; i++) {
+                this.vertices[i] = new Vector3();
+                this.normals[i] = new Vector3();
+            }
+        }
     }
 }

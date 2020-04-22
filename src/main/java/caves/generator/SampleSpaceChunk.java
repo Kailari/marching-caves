@@ -215,8 +215,8 @@ public final class SampleSpaceChunk {
          * @param normal   vertex normal
          */
         public Vertex(final Vector3 position, final Vector3 normal) {
-            this.position = position;
-            this.normal = normal;
+            this.position = new Vector3(position);
+            this.normal = new Vector3(normal);
         }
     }
 }

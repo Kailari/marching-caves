@@ -104,4 +104,17 @@ public final class NodeContribution {
     public void setHasContribution(final boolean hasContribution) {
         this.hasContribution = hasContribution;
     }
+
+    /**
+     * Clears this contribution. Allows setting the contribution state.
+     *
+     * @param hasContribution the contribution state
+     */
+    public void clear(final boolean hasContribution) {
+        this.value = hasContribution ? -1.0 : 0.0;
+        this.floorness = 0.0;
+        this.weight = hasContribution ? 1.0 : 0.0;
+        this.distance = hasContribution ? 0.0 : Double.MAX_VALUE;
+        this.hasContribution = hasContribution;
+    }
 }

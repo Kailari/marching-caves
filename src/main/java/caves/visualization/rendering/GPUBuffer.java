@@ -75,14 +75,23 @@ public class GPUBuffer implements AutoCloseable {
             final int usageFlags
     ) {
         try (var stack = stackPush()) {
+            final var graphicsFamilyIndex = deviceContext.getQueueFamilies().getGraphics();
+            final var transferFamilyIndex = deviceContext.getQueueFamilies().getTransfer();
+            final var pIndices = graphicsFamilyIndex != transferFamilyIndex
+                    ? stack.ints(graphicsFamilyIndex, transferFamilyIndex)
+                    : stack.ints(graphicsFamilyIndex);
+
+            final var sharingMode = graphicsFamilyIndex != transferFamilyIndex
+                    ? VK_SHARING_MODE_CONCURRENT
+                    : VK_SHARING_MODE_EXCLUSIVE;
+
             final var bufferInfo = VkBufferCreateInfo
                     .callocStack(stack)
                     .sType(VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO)
                     .size(bufferSize)
                     .usage(usageFlags)
-                    .sharingMode(VK_SHARING_MODE_CONCURRENT)
-                    .pQueueFamilyIndices(stack.ints(deviceContext.getQueueFamilies().getGraphics(),
-                                                    deviceContext.getQueueFamilies().getTransfer()));
+                    .sharingMode(sharingMode)
+                    .pQueueFamilyIndices(pIndices);
 
             final var pBuffer = stack.mallocLong(1);
             final var error = vkCreateBuffer(deviceContext.getDeviceHandle(),
