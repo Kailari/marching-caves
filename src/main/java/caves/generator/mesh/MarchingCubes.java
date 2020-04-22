@@ -1,7 +1,10 @@
 package caves.generator.mesh;
 
 import caves.generator.ChunkCaveSampleSpace;
+import caves.generator.SampleSpaceChunk;
 import caves.util.math.Vector3;
+
+import static caves.util.profiler.Profiler.PROFILER;
 
 public final class MarchingCubes {
     /** How close two samples' values need to be in order to be considered the same value. */
@@ -116,32 +119,29 @@ public final class MarchingCubes {
             }
         }
 
+        // Now, we have a collection of vertices, but we do not know which vertices were created nor
+        // how they should be connected. Luckily, this is again one of the 256 pre-defined cases, so
+        // just use a lookup table. As we are using triangles, there are three vertices per each
+        // triangular polygon.
+        final var vertexIndexLookup = MarchingCubesTables.TRIANGULATION_TABLE[cubeIndex];
+
         final var chunk = sampleSpace.getChunkAt(x, y, z);
-        synchronized (chunk.getLock()) {
-            final var outVertices = chunk.getOrCreateVertices();
-            final var outNormals = chunk.getOrCreateNormals();
-            final var outIndices = chunk.getOrCreateIndices();
 
-            // Now, we have a collection of vertices, but we do not know which vertices were created nor
-            // how they should be connected. Luckily, this is again one of the 256 pre-defined cases, so
-            // just use a lookup table. As we are using triangles, there are three vertices per each
-            // triangular polygon.
-            final var vertexIndexLookup = MarchingCubesTables.TRIANGULATION_TABLE[cubeIndex];
-            final var verticesPerPolygon = 3;
-            for (var i = 0; i < vertexIndexLookup.length; i += verticesPerPolygon) {
-                final var baseIndex = outVertices.size();
-                for (var j = 0; j < verticesPerPolygon; ++j) {
-                    final var vertexIndex = vertexIndexLookup[i + j];
+        // TODO: Get the vertex list and append vertexIndexLookup.length vertices
+        //  - lock can be released immediately after the append is done
+        final var outVertices = chunk.getOrCreateVertices();
+        final int offset = outVertices.append(vertexIndexLookup.length);
 
-                    assert vertices[vertexIndex] != null : "Vertex cannot be null! Invalid triangulation list or vertices were populated incorrectly!";
-                    assert normals[vertexIndex] != null : "Normal cannot be null! Normals were populated incorrectly!";
+        for (int i = 0; i < vertexIndexLookup.length; i++) {
+            final int vertexIndex = vertexIndexLookup[i];
+            assert vertices[vertexIndex] != null : "Vertex cannot be null! Invalid triangulation list or vertices were populated incorrectly!";
+            assert normals[vertexIndex] != null : "Normal cannot be null! Normals were populated incorrectly!";
 
-                    outVertices.add(vertices[vertexIndex]);
-                    outNormals.add(normals[vertexIndex]);
-                    outIndices.add(baseIndex + j);
-                }
-            }
+            outVertices.set(offset + i,
+                            new SampleSpaceChunk.Vertex(vertices[vertexIndex],
+                                                        normals[vertexIndex]));
         }
+
         return MarchingCubesTables.FREE_CUBE_FACES[cubeIndex];
     }
 

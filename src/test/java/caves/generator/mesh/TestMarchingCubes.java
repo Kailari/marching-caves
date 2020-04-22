@@ -7,13 +7,14 @@ import caves.util.math.Vector3;
 import caves.util.profiler.Profiler;
 import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
 public class TestMarchingCubes {
     @Test
@@ -60,22 +61,14 @@ public class TestMarchingCubes {
         } catch (final InterruptedException ignored) {
         }
 
-        final var caveVertices = new ArrayList<Vector3>();
-        final var caveIndices = new ArrayList<Integer>();
-        final var caveNormals = new ArrayList<Vector3>();
+        final var counter = new AtomicInteger(0);
         sampleSpace.getChunks().forEach(chunk -> {
             final var cVerts = chunk.getVertices();
-            final var cNorms = chunk.getNormals();
-            final var cIndices = chunk.getIndices();
             if (cVerts != null) {
-                caveVertices.addAll(cVerts);
-                caveNormals.addAll(cNorms);
-                caveIndices.addAll(cIndices);
+                counter.addAndGet(cVerts.size());
             }
         });
 
-        assertAll(() -> assertEquals(24912, caveIndices.size(), 128));
-        assertAll(() -> assertEquals(24912, caveVertices.size(), 128));
-        assertAll(() -> assertEquals(caveVertices.size(), caveNormals.size()));
+        assertEquals(24912, counter.get(), 128);
     }
 }

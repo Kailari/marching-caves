@@ -155,6 +155,7 @@ public final class MeshGenerator {
         }
         final var remaining = this.nQueuedSteps.decrementAndGet();
         if (remaining == 0) {
+            PROFILER.log("Finished.");
             marcherTaskPool.shutdown();
             onReady.run();
         }
@@ -162,7 +163,12 @@ public final class MeshGenerator {
 
     public interface ReadyChunkConsumer {
         /**
-         * Accepts a "ready" chunk.
+         * Accepts a "ready" chunk. This is a chunk which is heuristically assumed to be ready for
+         * mesh generation. The chunk <strong>may be supplied multiple times</strong>, should the
+         * heuristic make a "wrong" guess at some point.
+         * <p>
+         * Heuristic is reasonably accurate, but some misses <strong>do</strong> happen. All chunks
+         * with any vertices are guaranteed to be supplied at least once.
          *
          * @param x     sample x-index which was last generated
          * @param y     sample y-index which was last generated

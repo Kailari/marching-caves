@@ -16,30 +16,8 @@ public final class ChunkCaveSampleSpace {
 
     private final LongMap<SampleSpaceChunk> chunks = new LongMap<>(2048);
     private final Function<Vector3, Float> densityFunction;
-    private final float chunkSize;
     private final float samplesPerUnit;
     private final float surfaceLevel;
-
-    private Vector3 min = new Vector3();
-    private Vector3 max = new Vector3();
-
-    /**
-     * Gets the component-wise minimum bounding coordinate for this sample space.
-     *
-     * @return the min coordinate
-     */
-    public Vector3 getMin() {
-        return this.min;
-    }
-
-    /**
-     * Gets the component-wise maximum bounding coordinate for this sample space.
-     *
-     * @return the max coordinate
-     */
-    public Vector3 getMax() {
-        return this.max;
-    }
 
     /**
      * Gets the number of samples per unit in this sample space.
@@ -101,9 +79,6 @@ public final class ChunkCaveSampleSpace {
         this.densityFunction = densityFunction;
         this.samplesPerUnit = samplesPerUnit;
         this.surfaceLevel = surfaceLevel;
-
-        final var spaceBetweenSamples = (1.0f / this.samplesPerUnit);
-        this.chunkSize = CHUNK_SIZE * spaceBetweenSamples;
     }
 
     /**
@@ -133,29 +108,8 @@ public final class ChunkCaveSampleSpace {
      * @return the density of the specified sample
      */
     public float getDensity(final int x, final int y, final int z) {
-        return getChunkAt(x, y, z).getDensity(x,
-                                              y,
-                                              z,
+        return getChunkAt(x, y, z).getDensity(x, y, z,
                                               () -> this.densityFunction.apply(getPos(x, y, z)));
-    }
-
-    private SampleSpaceChunk createChunk(
-            final int chunkX,
-            final int chunkY,
-            final int chunkZ
-    ) {
-        final var startX = chunkX * this.chunkSize;
-        final var startY = chunkY * this.chunkSize;
-        final var startZ = chunkZ * this.chunkSize;
-
-        final var chunk = new SampleSpaceChunk(startX,
-                                               startY,
-                                               startZ,
-                                               this.chunkSize,
-                                               this.surfaceLevel);
-        this.min = this.min.min(chunk.getMin(), this.min);
-        this.max = this.max.max(chunk.getMax(), this.min);
-        return chunk;
     }
 
     /**
@@ -202,7 +156,7 @@ public final class ChunkCaveSampleSpace {
         final var chunkY = fastFloor(y / (float) CHUNK_SIZE);
         final var chunkZ = fastFloor(z / (float) CHUNK_SIZE);
         final var chunkIndex = chunkIndex(chunkX, chunkY, chunkZ);
-        return this.chunks.createIfAbsent(chunkIndex, () -> this.createChunk(chunkX, chunkY, chunkZ));
+        return this.chunks.createIfAbsent(chunkIndex, () -> new SampleSpaceChunk(this.surfaceLevel));
     }
 
     /**
@@ -240,7 +194,7 @@ public final class ChunkCaveSampleSpace {
         var count = 0;
         for (final var index : keys) {
             final var chunk = this.chunks.get(index);
-            if (chunk != null && !chunk.hasSolidSamples()) {
+            if (chunk != null && chunk.isEmpty()) {
                 this.chunks.put(index, null);
                 ++count;
             }

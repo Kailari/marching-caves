@@ -1,12 +1,10 @@
 package caves.generator;
 
-import caves.util.collections.GrowingAddOnlyList;
-import caves.util.math.BoundingBox;
+import caves.util.collections.VertexArray;
 import caves.util.math.Vector3;
 
 import javax.annotation.Nullable;
-import java.util.Arrays;
-import java.util.Collection;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static caves.generator.ChunkCaveSampleSpace.CHUNK_SIZE;
@@ -14,18 +12,12 @@ import static caves.generator.ChunkCaveSampleSpace.CHUNK_SIZE;
 public final class SampleSpaceChunk {
     private static final int INITIAL_VERTEX_CAPACITY = 6000;
 
-    private final Object lock = new Object();
-    private final BoundingBox bounds;
     private final float surfaceLevel;
-
-    @Nullable private float[] samples;
+    private final AtomicInteger nQueued = new AtomicInteger(0);
+    private final AtomicInteger solidSampleCount = new AtomicInteger(0);
     @Nullable private boolean[] queued;
-    @Nullable private Collection<Vector3> vertices;
-    @Nullable private Collection<Vector3> normals;
-    @Nullable private Collection<Integer> indices;
-
-    private int nQueued;
-    private int solidSampleCount;
+    @Nullable private float[] samples;
+    @Nullable private VertexArray<Vertex> vertices;
 
     /**
      * Gets the generated vertices for this chunk. This array is populated during generation in
@@ -34,32 +26,8 @@ public final class SampleSpaceChunk {
      * @return vertices
      */
     @Nullable
-    public Collection<Vector3> getVertices() {
+    public VertexArray<Vertex> getVertices() {
         return this.vertices;
-    }
-
-    /**
-     * Gets the generated normals for this chunk. This array is populated during generation in
-     * {@link caves.generator.mesh.MeshGenerator MeshGenerator}
-     *
-     * @return normals
-     */
-    @Nullable
-    public Collection<Vector3> getNormals() {
-        return this.normals;
-    }
-
-    /**
-     * Gets the generated indices for this chunk. This array is populated during generation in
-     * {@link caves.generator.mesh.MeshGenerator MeshGenerator}. These are <strong>relative
-     * indices</strong> which point to arrays returned by {@link #getVertices()} and {@link
-     * #getNormals()}
-     *
-     * @return indices
-     */
-    @Nullable
-    public Collection<Integer> getIndices() {
-        return this.indices;
     }
 
     /**
@@ -68,69 +36,12 @@ public final class SampleSpaceChunk {
      *
      * @return vertex position array for this chunk
      */
-    public Collection<Vector3> getOrCreateVertices() {
+    public VertexArray<Vertex> getOrCreateVertices() {
         if (this.vertices == null) {
-            this.vertices = new GrowingAddOnlyList<>(INITIAL_VERTEX_CAPACITY);
+            this.vertices = new VertexArray<>(INITIAL_VERTEX_CAPACITY);
         }
 
         return this.vertices;
-    }
-
-    /**
-     * For "lazily" creating the vertex array. This avoid needlessly allocating huge vertex arrays
-     * for empty chunks.
-     *
-     * @return vertex normal array for this chunk
-     */
-    public Collection<Vector3> getOrCreateNormals() {
-        if (this.normals == null) {
-            this.normals = new GrowingAddOnlyList<>(INITIAL_VERTEX_CAPACITY);
-        }
-
-        return this.normals;
-    }
-
-    /**
-     * For "lazily" creating the vertex array. This avoid needlessly allocating huge arrays for
-     * empty chunks.
-     *
-     * @return index array for this chunk
-     */
-    public Collection<Integer> getOrCreateIndices() {
-        if (this.indices == null) {
-            this.indices = new GrowingAddOnlyList<>(INITIAL_VERTEX_CAPACITY);
-        }
-
-        return this.indices;
-    }
-
-    /**
-     * Gets the component-wise minimum possible world-coordinates for this sample space. This is the
-     * point <code>(0, 0, 0)</code> for samples.
-     *
-     * @return the starting in-world coordinate for this sample space
-     */
-    public Vector3 getMin() {
-        return this.bounds.getMin();
-    }
-
-    /**
-     * Gets the component-wise minimum possible world-coordinates for this sample space. This is the
-     * point <code>(countX, countY, countZ)</code> for samples.
-     *
-     * @return the maximum in-world coordinate for this sample space
-     */
-    public Vector3 getMax() {
-        return this.bounds.getMax();
-    }
-
-    /**
-     * Gets a synchronization lock for this chunk.
-     *
-     * @return the lock
-     */
-    public Object getLock() {
-        return this.lock;
     }
 
     /**
@@ -140,28 +51,26 @@ public final class SampleSpaceChunk {
      * @return <code>true</code> if this chunk is ready for mesh generation
      */
     public boolean isReady() {
-        return this.nQueued == 0;
+        return this.nQueued.get() == 0;
+    }
+
+    /**
+     * Checks whether or not this chunk has any solid samples. This is used to compact empty chunks
+     * out of the sample space.
+     *
+     * @return <code>true</code> if this chunk has at least one solid sample
+     */
+    public boolean isEmpty() {
+        return this.solidSampleCount.get() == 0;
     }
 
     /**
      * Creates a new sample space for the given region of space.
      *
-     * @param startX       start x-coordinate of the region
-     * @param startY       start y-coordinate of the region
-     * @param startZ       start z-coordinate of the region
-     * @param size         size on the x-axis (in units)
      * @param surfaceLevel the isosurface density level
      */
-    public SampleSpaceChunk(
-            final float startX,
-            final float startY,
-            final float startZ,
-            final float size,
-            final float surfaceLevel
-    ) {
+    public SampleSpaceChunk(final float surfaceLevel) {
         this.surfaceLevel = surfaceLevel;
-        this.bounds = new BoundingBox(new Vector3(startX, startY, startZ),
-                                      new Vector3(startX + size, startY + size, startZ + size));
     }
 
     private synchronized void lazyInitSamples() {
@@ -172,7 +81,10 @@ public final class SampleSpaceChunk {
         final var sampleCount = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
         this.samples = new float[sampleCount];
         this.queued = new boolean[sampleCount];
-        Arrays.fill(this.samples, Float.NaN);
+        for (int i = 0; i < sampleCount; i++) {
+            this.samples[i] = Float.NaN;
+            this.queued[i] = false;
+        }
     }
 
     /**
@@ -216,7 +128,7 @@ public final class SampleSpaceChunk {
             this.samples[sampleIndex] = sample;
 
             if (sample < this.surfaceLevel) {
-                ++this.solidSampleCount;
+                this.solidSampleCount.incrementAndGet();
             }
         }
 
@@ -234,19 +146,23 @@ public final class SampleSpaceChunk {
      * @return <code>true</code> if the sample was queued, <code>false</code> if was already in
      *         queue
      */
-    public synchronized boolean markQueued(final int x, final int y, final int z) {
+    public boolean markQueued(final int x, final int y, final int z) {
         final var sampleIndex = getSampleIndex(x, y, z);
 
         lazyInitSamples();
         assert this.queued != null;
 
-        if (this.queued[sampleIndex]) {
-            return false;
-        }
+        // SAFETY: This is safe as this.queued is effectively final after lazy initialization
+        //noinspection SynchronizeOnNonFinalField
+        synchronized (this.queued) {
+            if (this.queued[sampleIndex]) {
+                return false;
+            }
 
-        ++this.nQueued;
-        this.queued[sampleIndex] = true;
-        return true;
+            this.nQueued.incrementAndGet();
+            this.queued[sampleIndex] = true;
+            return true;
+        }
     }
 
     /**
@@ -256,23 +172,51 @@ public final class SampleSpaceChunk {
      * @param y y-coordinate of the sample
      * @param z z-coordinate of the sample
      */
-    public synchronized void popQueued(final int x, final int y, final int z) {
-        assert this.nQueued > 0;
+    public void popQueued(final int x, final int y, final int z) {
+        assert this.nQueued.get() > 0;
 
         lazyInitSamples();
         assert this.queued != null;
         assert this.queued[getSampleIndex(x, y, z)];
 
-        --this.nQueued;
+        // SAFETY: This is safe as this.queued is effectively final after lazy initialization
+        //noinspection SynchronizeOnNonFinalField
+        synchronized (this.queued) {
+            this.nQueued.decrementAndGet();
+        }
     }
 
-    /**
-     * Checks whether or not this chunk has any solid samples. This is used to compact empty chunks
-     * out of the sample space.
-     *
-     * @return <code>true</code> if this chunk has at least one solid sample
-     */
-    public boolean hasSolidSamples() {
-        return this.solidSampleCount > 0;
+    public static final class Vertex {
+        private final Vector3 position;
+        private final Vector3 normal;
+
+        /**
+         * Gets the world position for this vertex.
+         *
+         * @return the position
+         */
+        public Vector3 getPosition() {
+            return this.position;
+        }
+
+        /**
+         * Gets the vertex normal at this vertex.
+         *
+         * @return the normal
+         */
+        public Vector3 getNormal() {
+            return this.normal;
+        }
+
+        /**
+         * Constructs a new vertex with given position and normal.
+         *
+         * @param position vertex position
+         * @param normal   vertex normal
+         */
+        public Vertex(final Vector3 position, final Vector3 normal) {
+            this.position = position;
+            this.normal = normal;
+        }
     }
 }

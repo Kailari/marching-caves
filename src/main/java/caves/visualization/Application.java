@@ -72,11 +72,11 @@ public final class Application implements AutoCloseable {
      * @param validation should validation/debug features be enabled.
      */
     public Application(final boolean validation) {
-        final var caveLength = 8000;
+        final var caveLength = 16000;
         final var spacing = 10f;
 
         final var surfaceLevel = 0.85f;
-        final var samplesPerUnit = 0.25f;
+        final var samplesPerUnit = 0.5f;
 
         final var floorFlatness = 0.65;
         final var caveRadius = 40.0;
@@ -125,19 +125,14 @@ public final class Application implements AutoCloseable {
                             cavePath,
                             surfaceLevel,
                             (x, y, z, chunk) -> {
+                                if (chunk.isEmpty()) {
+                                    return;
+                                }
+
                                 final var chunkX = fastFloor(x / (float) CHUNK_SIZE);
                                 final var chunkY = fastFloor(y / (float) CHUNK_SIZE);
                                 final var chunkZ = fastFloor(z / (float) CHUNK_SIZE);
                                 final var index = ChunkCaveSampleSpace.chunkIndex(chunkX, chunkY, chunkZ);
-
-                                final var vertices = chunk.getVertices();
-                                final var normals = chunk.getNormals();
-                                final var indices = chunk.getIndices();
-
-                                if (vertices == null || indices == null || normals == null) {
-                                    return;
-                                }
-
                                 synchronized (this.chunkQueueLock) {
                                     this.queuedChunks.put(index, new QueuedChunk(index, chunk));
                                 }
@@ -340,21 +335,16 @@ public final class Application implements AutoCloseable {
                         existing.close();
                     }
 
-                    synchronized (chunk.chunk.getLock()) {
-                        final var vertices = chunk.chunk.getVertices();
-                        final var normals = chunk.chunk.getNormals();
-                        final var indices = chunk.chunk.getIndices();
-                        if (vertices == null || indices == null || normals == null) {
-                            continue;
-                        }
-
-                        this.chunkMeshes.put(chunk.index, Meshes.createChunkMesh(this.middle,
-                                                                                 deviceContext,
-                                                                                 commandPool,
-                                                                                 vertices,
-                                                                                 normals,
-                                                                                 indices));
+                    final var vertices = chunk.chunk.getVertices();
+                    if (vertices == null) {
+                        continue;
                     }
+
+                    this.chunkMeshes.put(chunk.index, Meshes.createChunkMesh(this.middle,
+                                                                             deviceContext,
+                                                                             commandPool,
+                                                                             vertices
+                    ));
                 }
             }
 
