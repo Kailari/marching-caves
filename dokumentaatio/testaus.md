@@ -10,4 +10,14 @@ Yksikkötestausta suoritetaan yksittäisille osa-alueille. Esim. kohinafunktiost
 Yksikkötestausta tärkeämpänä osana on ollut "empiirisen testauksen" osuus, jota varten kirjoitin Vulkanilla ja LWJGL3:lla ohjelman generoidun 3d-mallin piirtämiseen. Tärkeys korostuu siinä että luolan visuaalisella ulkomuodolla on useissa kohdissa suurin rooli sen määrittelemisessä mikä toiminta on "oikein".
  
 Yksikkötestien testikattavuus varsinkin marching cubesin ja tiheysfunktioiden osalta on osa-alue johon haluaisin panostaa, mutta niihin liittyy algoritmin luonteen vuoksi joitain ongelmia.
- 
+
+
+Suorituskyky
+------------
+Algoritmin suorituskyvyn suhteen olen ottanut perustason arviointiin `caveLength=16000` ja `samplesPerUnit=0.25`. Muut generoinnin asetukset ovat melkolailla vakiintuneet `radius=40, maxRadius=60, spacing=10`. Näillä asetuksilla luola generoituu omalla koneellani noin `~12` sekunnissa ja hieman heikommalla kannettavalla tietokoneella noin `~23` sekunnissa. Hauskana faktana todettakoon että ensimmäisissä mittauksissa luolan generointi näillä arvoilla vei tehokkaammalla koneellakin yli kymmenen minuuttia ja visualisointi kaatui kesken mallin lähetyksen näytönohjaimelle. Nykyisin jopa `spu=0.5` generoituu noin minuutissa vailla mitään ongelmia.
+
+Yksittäisten osa-alueiden suorituskykyä en juurikaan ole testannut. Simplex-noiselle on yksikkötesti joka varmistaa että kohtuullisen kokoinen joukko lukuja saadaan generoitua alle parissa sekunnissa, mutta sitä lukuunottamatta olen luottanut hyvin pitkälti ohjelman manuaaliseen suorittamiseen suorituskyvyn suhteen.
+
+Aivan sokkona en suinkaan ole manuaalista testaustakaan suorittanut, vaan käytössä on ollut [`async-profiler`](https://github.com/jvm-profiling-tools/async-profiler). *(Harmikseni huomasin jossain kohdin ettei profilointidata ole tallentunut mihinkään eikä vertailukelpoista dataa ole juurikaan visualisoitavaksi.)* Varsinkin muistiallokaatioiden profilointi osoittautui tehokkaaksi tavaksi löytää kipupisteitä joissa esim. uuden vektori-instanssin luominen jokaisella metodikutsulla aiheutti valtavia määriä muistiallokaatioita ja sitä kautta hidasti merkittävästi ohjelman toimintaa suuremmilla luolilla.
+
+Profiloinnin aloittamisen aikoihin viikoilla 3-4 muistinkäyttö oli niinkin levällään että ~5% suoritusajasta onnistuttiin hukkaamaan *page faulteihin*. Nyt viimeisimpien profilointien jälkeen algoritmi toimii lähestulkoon "roskattomasti", muutamia dynaamisia metodikutsuja lukuunottamatta ja muistinkäyttö on pudonnut murto-osaan alkuperäisestä. Tämä saavutettiin siirtämällä valtaosan väliaikaisista olioista allokointi säiekohtaiseen resurssikokoelmaan, josta kukin säie lukee omia väliaikaisia instanssejaan ja välittää niitä metodista toiseen. Tästä seuraa tosin joitain todella rumia metodien parametrilistoja, kun väliaikaisia muuttujia välitetään toisinaan pitkänkin matkan takaa. Lisäksi monin paikoin käytetään tapauskohtaisia tietotyyppejä tai yhtä hieman ylisuurta taulukkoa listojen venytyksen välttämiseksi yms.

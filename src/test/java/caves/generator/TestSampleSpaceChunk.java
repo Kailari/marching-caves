@@ -1,5 +1,7 @@
 package caves.generator;
 
+import caves.generator.density.DensityFunction;
+import caves.util.math.Vector3;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -21,22 +23,22 @@ public class TestSampleSpaceChunk {
 
     @Test
     void gettingDensityForPositiveCoordinatesWorks() {
-        assertEquals(1 + 2 + 3, sampleSpace.getDensity(1, 2, 3));
+        assertEquals(1 + 2 + 3, sampleSpace.getDensity(1, 2, 3, new Vector3(), new DensityFunction.Temporaries()));
     }
 
     @Test
     void gettingDensityForNegativeCoordinatesWorks() {
-        assertEquals(-1 - 2 - 3, sampleSpace.getDensity(-1, -2, -3));
+        assertEquals(-1 - 2 - 3, sampleSpace.getDensity(-1, -2, -3, new Vector3(), new DensityFunction.Temporaries()));
     }
 
     @Test
     void gettingDensityForLargePositiveCoordinatesWorks() {
-        assertEquals(1000 + 2000 + 3000, sampleSpace.getDensity(1000, 2000, 3000));
+        assertEquals(1000 + 2000 + 3000, sampleSpace.getDensity(1000, 2000, 3000, new Vector3(), new DensityFunction.Temporaries()));
     }
 
     @Test
     void gettingDensityForLargeNegativeCoordinatesWorks() {
-        assertEquals(-1000 - 2000 - 3000, sampleSpace.getDensity(-1000, -2000, -3000));
+        assertEquals(-1000 - 2000 - 3000, sampleSpace.getDensity(-1000, -2000, -3000, new Vector3(), new DensityFunction.Temporaries()));
     }
 
     @Test
