@@ -72,7 +72,7 @@ public final class Application implements AutoCloseable {
      * @param validation should validation/debug features be enabled.
      */
     public Application(final boolean validation) {
-        final var caveLength = 8000;
+        final var caveLength = 16000;
         final var spacing = 10f;
 
         final var surfaceLevel = 0.85f;

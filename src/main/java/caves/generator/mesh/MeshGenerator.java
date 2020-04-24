@@ -41,6 +41,8 @@ public final class MeshGenerator {
      */
     public void kill() {
         this.killSwitch.set(true);
+        this.marcherTaskPool.shutdownNow();
+        this.readyLatch.countDown();
     }
 
     /**
@@ -127,6 +129,7 @@ public final class MeshGenerator {
             try {
                 this.readyLatch.await();
             } catch (final InterruptedException ignored) {
+                PROFILER.err("Mesh generator was interrupted while waiting for workers!");
             }
             PROFILER.log("Generation finished.");
         }
