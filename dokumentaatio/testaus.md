@@ -9,7 +9,7 @@ Yksikkötestausta suoritetaan yksittäisille osa-alueille. Esim. kohinafunktiost
 
 Yksikkötestausta tärkeämpänä osana on ollut "empiirisen testauksen" osuus, jota varten kirjoitin Vulkanilla ja LWJGL3:lla ohjelman generoidun 3d-mallin piirtämiseen. Tärkeys korostuu siinä että luolan visuaalisella ulkomuodolla on useissa kohdissa suurin rooli sen määrittelemisessä mikä toiminta on "oikein".
  
-Yksikkötestien testikattavuus varsinkin marching cubesin ja tiheysfunktioiden osalta on osa-alue johon haluaisin panostaa, mutta niihin liittyy algoritmin luonteen vuoksi joitain ongelmia.
+Yksikkötestien testikattavuus varsinkin marching cubesin ja tiheysfunktioiden osalta on osa-alue johon haluaisin panostaa, mutta niihin liittyy algoritmin luonteen vuoksi joitain ongelmia. On kuitenkin myös huomattavaa, että koodin seassa on jonkin verran assertioita (`assert`), jotka valheellisesti vaikuttavat negatiivisesti haaraumakattavuuteen testikattavuusraportissa. *(Jos assertiot eivät pitäisi paikkaansa, koodi toimisi väärin, joten kun ohjelma toimii oikein, ne eivät koskaan voi heittää testien aikana; mutta koska niiden "toiseen haaraan" ei koskaan osuta, testikattavuudessa näkyy missattu haara)*
 
 
 Suorituskyky
