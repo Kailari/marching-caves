@@ -7,7 +7,6 @@ import caves.visualization.rendering.mesh.Mesh;
 import org.lwjgl.PointerBuffer;
 
 import javax.annotation.Nullable;
-import java.util.Collection;
 
 import static org.lwjgl.glfw.GLFW.glfwInit;
 import static org.lwjgl.glfw.GLFWVulkan.glfwGetRequiredInstanceExtensions;
@@ -89,9 +88,7 @@ public final class ApplicationContext implements AutoCloseable {
             this.deviceContext = new DeviceContext(this.instance,
                                                    this.window.getSurfaceHandle(),
                                                    stack.pointers(stack.UTF8(VK_KHR_SWAPCHAIN_EXTENSION_NAME)));
-            this.renderContext = new RenderingContext(null,
-                                                      null,
-                                                      this.deviceContext,
+            this.renderContext = new RenderingContext(this.deviceContext,
                                                       this.window.getSurfaceHandle(),
                                                       this.window.getHandle());
         }
@@ -118,7 +115,7 @@ public final class ApplicationContext implements AutoCloseable {
      * @param lineMesh   line mesh
      */
     public void setMeshes(
-            @Nullable final Collection<Mesh<PolygonVertex>> caveMeshes,
+            @Nullable final Iterable<Mesh<PolygonVertex>> caveMeshes,
             @Nullable final Mesh<LineVertex> lineMesh
     ) {
         this.renderContext.setMeshes(caveMeshes, lineMesh);

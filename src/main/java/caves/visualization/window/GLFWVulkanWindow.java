@@ -1,8 +1,8 @@
 package caves.visualization.window;
 
-import caves.util.collections.GrowingAddOnlyList;
 import org.lwjgl.glfw.GLFWKeyCallback;
 
+import java.util.ArrayList;
 import java.util.Collection;
 
 import static caves.visualization.window.VKUtil.translateVulkanResult;
@@ -18,7 +18,7 @@ public final class GLFWVulkanWindow implements AutoCloseable {
     private final GLFWKeyCallback keyCallback;
     private final long surfaceHandle;
 
-    private final Collection<ResizeCallback> resizeCallbacks = new GrowingAddOnlyList<>(1);
+    private final Collection<ResizeCallback> resizeCallbacks = new ArrayList<>(1);
 
     /**
      * Gets a handle for the rendering surface.

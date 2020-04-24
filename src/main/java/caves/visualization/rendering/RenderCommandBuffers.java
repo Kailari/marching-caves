@@ -14,7 +14,6 @@ import org.lwjgl.vulkan.VkCommandBuffer;
 import org.lwjgl.vulkan.VkDevice;
 
 import javax.annotation.Nullable;
-import java.util.Collection;
 
 public final class RenderCommandBuffers implements RecreatedWithSwapChain {
     private final VkDevice device;
@@ -25,7 +24,7 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
     private final RenderPass renderPass;
 
     @Nullable private Mesh<LineVertex> lineMesh;
-    @Nullable private Collection<Mesh<PolygonVertex>> polygonMeshes;
+    @Nullable private Iterable<Mesh<PolygonVertex>> polygonMeshes;
 
     @SuppressWarnings("NotNullFieldNotInitialized")
     private CommandBuffer[] commandBuffers;
@@ -40,8 +39,6 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
      * @param linePipeline    the graphics pipeline for rendering meshes as line strips
      * @param polygonPipeline the graphics pipeline for rendering meshes as triangles
      * @param renderPass      the render pass to record commands for
-     * @param lineMesh        mesh to render as lines
-     * @param polygonMeshes   mesh to render as polygons
      */
     public RenderCommandBuffers(
             final DeviceContext deviceContext,
@@ -49,9 +46,7 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
             final SwapChain swapChain,
             final GraphicsPipeline<LineVertex> linePipeline,
             final GraphicsPipeline<PolygonVertex> polygonPipeline,
-            final RenderPass renderPass,
-            @Nullable final Mesh<LineVertex> lineMesh,
-            @Nullable final Collection<Mesh<PolygonVertex>> polygonMeshes
+            final RenderPass renderPass
     ) {
         this.device = deviceContext.getDeviceHandle();
         this.commandPool = commandPool;
@@ -59,8 +54,6 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
         this.linePipeline = linePipeline;
         this.polygonPipeline = polygonPipeline;
         this.renderPass = renderPass;
-        this.lineMesh = lineMesh;
-        this.polygonMeshes = polygonMeshes;
 
         this.cleanedUp = true;
 
@@ -138,7 +131,7 @@ public final class RenderCommandBuffers implements RecreatedWithSwapChain {
      * @param lineMesh   line mesh
      */
     public void setMeshes(
-            @Nullable final Collection<Mesh<PolygonVertex>> caveMeshes,
+            @Nullable final Iterable<Mesh<PolygonVertex>> caveMeshes,
             @Nullable final Mesh<LineVertex> lineMesh
     ) {
         this.polygonMeshes = caveMeshes;

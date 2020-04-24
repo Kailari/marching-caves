@@ -1,11 +1,11 @@
 package caves.visualization.rendering;
 
-import caves.util.collections.GrowingAddOnlyList;
 import org.lwjgl.vulkan.VkVertexInputAttributeDescription;
 import org.lwjgl.vulkan.VkVertexInputBindingDescription;
 
 import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.function.BiConsumer;
 
@@ -85,9 +85,7 @@ public final class VertexFormat<TVertex> {
     }
 
     public static final class Builder<TVertex> {
-        private final Collection<VkVertexInputAttributeDescription> attributes = new GrowingAddOnlyList<>(
-                1
-        );
+        private final Collection<VkVertexInputAttributeDescription> attributes = new ArrayList<>(1);
 
         private int sizeInBytes;
         @Nullable private BiConsumer<ByteBuffer, TVertex> writer;

@@ -18,7 +18,14 @@ public final class Main {
      */
     public static void main(final String[] args) {
         LOG.info("Validation: {}", VALIDATION);
-        try (var app = new Application(VALIDATION)) {
+        try (var app = new Application(VALIDATION,
+                                       8,
+                                       10f,
+                                       0.85f,
+                                       8f,
+                                       0.65,
+                                       40.0,
+                                       60.0, true)) {
             app.run();
         }
         LOG.info("Finished.");

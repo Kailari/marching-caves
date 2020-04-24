@@ -20,6 +20,7 @@
       <w>multisampling</w>
       <w>ndebug</w>
       <w>nullness</w>
+      <w>nvidia</w>
       <w>octree</w>
       <w>prng</w>
       <w>scancode</w>

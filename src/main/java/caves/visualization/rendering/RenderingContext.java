@@ -62,16 +62,11 @@ public final class RenderingContext implements AutoCloseable {
     /**
      * Initializes the required context for rendering on the screen.
      *
-     * @param lineMesh      mesh to be rendered as lines
-     * @param polygonMeshes mesh to be rendered as polygons
      * @param deviceContext device context information to use for creating the swapchain
      * @param surface       surface to create the chain for
      * @param windowHandle  handle to the window
      */
-    public RenderingContext(
-            @Nullable final Mesh<LineVertex> lineMesh,
-            @Nullable final Collection<Mesh<PolygonVertex>> polygonMeshes,
-            final DeviceContext deviceContext,
+    public RenderingContext(final DeviceContext deviceContext,
             final long surface,
             final long windowHandle
     ) {
@@ -110,10 +105,7 @@ public final class RenderingContext implements AutoCloseable {
                                                              this.swapChain,
                                                              this.linePipeline,
                                                              this.polygonPipeline,
-                                                             this.renderPass,
-                                                             lineMesh,
-                                                             polygonMeshes
-        );
+                                                             this.renderPass);
     }
 
     /**
@@ -226,7 +218,7 @@ public final class RenderingContext implements AutoCloseable {
      * @param lineMesh   line mesh
      */
     public void setMeshes(
-            @Nullable final Collection<Mesh<PolygonVertex>> caveMeshes,
+            @Nullable final Iterable<Mesh<PolygonVertex>> caveMeshes,
             @Nullable final Mesh<LineVertex> lineMesh
     ) {
         this.renderCommandBuffers.cleanup();

@@ -6,8 +6,8 @@ import caves.generator.SampleSpaceChunk;
 import caves.generator.density.EdgeDensityFunction;
 import caves.generator.density.PathDensityFunction;
 import caves.generator.mesh.MeshGenerator;
-import caves.util.collections.GrowingAddOnlyList;
 import caves.util.collections.LongMap;
+import caves.util.collections.SimpleList;
 import caves.util.math.Vector3;
 import caves.visualization.rendering.command.CommandPool;
 import caves.visualization.rendering.mesh.Mesh;
@@ -19,7 +19,6 @@ import org.lwjgl.vulkan.VkSemaphoreCreateInfo;
 import org.lwjgl.vulkan.VkSubmitInfo;
 
 import javax.annotation.Nullable;
-import java.util.Collection;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -56,7 +55,7 @@ public final class Application implements AutoCloseable {
     private final Object chunkQueueLock = new Object();
     private final AtomicInteger queuedChunkCount = new AtomicInteger(0);
 
-    private final Collection<Mesh<PolygonVertex>> caveMeshes = new GrowingAddOnlyList<>(128);
+    private final SimpleList<Mesh<PolygonVertex>> caveMeshes = new SimpleList<>(128);
     private final MeshGenerator meshGenerator;
 
     private final Vector3 middle;
@@ -68,20 +67,55 @@ public final class Application implements AutoCloseable {
     /**
      * Configures a new visualization application. Call {@link #run()} to start the app.
      *
-     * @param validation should validation/debug features be enabled.
+     * @param validation         should validation/debug features be enabled.
+     * @param caveLength         the number of nodes to generate on the cave path. Values 0-16000
+     *                           are usually reasonable.
+     * @param nodeSpacing        distance between nodes, step length for random walk. Values 5-10
+     *                           should be fine. Higher values require using lower
+     *                           <code>caveLength</code>.
+     * @param surfaceLevel       isosurface density level. Densities are generated in range 0 to 1.
+     *                           Any density lower than this value is considered air and everything
+     *                           higher than this value is wall.
+     * @param samplesPerUnit     Number of samples per unit. For cave lengths >1000, values of one
+     *                           or less should be used. Good benchmark values with cave length of
+     *                           16k have been either 0.25 or 0.5, which result in reasonable
+     *                           generation times.
+     * @param floorFlatness      how much the cave floor should be flattened. Reduces floor
+     *                           roundness based on vertical distance to the cave path.
+     *                           <code>1.0</code> is fully flat, while <code>0.0</code> disables
+     *                           the feature.
+     * @param caveRadius         radius of the main cave. The cave path density contribution is
+     *                           linear interpolation over this distance. This is the distance after
+     *                           which the main contribution becomes zero (everything has full
+     *                           density after this distance). That is, exactly on the path, density
+     *                           is zero, and after this distance, density is one. Everything in
+     *                           between is linearly interpolated. The <code>surfaceLevel</code> is
+     *                           somewhere on that gradient.
+     * @param maxInfluenceRadius Maximum influence radius of the path. After this distance,
+     *                           everything is guaranteed to be fully solid. This is used when
+     *                           applying the global noise function to mix up the cave contribution
+     *                           a bit. That is, the cave itself affects only at
+     *                           <code>caveRadius</code> and lower distances from the path, and
+     *                           this value is used to apply noise function to the density past that
+     *                           point. Density is linearly interpolated to be solid exactly after
+     *                           this distance from the path.
+     * @param visualizePath      should the path be visualized? Generates additional line mesh for
+     *                           rendering the path itself.
      */
-    public Application(final boolean validation) {
-        final var caveLength = 8;
-        final var spacing = 10f;
-
-        final var surfaceLevel = 0.85f;
-        final var samplesPerUnit = 8f;
-
-        final var floorFlatness = 0.65;
-        final var caveRadius = 40.0;
-        final var maxInfluenceRadius = caveRadius + 20;
-
-        final var linesVisible = true;
+    public Application(
+            final boolean validation,
+            final int caveLength,
+            final float nodeSpacing,
+            final float surfaceLevel,
+            final float samplesPerUnit,
+            final double floorFlatness,
+            final double caveRadius,
+            final double maxInfluenceRadius,
+            final boolean visualizePath
+    ) {
+        if (maxInfluenceRadius < caveRadius) {
+            throw new IllegalArgumentException("Max influence radius cannot be less than cave radius!");
+        }
 
         final var start = new Vector3(0.0f, 0.0f, 0.0f);
         PROFILER.start("Initialization");
@@ -89,7 +123,7 @@ public final class Application implements AutoCloseable {
         PROFILER.start("Generating path");
         final var cavePath = new PathGenerator().generate(start,
                                                           caveLength,
-                                                          spacing,
+                                                          nodeSpacing,
                                                           (float) maxInfluenceRadius,
                                                           420);
         PROFILER.end();
@@ -157,7 +191,7 @@ public final class Application implements AutoCloseable {
         ) {
             this.middle = cavePath.getAveragePosition();
 
-            this.lineMesh = linesVisible
+            this.lineMesh = visualizePath
                     ? Meshes.createLineMesh(cavePath,
                                             this.middle,
                                             deviceContext,
