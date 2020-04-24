@@ -1,7 +1,7 @@
 package caves.generator.spatial;
 
 import caves.util.ThreadedResourcePool;
-import caves.util.collections.GrowingIntList;
+import caves.util.collections.IntList;
 import caves.util.math.BoundingBox;
 import caves.util.math.Vector3;
 
@@ -39,7 +39,7 @@ import javax.annotation.Nullable;
  * additional tree walking on read, but simplifies the implementation and reduces memory footprint.
  */
 public final class SpatialPathIndex {
-    private static final ThreadedResourcePool<GrowingIntList> LIST_POOL = new ThreadedResourcePool<>(GrowingIntList::new);
+    private static final ThreadedResourcePool<IntList> LIST_POOL = new ThreadedResourcePool<>(IntList::new);
     private static final ThreadedResourcePool<OctreeNode[]> NODE_POOL = new ThreadedResourcePool<>(() -> new OctreeNode[32]);
 
     private final float maxInfluenceRadius;
@@ -147,7 +147,7 @@ public final class SpatialPathIndex {
      *
      * @return all indices of points within the given radius
      */
-    public GrowingIntList getIndicesWithin(
+    public IntList getIndicesWithin(
             final Vector3 position,
             final double radius
     ) {

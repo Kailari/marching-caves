@@ -5,7 +5,6 @@ import caves.util.collections.ChunkMap;
 import caves.util.math.Vector3;
 
 import static caves.util.math.MathUtil.fastFloor;
-import static caves.util.profiler.Profiler.PROFILER;
 
 public final class ChunkCaveSampleSpace {
     /**
@@ -36,22 +35,13 @@ public final class ChunkCaveSampleSpace {
     }
 
     /**
-     * Gets an iterable over all of the chunks in this sample space.
-     *
-     * @return all chunks in this sample space as an iterable
-     */
-    public Iterable<SampleSpaceChunk> getChunks() {
-        return this.chunks.values();
-    }
-
-    /**
      * Gets the total vertex count in this sample space.
      *
      * @return the total number of vertices
      */
     public int getTotalVertices() {
         var count = 0;
-        for (final var chunk : getChunks()) {
+        for (final var chunk : this.chunks.values()) {
             final var vertices = chunk.getVertices();
             if (vertices != null) {
                 count += vertices.size();
@@ -185,21 +175,5 @@ public final class ChunkCaveSampleSpace {
      */
     public boolean isChunkReady(final int x, final int y, final int z) {
         return getChunkAt(x, y, z).isReady();
-    }
-
-    /**
-     * Destroys all empty (fully non-solid) chunks.
-     */
-    public void compact() {
-        final var keys = this.chunks.keys();
-        var count = 0;
-        for (final var index : keys) {
-            final var chunk = this.chunks.get(index);
-            if (chunk != null && chunk.isEmpty()) {
-                this.chunks.put(index, null);
-                ++count;
-            }
-        }
-        PROFILER.log("-> Compacted away {} chunks", count);
     }
 }

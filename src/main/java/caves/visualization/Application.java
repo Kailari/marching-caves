@@ -8,7 +8,6 @@ import caves.generator.density.PathDensityFunction;
 import caves.generator.mesh.MeshGenerator;
 import caves.util.collections.GrowingAddOnlyList;
 import caves.util.collections.LongMap;
-import caves.util.math.BoundingBox;
 import caves.util.math.Vector3;
 import caves.visualization.rendering.command.CommandPool;
 import caves.visualization.rendering.mesh.Mesh;
@@ -36,7 +35,7 @@ import static org.lwjgl.vulkan.VK10.*;
 
 @SuppressWarnings("SameParameterValue")
 public final class Application implements AutoCloseable {
-    private static final int CHUNK_REFRESH_THRESHOLD = 1;
+    private static final int CHUNK_REFRESH_THRESHOLD = 1000;
 
     private static final int DEFAULT_WINDOW_WIDTH = 800;
     private static final int DEFAULT_WINDOW_HEIGHT = 600;
@@ -72,11 +71,11 @@ public final class Application implements AutoCloseable {
      * @param validation should validation/debug features be enabled.
      */
     public Application(final boolean validation) {
-        final var caveLength = 16000;
+        final var caveLength = 8;
         final var spacing = 10f;
 
         final var surfaceLevel = 0.85f;
-        final var samplesPerUnit = 0.25f;
+        final var samplesPerUnit = 8f;
 
         final var floorFlatness = 0.65;
         final var caveRadius = 40.0;
@@ -186,9 +185,7 @@ public final class Application implements AutoCloseable {
             this.imagesInFlight[i] = VK_NULL_HANDLE;
         }
 
-        final var allNodes = cavePath.getAllNodes();
-        final var bounds = new BoundingBox(allNodes, (float) caveRadius + 100f);
-        this.lookAtDistance = Math.max(bounds.getMin().length(), bounds.getMax().length());
+        this.lookAtDistance = cavePath.getExtremumDistance();
 
         PROFILER.end();
 
@@ -311,14 +308,21 @@ public final class Application implements AutoCloseable {
             return;
         }
 
-        final Collection<QueuedChunk> queue;
+        final QueuedChunk[] queue;
         synchronized (this.chunkQueueLock) {
-            queue = this.queuedChunks.values();
+            final var count = this.queuedChunks.getSize();
+            queue = new QueuedChunk[count];
+            var i = 0;
+            for (final var chunk : this.queuedChunks.values()) {
+                queue[i] = chunk;
+                ++i;
+            }
+
             this.queuedChunks.clear();
             this.queuedChunkCount.set(0);
         }
 
-        if (queue.size() > 0) {
+        if (queue.length > 0) {
             // Wait until everything has finished
             final var deviceContext = this.appContext.getDeviceContext();
             vkQueueWaitIdle(deviceContext.getGraphicsQueue());
@@ -343,13 +347,14 @@ public final class Application implements AutoCloseable {
                     this.chunkMeshes.put(chunk.index, Meshes.createChunkMesh(this.middle,
                                                                              deviceContext,
                                                                              commandPool,
-                                                                             vertices
-                    ));
+                                                                             vertices));
                 }
             }
 
             this.caveMeshes.clear();
-            this.caveMeshes.addAll(this.chunkMeshes.values());
+            for (final var mesh : this.chunkMeshes.values()) {
+                this.caveMeshes.add(mesh);
+            }
             this.appContext.setMeshes(this.caveMeshes, this.lineMesh);
         }
     }

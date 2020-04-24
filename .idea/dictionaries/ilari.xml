@@ -6,6 +6,7 @@
       <w>bitmasks</w>
       <w>calloc</w>
       <w>coord</w>
+      <w>extremum</w>
       <w>floorness</w>
       <w>glfw</w>
       <w>glsl</w>

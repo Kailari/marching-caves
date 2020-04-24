@@ -1,11 +1,8 @@
 package caves.generator;
 
 import caves.generator.spatial.SpatialPathIndex;
-import caves.util.collections.GrowingIntList;
+import caves.util.collections.IntList;
 import caves.util.math.Vector3;
-
-import java.util.Collection;
-import java.util.List;
 
 public final class CavePath {
     private final Vector3[] nodes;
@@ -39,12 +36,17 @@ public final class CavePath {
     }
 
     /**
-     * Gets all nodes on the path. The order is not guaranteed.
+     * Gets extremum distance from nodes to the origin.
      *
-     * @return all nodes on the path
+     * @return the most extreme distance from any node to the origin
      */
-    public Collection<Vector3> getAllNodes() {
-        return List.of(this.nodes);
+    public float getExtremumDistance() {
+        var max = Float.MIN_VALUE;
+        for (final var node : this.nodes) {
+            final var distanceSq = node.lengthSq();
+            max = max > distanceSq ? max : distanceSq;
+        }
+        return (float) Math.sqrt(max);
     }
 
     /**
@@ -90,7 +92,7 @@ public final class CavePath {
      *
      * @return indices of all nodes within the radius
      */
-    public GrowingIntList getNodesWithin(final Vector3 position, final double radius) {
+    public IntList getNodesWithin(final Vector3 position, final double radius) {
         return this.spatialPathIndex.getIndicesWithin(position, radius);
     }
 

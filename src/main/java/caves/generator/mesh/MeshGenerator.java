@@ -112,7 +112,6 @@ public final class MeshGenerator {
 
         PROFILER.log("-> Starting flood fill at {}",
                      String.format("(%d, %d, %d)", startX, startY, startZ));
-        this.sampleSpace.compact();
 
         this.marcherTaskPool = Executors.newFixedThreadPool(4);
 
@@ -124,14 +123,14 @@ public final class MeshGenerator {
             this.marcherTaskPool.submit(() -> step(surfaceLevel,
                                                    readyChunks,
                                                    this.readyLatch,
-                                                   new FloodFillEntry(finalStartX, startY, startZ),
-                                                   onReady));
+                                                   new FloodFillEntry(finalStartX, startY, startZ)));
             try {
                 this.readyLatch.await();
             } catch (final InterruptedException ignored) {
                 PROFILER.err("Mesh generator was interrupted while waiting for workers!");
             }
             PROFILER.log("Generation finished.");
+            onReady.run();
         }
     }
 
@@ -139,8 +138,7 @@ public final class MeshGenerator {
             final float surfaceLevel,
             final ReadyChunkConsumer readyChunks,
             final CountDownLatch readyLatch,
-            final FloodFillEntry entry,
-            final Runnable onReady
+            final FloodFillEntry entry
     ) {
         if (this.killSwitch.get()) {
             this.marcherTaskPool.shutdown();
@@ -161,7 +159,7 @@ public final class MeshGenerator {
                 this.marcherTaskPool.submit(() -> step(surfaceLevel,
                                                        readyChunks,
                                                        readyLatch,
-                                                       new FloodFillEntry(x, y, z), onReady));
+                                                       new FloodFillEntry(x, y, z)));
             }
         }
 
@@ -172,8 +170,7 @@ public final class MeshGenerator {
         final var remaining = this.nQueuedSteps.decrementAndGet();
         if (remaining == 0) {
             readyLatch.countDown();
-            this.marcherTaskPool.shutdown();
-            onReady.run();
+            this.marcherTaskPool.shutdownNow();
         }
     }
 

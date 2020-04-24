@@ -55,7 +55,11 @@ public class TestLongMap {
             map.put(1337 + i, chunk);
         }
 
-        assertEquals(123,
-                     (long) map.values().size());
+        int count = 0;
+        for (final var ignored : map.values()) {
+            ++count;
+        }
+
+        assertEquals(123, count);
     }
 }

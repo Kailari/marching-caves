@@ -1,7 +1,7 @@
 package caves.util.collections;
 
 import javax.annotation.Nullable;
-import java.util.Collection;
+import java.util.ConcurrentModificationException;
 
 /**
  * Map with longs as keys.
@@ -39,23 +39,18 @@ public class LongMap<T> {
      * @param value added value
      */
     @SuppressWarnings({"rawtypes", "unchecked"})
-    public void put(final long index, @Nullable final T value) {
+    public void put(final long index, final T value) {
         final var entry = new Entry(index, value, null);
         final var bucket = getHash(index);
 
         var existing = this.buckets[bucket];
         if (existing == null) {
-            if (value != null) {
-                this.buckets[bucket] = entry;
-                ++this.size;
-            }
+            this.buckets[bucket] = entry;
+            ++this.size;
         } else {
             while (existing.next != null) {
                 if (existing.index == index) {
                     existing.value = value;
-                    if (value == null) {
-                        --this.size;
-                    }
                     return;
                 }
                 existing = existing.next;
@@ -63,20 +58,16 @@ public class LongMap<T> {
 
             if (existing.index == index) {
                 existing.value = value;
-                if (value == null) {
-                    --this.size;
-                }
             } else {
-                if (value != null) {
-                    existing.next = entry;
-                    ++this.size;
-                }
+                existing.next = entry;
+                ++this.size;
             }
         }
     }
 
     private int getHash(final long index) {
-        return Math.abs(Long.hashCode(index) % this.buckets.length);
+        final var hash = (index ^ (index >>> 30) ^ (index << 30)) % this.buckets.length;
+        return (int) (hash < 0 ? -hash : hash);
     }
 
     /**
@@ -101,24 +92,13 @@ public class LongMap<T> {
     }
 
     /**
-     * Gets all values stored in this map.
+     * Gets an iterator over all values stored in this map. The iterator should be treated as
+     * invalidated if the map is modified.
      *
      * @return all values
      */
-    @SuppressWarnings("unchecked")
-    public Collection<T> values() {
-        final var allValues = new GrowingAddOnlyList<T>(this.size);
-        for (final var bucket : this.buckets) {
-            var entry = bucket;
-            while (entry != null) {
-                if (entry.value != null) {
-                    allValues.add((T) entry.value);
-                }
-                entry = entry.next;
-            }
-        }
-
-        return allValues;
+    public Iterable<T> values() {
+        return BucketIterator::new;
     }
 
     /**
@@ -129,36 +109,61 @@ public class LongMap<T> {
         this.size = 0;
     }
 
-    /**
-     * Gets all keys in this map.
-     *
-     * @return all keys
-     */
-    public Iterable<Long> keys() {
-        final var allKeys = new GrowingAddOnlyList<Long>(this.size);
-        for (final var bucket : this.buckets) {
-            var entry = bucket;
-            while (entry != null) {
-                if (entry.value != null) {
-                    allKeys.add(entry.index);
-                }
-                entry = entry.next;
-            }
-        }
-
-        return allKeys;
-    }
-
     private static class Entry<T> {
         private final long index;
-        @Nullable private T value;
+        private T value;
 
         @Nullable private Entry<T> next;
 
-        Entry(final long index, @Nullable final T value, @Nullable final Entry<T> next) {
+        Entry(final long index, final T value, @Nullable final Entry<T> next) {
             this.index = index;
             this.value = value;
             this.next = next;
+        }
+    }
+
+    @SuppressWarnings("rawtypes")
+    private class BucketIterator implements java.util.Iterator<T> {
+        private final int initialSize;
+        private int currentBucket;
+        @Nullable private Entry current;
+        private int traversed;
+
+        public BucketIterator() {
+            this.currentBucket = -1;
+            this.initialSize = getSize();
+        }
+
+        @Override
+        public boolean hasNext() {
+            return this.traversed < getSize();
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public T next() {
+            if (this.initialSize != getSize()) {
+                throw new ConcurrentModificationException("The backing LongMap was modified while iteration was in progress!");
+            }
+
+            if (this.current != null && this.current.next != null) {
+                this.current = this.current.next;
+                ++this.traversed;
+                return (T) this.current.value;
+            }
+
+            while (this.currentBucket + 1 < LongMap.this.buckets.length) {
+                ++this.currentBucket;
+                this.current = LongMap.this.buckets[this.currentBucket];
+
+                if (this.current != null) {
+                    ++this.traversed;
+                    return (T) this.current.value;
+                }
+            }
+
+            throw new IllegalStateException("Ran out of buckets! Traversed: " + this.traversed
+                                                    + ", size: " + getSize());
         }
     }
 }

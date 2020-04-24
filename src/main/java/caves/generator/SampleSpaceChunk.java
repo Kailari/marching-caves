@@ -10,14 +10,25 @@ import java.util.function.Supplier;
 import static caves.generator.ChunkCaveSampleSpace.CHUNK_SIZE;
 
 public final class SampleSpaceChunk {
+    /**
+     * This count was benchmarked as bit higher than the average vertex count per chunk. Allocating
+     * lots of arrays at these sizes while marching in parallel in 4-8 threads generates *a lot* of
+     * garbage, so allocating too high is a decent workaround.
+     * <p>
+     * Furthermore, the arrays are initialized lazily and due to flood-filling marching, fully
+     * non-solid chunks are only found at the beginning when searching the starting point so empty
+     * chunks should not pose an issue here either.
+     */
     private static final int INITIAL_VERTEX_CAPACITY = 6000;
 
     private final float surfaceLevel;
     private final AtomicInteger nQueued = new AtomicInteger(0);
-    private final AtomicInteger solidSampleCount = new AtomicInteger(0);
+    private final Object createVerticesLock = new Object();
     @Nullable private boolean[] queued;
     @Nullable private float[] samples;
     @Nullable private VertexArray<Vertex> vertices;
+
+    private boolean hasSolidSamples;
 
     /**
      * Gets the generated vertices for this chunk. This array is populated during generation in
@@ -38,7 +49,15 @@ public final class SampleSpaceChunk {
      */
     public VertexArray<Vertex> getOrCreateVertices() {
         if (this.vertices == null) {
-            this.vertices = new VertexArray<>(INITIAL_VERTEX_CAPACITY);
+            // XXX: Prevents some rare, obscure race conditions without requiring synchronized on
+            //      the method. This shaves off a bit of synchronization costs in situations where
+            //      multiple threads compete for same chunks. Performance increase is very
+            //      situational, but up to a few seconds in tight corridors with low branching.
+            synchronized (this.createVerticesLock) {
+                if (this.vertices == null) {
+                    this.vertices = new VertexArray<>(INITIAL_VERTEX_CAPACITY);
+                }
+            }
         }
 
         return this.vertices;
@@ -61,7 +80,7 @@ public final class SampleSpaceChunk {
      * @return <code>true</code> if this chunk has at least one solid sample
      */
     public boolean isEmpty() {
-        return this.solidSampleCount.get() == 0;
+        return !this.hasSolidSamples;
     }
 
     /**
@@ -128,7 +147,7 @@ public final class SampleSpaceChunk {
             this.samples[sampleIndex] = sample;
 
             if (sample < this.surfaceLevel) {
-                this.solidSampleCount.incrementAndGet();
+                this.hasSolidSamples = true;
             }
         }
 

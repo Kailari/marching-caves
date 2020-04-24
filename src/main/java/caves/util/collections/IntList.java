@@ -1,6 +1,6 @@
 package caves.util.collections;
 
-public class GrowingIntList {
+public class IntList {
     private int[] elements = new int[0];
     private int count;
 

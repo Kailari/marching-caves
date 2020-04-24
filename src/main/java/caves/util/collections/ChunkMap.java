@@ -29,6 +29,17 @@ public class ChunkMap extends LongMap<SampleSpaceChunk> {
             return chunk;
         }
 
+        return createChunk(index);
+    }
+
+    private synchronized SampleSpaceChunk createChunk(final long index) {
+        // XXX: Try to get chunk just in case another thread created the chunk at the same time as
+        //      we queried it.
+        final var chunk = get(index);
+        if (chunk != null) {
+            return chunk;
+        }
+
         final var newValue = new SampleSpaceChunk(this.surfaceLevel);
         put(index, newValue);
         return newValue;
