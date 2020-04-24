@@ -34,7 +34,7 @@ import static org.lwjgl.vulkan.VK10.*;
 
 @SuppressWarnings("SameParameterValue")
 public final class Application implements AutoCloseable {
-    private static final int CHUNK_REFRESH_THRESHOLD = 1000;
+    private static final int CHUNK_REFRESH_THRESHOLD = 2;
 
     private static final int DEFAULT_WINDOW_WIDTH = 800;
     private static final int DEFAULT_WINDOW_HEIGHT = 600;
