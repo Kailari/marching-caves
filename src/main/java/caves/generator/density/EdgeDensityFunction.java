@@ -115,11 +115,7 @@ public final class EdgeDensityFunction {
             floorWeight = 0.0;
         }
 
-        result.setFloorness(floorWeight);
-        result.setValue(caveContribution);
-        result.setDistance(distance);
-        result.setWeight(distanceAlpha);
-        result.setHasContribution(true);
+        result.set(floorWeight, caveContribution, distance, distanceAlpha, true);
         return result;
     }
 }

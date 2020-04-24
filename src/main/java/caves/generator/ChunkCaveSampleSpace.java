@@ -94,12 +94,19 @@ public final class ChunkCaveSampleSpace {
      * @param y      sample y index
      * @param z      sample z index
      * @param tmpPos vector to use as the temporary position vector
+     * @param tmp    pooled density function temporary variables
      *
      * @return the density of the specified sample
      */
-    public float getDensity(final int x, final int y, final int z, final Vector3 tmpPos) {
+    public float getDensity(
+            final int x,
+            final int y,
+            final int z,
+            final Vector3 tmpPos,
+            final DensityFunction.Temporaries tmp
+    ) {
         return getChunkAt(x, y, z).getDensity(x, y, z,
-                                              () -> this.densityFunction.apply(getPos(x, y, z, tmpPos)));
+                                              () -> this.densityFunction.apply(getPos(x, y, z, tmpPos), tmp));
     }
 
     /**

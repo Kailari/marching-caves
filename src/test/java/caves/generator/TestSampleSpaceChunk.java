@@ -11,12 +11,12 @@ public class TestSampleSpaceChunk {
 
     @BeforeEach
     void beforeEach() {
-        sampleSpace = new ChunkCaveSampleSpace(1.0f, (v) -> v.x + v.y + v.z, surfaceLevel);
+        sampleSpace = new ChunkCaveSampleSpace(1.0f, (v, temporaries) -> v.x + v.y + v.z, surfaceLevel);
     }
 
     @Test
     void correctSamplesPerUnitIsStored() {
-        assertEquals(4.2f, new ChunkCaveSampleSpace(4.2f, v -> 0.0f, surfaceLevel).getSamplesPerUnit());
+        assertEquals(4.2f, new ChunkCaveSampleSpace(4.2f, (v, temporaries) -> 0.0f, surfaceLevel).getSamplesPerUnit());
     }
 
     @Test

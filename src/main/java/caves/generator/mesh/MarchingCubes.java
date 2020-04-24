@@ -2,6 +2,7 @@ package caves.generator.mesh;
 
 import caves.generator.ChunkCaveSampleSpace;
 import caves.generator.SampleSpaceChunk;
+import caves.generator.density.DensityFunction;
 import caves.util.ThreadedResourcePool;
 import caves.util.math.Vector3;
 
@@ -43,7 +44,8 @@ public final class MarchingCubes {
             tmp.densities[i] = sampleSpace.getDensity(x + MarchingCubesTables.VERTEX_OFFSETS[i][X],
                                                       y + MarchingCubesTables.VERTEX_OFFSETS[i][Y],
                                                       z + MarchingCubesTables.VERTEX_OFFSETS[i][Z],
-                                                      tmp.samplePos);
+                                                      tmp.samplePos,
+                                                      tmp.densityTmp);
         }
         final var cubeIndex = MarchingCubesTables.calculateCubeIndex(surfaceLevel, tmp.densities);
         final var edgeMask = MarchingCubesTables.EDGE_TABLE[cubeIndex];
@@ -68,7 +70,8 @@ public final class MarchingCubes {
                                                        y + MarchingCubesTables.VERTEX_OFFSETS[i][Y],
                                                        z + MarchingCubesTables.VERTEX_OFFSETS[i][Z],
                                                        tmp.gradients[i],
-                                                       tmp.samplePos);
+                                                       tmp.samplePos,
+                                                       tmp.densityTmp);
         }
 
         // Create edge vertices (vertex is not created if not needed). Here, we are adding vertices
@@ -152,13 +155,17 @@ public final class MarchingCubes {
             final int y,
             final int z,
             final Vector3 result,
-            final Vector3 tmpPos
+            final Vector3 tmpPos,
+            final DensityFunction.Temporaries densityTmp
     ) {
         // Estimate derivative of the density function using central differences
-        final var gx = (samples.getDensity(x + 1, y, z, tmpPos) - samples.getDensity(x - 1, y, z, tmpPos));
-        final var gy = (samples.getDensity(x, y + 1, z, tmpPos) - samples.getDensity(x, y - 1, z, tmpPos));
-        final var gz = (samples.getDensity(x, y, z + 1, tmpPos) - samples.getDensity(x, y, z - 1, tmpPos));
-        final var grad = result.set(gx, gy, gz);
+        final var gx0 = samples.getDensity(x + 1, y, z, tmpPos, densityTmp);
+        final var gy0 = samples.getDensity(x, y + 1, z, tmpPos, densityTmp);
+        final var gz0 = samples.getDensity(x, y, z + 1, tmpPos, densityTmp);
+        final var gx1 = samples.getDensity(x - 1, y, z, tmpPos, densityTmp);
+        final var gy1 = samples.getDensity(x, y - 1, z, tmpPos, densityTmp);
+        final var gz1 = samples.getDensity(x, y, z - 1, tmpPos, densityTmp);
+        final var grad = result.set(gx0 - gx1, gy0 - gy1, gz0 - gz1);
         if (grad.lengthSq() > 0.0f) {
             grad.normalize();
         }
@@ -229,6 +236,8 @@ public final class MarchingCubes {
         private final Vector3[] normals = new Vector3[MAX_VERTICES_PER_CUBE];
 
         private final Vector3 samplePos = new Vector3();
+
+        private final DensityFunction.Temporaries densityTmp = new DensityFunction.Temporaries();
 
         Temporaries() {
             for (int i = 0; i < NUM_CUBE_VERTS; i++) {

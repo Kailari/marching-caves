@@ -1,6 +1,5 @@
 package caves.generator.spatial;
 
-import caves.util.ThreadedResourcePool;
 import caves.util.collections.IntList;
 import caves.util.math.BoundingBox;
 import caves.util.math.Vector3;
@@ -39,9 +38,6 @@ import javax.annotation.Nullable;
  * additional tree walking on read, but simplifies the implementation and reduces memory footprint.
  */
 public final class SpatialPathIndex {
-    private static final ThreadedResourcePool<IntList> LIST_POOL = new ThreadedResourcePool<>(IntList::new);
-    private static final ThreadedResourcePool<OctreeNode[]> NODE_POOL = new ThreadedResourcePool<>(() -> new OctreeNode[32]);
-
     private final float maxInfluenceRadius;
 
     @Nullable
@@ -142,24 +138,23 @@ public final class SpatialPathIndex {
      * estimate with errors up to <code>maxInfluenceRadius</code> in worst case. A lot better than
      * iterating O(n) through all nodes, though.
      *
-     * @param position position to query from
-     * @param radius   maximum distance to any given point
-     *
-     * @return all indices of points within the given radius
+     * @param position   position to query from
+     * @param radius     maximum distance to any given point
+     * @param foundItems list to hold indices to the found nodes
+     * @param nodeQueue  temporary array to hold the node queue used for searching the nodes
      */
-    public IntList getIndicesWithin(
+    public void getIndicesWithin(
             final Vector3 position,
-            final double radius
+            final double radius,
+            final IntList foundItems,
+            final SpatialPathIndex.OctreeNode[] nodeQueue
     ) {
-        final var foundItems = LIST_POOL.get();
         foundItems.clear();
 
         if (this.rootNode == null) {
-            return foundItems;
+            return;
         }
 
-        // XXX: This blows up if there are more than nodeQueue.length nodes per bucket
-        final var nodeQueue = NODE_POOL.get();
         var queuePointer = 0;
         nodeQueue[queuePointer] = this.rootNode;
         while (queuePointer >= 0) {
@@ -179,8 +174,6 @@ public final class SpatialPathIndex {
                 }
             }
         }
-
-        return foundItems;
     }
 
     /**

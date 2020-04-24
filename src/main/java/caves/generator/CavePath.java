@@ -87,13 +87,18 @@ public final class CavePath {
      * radius. Returning nodes outside the radius is allowed, but results in additional
      * computational cost elsewhere.
      *
-     * @param position position around which to search
-     * @param radius   radius to search
-     *
-     * @return indices of all nodes within the radius
+     * @param position     position around which to search
+     * @param radius       radius to search
+     * @param foundItems   list to hold indices to the found nodes
+     * @param tmpNodeQueue temporary array to hold the node queue used for searching the nodes
      */
-    public IntList getNodesWithin(final Vector3 position, final double radius) {
-        return this.spatialPathIndex.getIndicesWithin(position, radius);
+    public void getNodesWithin(
+            final Vector3 position,
+            final double radius,
+            final IntList foundItems,
+            final SpatialPathIndex.OctreeNode[] tmpNodeQueue
+    ) {
+        this.spatialPathIndex.getIndicesWithin(position, radius, foundItems, tmpNodeQueue);
     }
 
     /**

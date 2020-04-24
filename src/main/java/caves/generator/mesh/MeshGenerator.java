@@ -3,6 +3,7 @@ package caves.generator.mesh;
 import caves.generator.CavePath;
 import caves.generator.ChunkCaveSampleSpace;
 import caves.generator.SampleSpaceChunk;
+import caves.generator.density.DensityFunction;
 import caves.util.math.Vector3;
 
 import java.util.concurrent.CountDownLatch;
@@ -87,7 +88,8 @@ public final class MeshGenerator {
                 final var density = this.sampleSpace.getDensity(startX + offset[X] + x,
                                                                 startY + offset[Y],
                                                                 startZ + offset[Z],
-                                                                new Vector3());
+                                                                new Vector3(),
+                                                                new DensityFunction.Temporaries());
                 if (density < surfaceLevel) {
                     nonSolidFound = true;
                 } else {

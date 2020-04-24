@@ -17,30 +17,12 @@ public final class NodeContribution {
     }
 
     /**
-     * Sets the contribution value.
-     *
-     * @param value new value
-     */
-    public void setValue(final double value) {
-        this.value = value;
-    }
-
-    /**
      * Gets the floorness multiplier.
      *
      * @return the floor multiplier
      */
     public double getFloorness() {
         return this.floorness;
-    }
-
-    /**
-     * Sets the floorness multiplier.
-     *
-     * @param floorness new value
-     */
-    public void setFloorness(final double floorness) {
-        this.floorness = floorness;
     }
 
     /**
@@ -53,30 +35,12 @@ public final class NodeContribution {
     }
 
     /**
-     * Sets the weight.
-     *
-     * @param weight the weight
-     */
-    public void setWeight(final double weight) {
-        this.weight = weight;
-    }
-
-    /**
      * Gets the distance to nearest point on path.
      *
      * @return the minimum distance
      */
     public double getDistance() {
         return this.distance;
-    }
-
-    /**
-     * Sets the distance.
-     *
-     * @param distance new value
-     */
-    public void setDistance(final double distance) {
-        this.distance = distance;
     }
 
     NodeContribution() {
@@ -97,15 +61,6 @@ public final class NodeContribution {
     }
 
     /**
-     * Sets the contribution status.
-     *
-     * @param hasContribution new status
-     */
-    public void setHasContribution(final boolean hasContribution) {
-        this.hasContribution = hasContribution;
-    }
-
-    /**
      * Clears this contribution. Allows setting the contribution state.
      *
      * @param hasContribution the contribution state
@@ -116,5 +71,43 @@ public final class NodeContribution {
         this.weight = hasContribution ? 1.0 : 0.0;
         this.distance = hasContribution ? 0.0 : Double.MAX_VALUE;
         this.hasContribution = hasContribution;
+    }
+
+    /**
+     * Resets this contribution to the given values.
+     *
+     * @param floorWeight      new floorness
+     * @param caveContribution new contribution value
+     * @param distance         new distance
+     * @param distanceAlpha    new distance alpha
+     * @param hasContribution  new contribution status
+     */
+    public void set(
+            final double floorWeight,
+            final double caveContribution,
+            final double distance,
+            final double distanceAlpha,
+            final boolean hasContribution
+    ) {
+        this.floorness = floorWeight;
+        this.value = caveContribution;
+        this.distance = distance;
+        this.weight = distanceAlpha;
+        this.hasContribution = hasContribution;
+    }
+
+    /**
+     * Combines values from this and the other contribution. Performs a series of min/max
+     * operations.
+     *
+     * @param other    the other contribution to combine with this one
+     * @param weightSq the squared weight to use as the other weight
+     */
+    public void combine(final NodeContribution other, final double weightSq) {
+        this.weight = weightSq > this.weight ? weightSq : this.weight;
+        this.value = other.value < this.value ? other.value : this.value;
+        this.distance = other.distance < this.distance ? other.distance : this.distance;
+        this.floorness = other.floorness < this.floorness ? other.floorness : this.floorness;
+        this.hasContribution = true;
     }
 }

@@ -45,11 +45,13 @@ public final class LineSegment {
         }
 
         // Project the pos to the direction vector AB
-        final var length = Math.sqrt(abx * abx + aby * aby + abz * abz);
+        final var length = (float) Math.sqrt(abx * abx + aby * aby + abz * abz);
         final var dx = abx / length;
         final var dy = aby / length;
         final var dz = abz / length;
         final var t = apx * dx + apy * dy + apz * dz;
-        return a.add((float) (dx * t), (float) (dy * t), (float) (dz * t), result);
+        return result.set(a.x + dx * t,
+                          a.y + dy * t,
+                          a.z + dz * t);
     }
 }

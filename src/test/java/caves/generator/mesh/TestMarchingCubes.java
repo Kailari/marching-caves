@@ -2,6 +2,8 @@ package caves.generator.mesh;
 
 import caves.generator.ChunkCaveSampleSpace;
 import caves.generator.PathGenerator;
+import caves.generator.density.DensityFunction;
+import caves.util.collections.IntList;
 import caves.util.math.LineSegment;
 import caves.util.math.Vector3;
 import caves.util.profiler.Profiler;
@@ -10,8 +12,6 @@ import org.junit.jupiter.api.Test;
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -29,9 +29,12 @@ public class TestMarchingCubes {
         final var maxInfluenceRadius = caveRadius + spaceBetweenSamples * 4;
         final var cavePath = new PathGenerator().generate(start, caveLength, spacing, maxInfluenceRadius, 420);
         final var samplesPerUnit = 1.0f / spaceBetweenSamples;
-        final Function<Vector3, Float> densityFunction =
-                (pos) -> {
-                    final var distance = (float) Arrays.stream(cavePath.getNodesWithin(pos, caveRadius))
+        final DensityFunction densityFunction =
+                (pos, tmp) -> {
+                    final var nodes = new IntList();
+                    cavePath.getNodesWithin(pos, caveRadius, nodes, tmp.nodeQueue);
+                    final var actualNodes = Arrays.copyOf(nodes.getBackingArray(), nodes.getCount());
+                    final var distance = (float) Arrays.stream(actualNodes)
                                                        .filter(i -> cavePath.getPreviousFor(i) != -1)
                                                        .mapToObj(i -> {
                                                            final var a = cavePath.get(i);
@@ -61,14 +64,6 @@ public class TestMarchingCubes {
         } catch (final InterruptedException ignored) {
         }
 
-        final var counter = new AtomicInteger(0);
-        sampleSpace.getChunks().forEach(chunk -> {
-            final var cVerts = chunk.getVertices();
-            if (cVerts != null) {
-                counter.addAndGet(cVerts.size());
-            }
-        });
-
-        assertEquals(24912, counter.get(), 128);
+        assertEquals(24912, sampleSpace.getTotalVertices(), 128);
     }
 }

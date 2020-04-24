@@ -7,9 +7,6 @@ import caves.util.math.Vector3;
 import static caves.generator.density.EdgeDensityFunction.lerp;
 
 public final class PathDensityFunction implements DensityFunction {
-    private static final double WEIGHT_EPSILON = 0.0001;
-    private static final double WEIGHT_EPSILON_SQ = WEIGHT_EPSILON * WEIGHT_EPSILON;
-
     private final CavePath cavePath;
     private final double maxInfluenceRadius;
     private final double caveMainInfluenceRadius;
@@ -19,6 +16,7 @@ public final class PathDensityFunction implements DensityFunction {
     private final float noiseScale;
     private final double globalNoiseFactor;
     private final double globalNoiseMagnitude;
+    private final double maxRadiusSq;
 
     /**
      * Creates a new density function for a cave path. The function calculates point densities as
@@ -38,6 +36,7 @@ public final class PathDensityFunction implements DensityFunction {
         this.cavePath = cavePath;
         this.caveMainInfluenceRadius = caveRadius;
         this.maxInfluenceRadius = maxInfluenceRadius;
+        this.maxRadiusSq = this.maxInfluenceRadius * this.maxInfluenceRadius;
         this.edgeDensityFunction = edgeDensityFunction;
 
         this.noiseGenerator = new SimplexNoiseGenerator(42);
@@ -47,8 +46,12 @@ public final class PathDensityFunction implements DensityFunction {
     }
 
     @Override
-    public float apply(final Vector3 position) {
-        final var nodes = this.cavePath.getNodesWithin(position, this.maxInfluenceRadius);
+    public float apply(final Vector3 position, final Temporaries tmp) {
+        this.cavePath.getNodesWithin(position,
+                                     this.maxInfluenceRadius,
+                                     tmp.foundNodes,
+                                     tmp.nodeQueue);
+        final var nodes = tmp.foundNodes;
         final var nodesArray = nodes.getBackingArray();
 
         var summedWeights = 0.0;
@@ -56,20 +59,18 @@ public final class PathDensityFunction implements DensityFunction {
         var weightedTotal = 0.0;
         var minDistance = Double.MAX_VALUE;
         var summedFloorness = 0.0;
-        final var edgeResult = new NodeContribution();
+        final var edgeResult = tmp.edgeResult;
 
-        // Create temporaries here to avoid allocations in the loop
-        final var tmpEdgeResult = new NodeContribution();
-        final var tmpResult = new Vector3();
+        // Fetch temporaries here to avoid allocations in the loop
+        final var tmpEdgeResult = tmp.tmpEdgeResult;
+        final var tmpResult = tmp.tmpResult;
         for (var i = 0; i < nodes.getCount(); ++i) {
             final var nodeIndex = nodesArray[i];
-            edgeResult.setValue(0.0);
-            edgeResult.setWeight(0.0);
-            edgeResult.setFloorness(0.0);
-            edgeResult.setHasContribution(false);
             edgeResult.clear(false);
 
-            final int previous = this.cavePath.getPreviousFor(nodeIndex);
+            // XXX: Change back to arrays if branching caves are implemented
+            // final int previous = this.cavePath.getPreviousFor(nodeIndex);
+            final int previous = nodeIndex - 1;
             if (previous != -1) {
                 calculateEdge(edgeResult, previous, nodeIndex, position, tmpResult, tmpEdgeResult);
             }
@@ -84,7 +85,7 @@ public final class PathDensityFunction implements DensityFunction {
                 final var weight = edgeResult.getWeight();
                 weightedTotal += weight * edgeResult.getValue();
                 summedFloorness += weight * edgeResult.getFloorness();
-                minDistance = Math.min(minDistance, edgeResult.getDistance());
+                minDistance = minDistance < edgeResult.getDistance() ? minDistance : edgeResult.getDistance();
 
                 summedWeights += weight;
                 nContributions++;
@@ -100,17 +101,17 @@ public final class PathDensityFunction implements DensityFunction {
 
         final var distanceAlpha = Math.min(1.0, minDistance / this.caveMainInfluenceRadius);
         final var globalNoiseMultiplier = distanceAlpha * (1.0 - floorness);
-        final var globalNoise = -getGlobalNoise(position) * globalNoiseMultiplier;
+        final var globalNoise = -getGlobalNoise(position, tmpResult) * globalNoiseMultiplier;
         final var globalDensity = lerp(weightedAverage, globalNoise, this.globalNoiseFactor * distanceAlpha);
 
         // Ensures that walls are solid after max radius
-        final var fadeToSolidAlpha = Math.min(1.0, minDistance / this.maxInfluenceRadius);
-        final var clampedDensity = lerp(globalDensity, 0.0, fadeToSolidAlpha);
+        final var fadeToSolidAlpha = minDistance / this.maxInfluenceRadius;
+        final var clampedDensity = lerp(globalDensity, 0.0, fadeToSolidAlpha > 1.0 ? 1.0 : fadeToSolidAlpha);
         return (float) Math.max(0.0, Math.min(1.0, 1.0 + clampedDensity));
     }
 
-    private double getGlobalNoise(final Vector3 pos) {
-        return this.noiseGenerator.evaluate(pos.mul(this.noiseScale, new Vector3())) * this.globalNoiseMagnitude;
+    private double getGlobalNoise(final Vector3 pos, final Vector3 tmpResult) {
+        return this.noiseGenerator.evaluate(pos.mul(this.noiseScale, tmpResult)) * this.globalNoiseMagnitude;
     }
 
     private void calculateEdge(
@@ -121,14 +122,12 @@ public final class PathDensityFunction implements DensityFunction {
             final Vector3 tmpResult,
             final NodeContribution tmpEdgeResult
     ) {
-        final var maxRadiusSq = this.maxInfluenceRadius * this.maxInfluenceRadius;
-
         final var nodeA = PathDensityFunction.this.cavePath.get(indexA);
         final var nodeB = PathDensityFunction.this.cavePath.get(indexB);
         final var closest = LineSegment.closestPoint(nodeA, nodeB, position, tmpResult);
 
         final var distanceSq = closest.distanceSq(position);
-        if (distanceSq > maxRadiusSq) {
+        if (distanceSq > this.maxRadiusSq) {
             return;
         }
 
@@ -144,19 +143,12 @@ public final class PathDensityFunction implements DensityFunction {
         //          always less than max radius, we get nice weight range of 0..1, where
         //          individual weights are on exponential (power two) curve. This gives us more
         //          than enough accuracy to avoid visual artifacts in most cases.
-        final var weightSq = 1.0 - Math.min(1.0, distanceSq / maxRadiusSq);
-
-        if (weightSq < WEIGHT_EPSILON_SQ) {
-            return;
-        }
+        final var negWeightSq = distanceSq / this.maxRadiusSq;
+        final var weightSq = 1.0 - negWeightSq;
 
         final var contribution = this.edgeDensityFunction.apply(position, closest, distanceSq, tmpEdgeResult);
         if (contribution.hasContribution()) {
-            result.setValue(Math.min(result.getValue(), contribution.getValue()));
-            result.setWeight(Math.max(result.getWeight(), weightSq));
-            result.setDistance(Math.min(result.getDistance(), contribution.getDistance()));
-            result.setFloorness(Math.min(result.getFloorness(), contribution.getFloorness()));
-            result.setHasContribution(true);
+            result.combine(contribution, weightSq);
         }
     }
 }
