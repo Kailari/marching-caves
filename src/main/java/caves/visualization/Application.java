@@ -111,7 +111,8 @@ public final class Application implements AutoCloseable {
             final double floorFlatness,
             final double caveRadius,
             final double maxInfluenceRadius,
-            final boolean visualizePath
+            final boolean visualizePath,
+            final long seed
     ) {
         if (maxInfluenceRadius < caveRadius) {
             throw new IllegalArgumentException("Max influence radius cannot be less than cave radius!");
@@ -125,7 +126,7 @@ public final class Application implements AutoCloseable {
                                                           caveLength,
                                                           nodeSpacing,
                                                           (float) maxInfluenceRadius,
-                                                          420);
+                                                          seed);
         PROFILER.end();
 
         PROFILER.start("Initializing the visualization");

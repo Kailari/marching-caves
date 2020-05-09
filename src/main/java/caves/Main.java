@@ -25,7 +25,9 @@ public final class Main {
                                        0.25f,
                                        0.65,
                                        40.0,
-                                       60.0, true)) {
+                                       60.0,
+                                       true,
+                                       420)) {
             app.run();
         }
         LOG.info("Finished.");
