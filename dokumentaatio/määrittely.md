@@ -3,7 +3,7 @@ Marching Caves
 Tarkoituksena on toteuttaa ohjelma, joka proseduraalisesti generoi yksinkertaisen luolan. Luola generoidaan kolmessa vaiheessa:
  1. Generoidaan polku *(yksinkertainen verkko)*
  2. Määritellään *(polkua käyttäen)* ympäröivän avaruuden aineelle tiheysfunktio
- 3. Valitaan tiheydelle kynnysarvo ja generoidaan tästä *isosurface*
+ 3. Valitaan tiheydelle kynnysarvo ja generoidaan täst saatavasta *isosurfacesta* kolmiuloitteinen malli
  
 Ohjelmalle annetaan syötteenä siemenluku, jonka pohjalta se generoi deterministisesti luolan em. vaiheiden mukaisesti.
 

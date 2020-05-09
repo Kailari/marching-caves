@@ -60,22 +60,6 @@ public class BoundingBox {
     }
 
     /**
-     * Constructs a new bounding box, encompassing all given nodes with added margin around them.
-     *
-     * @param nodes  nodes which must all fit inside the box
-     * @param margin margin to be padded to each direction
-     */
-    public BoundingBox(final Iterable<Vector3> nodes, final float margin) {
-        final var min = new Vector3(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY);
-        nodes.forEach(node -> min.min(node, min));
-        this.min = min.sub(margin, margin, margin);
-
-        final var max = new Vector3(Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY);
-        nodes.forEach(node -> max.max(node, max));
-        this.max = max.add(margin, margin, margin);
-    }
-
-    /**
      * Initializes a new bounding box with given minimum and maximum coordinates.
      *
      * @param min minimum coordinates
